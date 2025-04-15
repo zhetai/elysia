@@ -3,11 +3,12 @@ accelerate==1.5.2
 # Testing
 deepeval==2.5.7
 
-# Custom LLM for deepeval
-transformers==4.49.0
-
 # setuptools
 setuptools==78.1.0
 
 # pre-commit
 pre-commit==4.2.0
+
+# 
+openai==1.61.0
+litellm
