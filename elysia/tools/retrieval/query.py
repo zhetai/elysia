@@ -250,17 +250,6 @@ class Query(Tool):
             )
             return  # exit here because this will break the whole file
 
-        # make sure all collection names are lower case
-        for q in query.query_output:
-            q.target_collections = [c.lower() for c in q.target_collections]
-
-        # Create a list of keys to iterate over to avoid changing dict size during iteration
-        keys_to_process = list(query.data_display.keys())
-        for key in keys_to_process:
-            if key != key.lower():
-                query.data_display[key.lower()] = query.data_display[key]
-                del query.data_display[key]
-
         # Yield results to front end
         yield Response(text=query.message_update)
         yield Reasoning(reasoning=query.reasoning)
@@ -290,6 +279,17 @@ class Query(Tool):
                 last_in_branch=True,
             )
             return
+
+        # make sure all collection names are lower case
+        for q in query.query_output:
+            q.target_collections = [c.lower() for c in q.target_collections]
+
+        # Create a list of keys to iterate over to avoid changing dict size during iteration
+        keys_to_process = list(query.data_display.keys())
+        for key in keys_to_process:
+            if key != key.lower():
+                query.data_display[key.lower()] = query.data_display[key]
+                del query.data_display[key]
 
         yield TreeUpdate(
             from_node="query",

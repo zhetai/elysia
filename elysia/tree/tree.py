@@ -1181,7 +1181,9 @@ class Tree:
                 break
             else:
                 current_decision_node = self.decision_nodes[
-                    current_decision_node.options[task]["next"]
+                    current_decision_node.options[self.current_decision.function_name][
+                        "next"
+                    ]
                 ]
 
         # end of all trees
