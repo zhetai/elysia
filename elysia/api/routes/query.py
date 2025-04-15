@@ -8,8 +8,10 @@ from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.api.utils.websocket import help_websocket
 from elysia.objects import Error
+from elysia.util.collection_metadata import retrieve_all_collection_names
 
 router = APIRouter()
+
 
 async def process(data: dict, websocket: WebSocket, user_manager):
 
@@ -24,6 +26,14 @@ async def process(data: dict, websocket: WebSocket, user_manager):
             mimick = data["mimick"]
         else:
             mimick = False
+
+        if data["collection_names"] == []:
+            client_manager = user_manager.get_user_local(data["user_id"])[
+                "client_manager"
+            ]
+            async with client_manager.connect_to_async_client() as client:
+                collection_names = await retrieve_all_collection_names(client)
+            data["collection_names"] = collection_names
 
         async for yielded_result in user_manager.process_tree(
             user_id=data["user_id"],

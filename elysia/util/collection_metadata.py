@@ -9,6 +9,15 @@ from weaviate.types import UUID
 from elysia.util.parsing import format_datetime
 
 
+async def retrieve_all_collection_names(client):
+    all_collections = client.collections.list_all()
+    return [
+        collection.name
+        for collection in all_collections
+        if not collection.name.startswith("ELYSIA_")
+    ]
+
+
 def get_collection_data_types(client, collection_name: str):
     properties = client.collections.get(collection_name).config.get().properties
     return {property.name: property.data_type[:] for property in properties}
