@@ -41,6 +41,7 @@ from elysia.util.lm import load_lm
 
 router = APIRouter()
 
+
 @router.post("/ner")
 async def named_entity_recognition(data: NERData):
     """
@@ -73,22 +74,20 @@ async def named_entity_recognition(data: NERData):
 @router.post("/title")
 async def title(data: TitleData, user_manager: UserManager = Depends(get_user_manager)):
 
-    # check if user has exceeded max requests
-    if await user_manager.check_user_exceeds_max_requests(data.user_id):
-        return JSONResponse(
-            content={"title": "", "error": "User has exceeded max requests"},
-            status_code=401,
-        )
-
     if user_manager.check_tree_timeout(data.user_id, data.conversation_id):
         return JSONResponse(
             content={"title": "", "error": "Conversation has timed out"},
             status_code=401,
         )
 
+    config = user_manager.get_user_config(data.user_id)
+
     try:
         title_creator = dspy.asyncify(TitleCreatorExecutor())
-        title = await title_creator(text=data.text, lm=load_lm())
+        title = await title_creator(
+            text=data.text,
+            lm=load_lm(config.BASE_PROVIDER, config.BASE_MODEL, config.MODEL_API_BASE),
+        )
         logger.info(f"Returning title: {title.title}")
     except Exception as e:
         logger.error(f"Error in title: {str(e)}")
@@ -97,37 +96,6 @@ async def title(data: TitleData, user_manager: UserManager = Depends(get_user_ma
 
     out = {"title": title.title, "error": ""}
     return JSONResponse(content=out, status_code=200)
-
-
-@router.post("/instant_reply")
-async def instant_reply(
-    data: InstantReplyData, user_manager: UserManager = Depends(get_user_manager)
-):
-
-    # rate limiting
-    if await user_manager.check_user_exceeds_max_requests(data.user_id):
-        return JSONResponse(
-            content={"response": "", "error": "User has exceeded max requests"},
-            status_code=401,
-        )
-
-    if user_manager.check_tree_timeout(data.user_id, data.conversation_id):
-        return JSONResponse(
-            content={"title": "", "error": "Conversation has timed out"},
-            status_code=401,
-        )
-
-    instant_reply = dspy.asyncify(InstantReplyExecutor())
-    with dspy.context(lm=dspy.LM("openrouter/google/gemini-2.0-flash-001")):
-        try:
-            prediction = await instant_reply(user_prompt=data.user_prompt)
-            response = prediction.response
-
-        except Exception as e:
-            response = "I'll get back to you in just a moment."
-            error = str(e)
-
-    return JSONResponse(content={"response": response, "error": error}, status_code=200)
 
 
 @router.post("/object_relevance")
@@ -140,12 +108,7 @@ async def object_relevance(
             status_code=401,
         )
 
-    # rate limiting
-    if await user_manager.check_user_exceeds_max_requests(data.user_id):
-        return JSONResponse(
-            content={"response": "", "error": "User has exceeded max requests"},
-            status_code=401,
-        )
+    config = user_manager.get_user_config(data.user_id)
 
     error = ""
     object_relevance = ObjectRelevanceExecutor()
@@ -153,7 +116,11 @@ async def object_relevance(
     try:
         tree = await user_manager.get_tree(data.user_id, data.conversation_id)
         user_prompt = tree.query_id_to_prompt[data.query_id]
-        prediction = object_relevance(user_prompt, data.objects)
+        prediction = object_relevance(
+            user_prompt=user_prompt,
+            objects=data.objects,
+            lm=load_lm(config.BASE_PROVIDER, config.BASE_MODEL, config.MODEL_API_BASE),
+        )
         any_relevant = prediction.any_relevant
 
     except Exception as e:
@@ -174,13 +141,6 @@ async def object_relevance(
 async def follow_up_suggestions(
     data: FollowUpSuggestionsData, user_manager: UserManager = Depends(get_user_manager)
 ):
-    # rate limiting
-    if await user_manager.check_user_exceeds_max_requests(data.user_id):
-        return JSONResponse(
-            content={"response": "", "error": "User has exceeded max requests"},
-            status_code=401,
-        )
-
     if user_manager.check_tree_timeout(data.user_id, data.conversation_id):
         return JSONResponse(
             content={"title": "", "error": "Conversation has timed out"},
@@ -188,17 +148,15 @@ async def follow_up_suggestions(
         )
 
     # wait for tree event to be completed
-    await user_manager.event.wait()
+    await user_manager.get_user_local(data.user_id)["tree_manager"].get_event(
+        data.conversation_id
+    ).wait()
+
+    config = user_manager.get_user_config(data.user_id)
 
     # get tree from user_id, conversation_id
     tree = await user_manager.get_tree(data.user_id, data.conversation_id)
     error = ""
-
-    # if tree.verbosity > 1:
-    #     print(f"[follow_up_suggestions] User ID: {data.user_id}")
-    #     print(f"[follow_up_suggestions] Conversation ID: {data.conversation_id}")
-    #     print(f"[follow_up_suggestions] User manager ID: {user_manager.manager_id}")
-    #     print(f"[follow_up_suggestions] Tree conversation history: {tree.tree_data.conversation_history}")
 
     follow_up_suggestor = FollowUpSuggestionsExecutor()
     follow_up_suggestor.load(
@@ -206,22 +164,22 @@ async def follow_up_suggestions(
     )
     follow_up_suggestor = dspy.asyncify(follow_up_suggestor)
 
-    with dspy.context(lm=dspy.LM("openrouter/google/gemini-2.0-flash-001")):
-        try:
-            prediction = await follow_up_suggestor(
-                user_prompt=tree.tree_data.user_prompt,
-                reference=create_reference(),
-                conversation_history=tree.tree_data.conversation_history,
-                environment=tree.tree_data.environment.to_json(),
-                data_information=tree.tree_data.output_collection_metadata(
-                    with_mappings=False
-                ),
-                old_suggestions=tree.suggestions,
-            )
-            suggestions = prediction.suggestions
-        except Exception as e:
-            suggestions = []
-            error = str(e)
+    try:
+        prediction = await follow_up_suggestor(
+            user_prompt=tree.tree_data.user_prompt,
+            reference=create_reference(),
+            conversation_history=tree.tree_data.conversation_history,
+            environment=tree.tree_data.environment.to_json(),
+            data_information=tree.tree_data.output_collection_metadata(
+                with_mappings=False
+            ),
+            old_suggestions=tree.suggestions,
+            lm=load_lm(config.BASE_PROVIDER, config.BASE_MODEL, config.MODEL_API_BASE),
+        )
+        suggestions = prediction.suggestions
+    except Exception as e:
+        suggestions = []
+        error = str(e)
 
     tree.suggestions.extend(suggestions)
 

@@ -37,7 +37,6 @@ async def process_collection(
             provider=config.BASE_PROVIDER,
             lm_name=config.BASE_MODEL,
             model_api_base=config.MODEL_API_BASE,
-            openrouter=config.OPENROUTER,
         )
     )
     async for result in preprocessor(

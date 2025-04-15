@@ -42,7 +42,6 @@ def load_base_lm(settings: Settings):
         settings.BASE_PROVIDER,
         settings.BASE_MODEL,
         settings.MODEL_API_BASE,
-        settings.OPENROUTER,
     )
 
 
@@ -53,7 +52,6 @@ def load_complex_lm(settings: Settings):
         settings.COMPLEX_PROVIDER,
         settings.COMPLEX_MODEL,
         settings.MODEL_API_BASE,
-        settings.OPENROUTER,
     )
 
 
@@ -61,12 +59,9 @@ def load_lm(
     provider: str,
     lm_name: str,
     model_api_base: str | None = None,
-    openrouter: bool = False,
 ):
     api_base = model_api_base if provider == "ollama" else None
     full_lm_name = f"{provider}/{lm_name}"
-    if openrouter:
-        full_lm_name = f"openrouter/{full_lm_name}"
 
     if lm_name.startswith("o1") or lm_name.startswith("o3"):
         lm = LM(model=full_lm_name, api_base=api_base, max_tokens=8000, temperature=1.0)

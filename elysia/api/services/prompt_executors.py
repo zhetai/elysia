@@ -24,8 +24,10 @@ class ObjectRelevanceExecutor(dspy.Module):
     def __init__(self):
         self.object_relevance_prompt = EnvironmentOfThought(ObjectRelevancePrompt)
 
-    def __call__(self, user_prompt: str, objects: list[dict]) -> bool:
-        return self.object_relevance_prompt(user_prompt=user_prompt, objects=objects)
+    def __call__(self, user_prompt: str, objects: list[dict], lm: dspy.LM) -> bool:
+        return self.object_relevance_prompt(
+            user_prompt=user_prompt, objects=objects, lm=lm
+        )
 
 
 class InstantReplyExecutor(dspy.Module):
@@ -40,7 +42,23 @@ class FollowUpSuggestionsExecutor(dspy.Module):
     def __init__(self):
         self.follow_up_suggestions_prompt = dspy.Predict(FollowUpSuggestionsPrompt)
 
-    def __call__(self, **kwargs) -> str:
-        pred = self.follow_up_suggestions_prompt(**kwargs)
-        # print(pred.reasoning)
+    def __call__(
+        self,
+        user_prompt: str,
+        reference: dict,
+        conversation_history: list[dict],
+        environment: str,
+        data_information: dict,
+        old_suggestions: list[str],
+        lm: dspy.LM,
+    ) -> str:
+        pred = self.follow_up_suggestions_prompt(
+            user_prompt=user_prompt,
+            reference=reference,
+            conversation_history=conversation_history,
+            environment=environment,
+            data_information=data_information,
+            old_suggestions=old_suggestions,
+            lm=lm,
+        )
         return pred

@@ -283,9 +283,7 @@ class DecisionNode:
                         (
                             sv
                             if isinstance(sv, int)
-                            else sum(sv.values())
-                            if isinstance(sv, dict)
-                            else 0
+                            else sum(sv.values()) if isinstance(sv, dict) else 0
                         )
                         for sv in v.values()
                     )
@@ -559,7 +557,11 @@ class Tree:
         if self.debug:  # if in debug mode, model is already loaded into the Tree
             return self.base_lm if model_type == "base" else self.complex_lm
         else:  # if not in debug mode, model is hot-loaded
-            return load_base_lm() if model_type == "base" else load_complex_lm()
+            return (
+                load_base_lm(self.settings)
+                if model_type == "base"
+                else load_complex_lm(self.settings)
+            )
 
     def _get_root(self):
         for decision_node in self.decision_nodes.values():

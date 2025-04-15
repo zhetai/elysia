@@ -78,23 +78,12 @@ class Settings:
         for api_key in self.API_KEYS:
             self.set_api_key(self.API_KEYS[api_key], api_key)
 
-        if (
-            not any(api_key.startswith("openrouter") for api_key in self.API_KEYS)
-            and "OPENROUTER" in dir(self)
-            and self.OPENROUTER
-        ):
-            raise Exception(
-                "Either `openrouter` is True, the default model is set, but no openrouter API keys are set. "
-                "Set `OPENROUTER_API_KEY` in your environment variables, or choose a different default model."
-            )
-
     def default_config(self):
         self.BASE_MODEL = os.getenv("BASE_MODEL", "gemini-2.0-flash-001")
         self.COMPLEX_MODEL = os.getenv("COMPLEX_MODEL", "gemini-2.0-flash-001")
         self.BASE_PROVIDER = os.getenv("BASE_PROVIDER", "google")
         self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER", "google")
         self.MODEL_API_BASE = os.getenv("MODEL_API_BASE", None)
-        self.OPENROUTER = os.getenv("OPENROUTER", "1") == "1"
         self.LOCAL = os.getenv("LOCAL", "0") == "1"
         self.WCD_URL = os.getenv("WCD_URL")
         self.WCD_API_KEY = os.getenv("WCD_API_KEY")
@@ -110,9 +99,8 @@ class Settings:
         Args:
             base_model: The base model to use (str). e.g. "gpt-4o-mini"
             complex_model: The complex model to use (str). e.g. "gpt-4o"
-            base_provider: The provider to use for base_model (str). E.g. "openai"
-            complex_provider: The provider to use for complex_model (str). E.g. "openai"
-            openrouter: Whether to use openrouter (True/False).
+            base_provider: The provider to use for base_model (str). E.g. "openai" or "openrouter/openai"
+            complex_provider: The provider to use for complex_model (str). E.g. "openai" or "openrouter/openai"
             model_api_base: The API base to use (str).
             wcd_url: The Weaviate cloud URL to use (str).
             wcd_api_key: The Weaviate cloud API key to use (str).
@@ -125,8 +113,6 @@ class Settings:
                     "Provider must be specified if base_model is set. "
                     "E.g. `elysia.config.configure(base_model='gpt-4o-mini', base_provider='openai')`"
                 )
-            if "openrouter" not in kwargs:
-                kwargs["openrouter"] = False
 
             if kwargs["base_provider"] == "ollama" and (
                 not kwargs["model_api_base"] or "MODEL_API_BASE" not in self
@@ -139,11 +125,9 @@ class Settings:
 
             self.BASE_MODEL = kwargs["base_model"]
             self.BASE_PROVIDER = kwargs["base_provider"]
-            self.OPENROUTER = kwargs["openrouter"]
 
             kwargs.pop("base_model")
             kwargs.pop("base_provider")
-            kwargs.pop("openrouter")
 
         if "complex_model" in kwargs:
             if "complex_provider" not in kwargs:
@@ -151,8 +135,6 @@ class Settings:
                     "Provider must be specified if complex_model is set. "
                     "E.g. `elysia.config.configure(complex_model='gpt-4o', complex_provider='openai')`"
                 )
-            if "openrouter" not in kwargs:
-                kwargs["openrouter"] = False
 
             if kwargs["complex_provider"] == "ollama" and (
                 not kwargs["model_api_base"] or "MODEL_API_BASE" not in self
@@ -165,11 +147,9 @@ class Settings:
 
             self.COMPLEX_MODEL = kwargs["complex_model"]
             self.COMPLEX_PROVIDER = kwargs["complex_provider"]
-            self.OPENROUTER = kwargs["openrouter"]
 
             kwargs.pop("complex_model")
             kwargs.pop("complex_provider")
-            kwargs.pop("openrouter")
 
         if "model_api_base" in kwargs:
             self.MODEL_API_BASE = kwargs["model_api_base"]
@@ -204,8 +184,6 @@ class Settings:
             print("Complex provider: ", self.COMPLEX_PROVIDER)
         else:
             print("Complex provider: not set")
-        if "OPENROUTER" in self:
-            print("Openrouter: ", self.OPENROUTER)
         if "MODEL_API_BASE" in self:
             print("Model API base: ", self.MODEL_API_BASE)
 

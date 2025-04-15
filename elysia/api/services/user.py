@@ -90,10 +90,6 @@ class UserManager:
         self.timer = Timer("UserManager")
         self.manager_id = random.randint(0, 1000000)
 
-        # this is used to wait for the tree to be completed
-        self.event = asyncio.Event()
-        self.event.set()
-
         self.date_of_reset = None
         self.users = {}
         self.base_tree = Tree(
@@ -119,6 +115,9 @@ class UserManager:
         await self.update_user_last_request(user_id)
 
         return self.users[user_id]
+
+    def get_user_config(self, user_id: str):
+        return self.users[user_id]["config"]
 
     async def get_tree(self, user_id: str, conversation_id: str):
         local_user = await self.get_user_local(user_id)
@@ -189,7 +188,6 @@ class UserManager:
 
         tree_manager: TreeManager = local_user["tree_manager"]
 
-        self.event.clear()
         async for yielded_result in tree_manager.process_tree(
             self.base_tree,
             conversation_id,
@@ -202,5 +200,3 @@ class UserManager:
         ):
             yield yielded_result
             await self.update_user_last_request(user_id)
-
-        self.event.set()

@@ -53,6 +53,8 @@ class TreeManager:
                 dspy_initialisation
             )
             self.trees[conversation_id]["tree"].update_settings(config)
+            self.trees[conversation_id]["event"] = asyncio.Event()
+            self.trees[conversation_id]["event"].set()
 
             self.update_tree_last_request(conversation_id)
 
@@ -66,6 +68,9 @@ class TreeManager:
         if conversation_id not in self.trees:
             self.add_tree(base_tree, conversation_id)
         return self.trees[conversation_id]["tree"]
+
+    def get_event(self, conversation_id: str):
+        return self.trees[conversation_id]["event"]
 
     async def process_tree(
         self,
@@ -81,6 +86,7 @@ class TreeManager:
         self.update_tree_last_request(conversation_id)
         tree: Tree = self.get_tree(base_tree, conversation_id)
 
+        self.trees[conversation_id]["event"].clear()
         async for yielded_result in tree.process(
             query,
             collection_names=collection_names,
@@ -92,6 +98,7 @@ class TreeManager:
         ):
             yield yielded_result
             self.update_tree_last_request(conversation_id)
+        self.trees[conversation_id]["event"].set()
 
     def check_tree_timeout(self, conversation_id: str):
         # if tree not found, return True
