@@ -13,6 +13,8 @@ from elysia.api.api_types import (
 # user manager
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
+from elysia.util.client import ClientManager
+from elysia.config import Settings
 
 router = APIRouter()
 
@@ -24,8 +26,9 @@ async def default_config(
     try:
         user = await user_manager.get_user_local(data.user_id)
         user["config"].default_config()
-        await user["client_manager"].set_keys_from_settings(user["config"])
-        user["tree_manager"].update_settings(user["config"])
+        client_manager: ClientManager = user["client_manager"]
+        await client_manager.set_keys_from_settings(user["config"])
+
     except Exception as e:
         return JSONResponse(content={"error": str(e)})
 
@@ -38,9 +41,11 @@ async def change_config(
 ):
     try:
         user = await user_manager.get_user_local(data.user_id)
-        user["config"].configure(**data.config)
-        await user["client_manager"].set_keys_from_settings(user["config"])
-        user["tree_manager"].update_settings(user["config"])
+        config: Settings = user["config"]
+        config.configure(**data.config)
+        client_manager: ClientManager = user["client_manager"]
+        await client_manager.set_keys_from_settings(config)
+
     except Exception as e:
         return JSONResponse(content={"error": str(e)})
 
@@ -53,7 +58,8 @@ async def save_config(
 ):
     try:
         user = await user_manager.get_user_local(data.user_id)
-        user["config"].export_config(data.filepath)
+        config: Settings = user["config"]
+        config.export_config(data.filepath)
     except Exception as e:
         return JSONResponse(content={"error": str(e)})
 
@@ -66,9 +72,11 @@ async def load_config(
 ):
     try:
         user = await user_manager.get_user_local(data.user_id)
-        user["config"].load_config(data.filepath)
-        await user["client_manager"].set_keys_from_settings(user["config"])
-        user["tree_manager"].update_settings(user["config"])
+        config: Settings = user["config"]
+        config.load_config(data.filepath)
+        client_manager: ClientManager = user["client_manager"]
+        await client_manager.set_keys_from_settings(config)
+
     except Exception as e:
         return JSONResponse(content={"error": str(e)})
 

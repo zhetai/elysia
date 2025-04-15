@@ -5,7 +5,7 @@ import spacy
 from rich import print
 
 from elysia.config import nlp
-from elysia.dspy.cached_lm import CachingLM as LM
+from elysia.dspy_additions.cached_lm import CachingLM as LM
 from elysia.util.reference import create_reference
 from elysia.objects import Result, Status, Tool
 from elysia.tools.other.prompt_executors import CondenseEnvironmentExecutor

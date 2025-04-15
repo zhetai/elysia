@@ -44,7 +44,7 @@ from elysia.tree.objects import CollectionData, TreeData
 # Decision Prompt executors
 from elysia.tree.prompt_executors import DecisionExecutor
 from elysia.util.client import ClientManager
-from elysia.util.lm import (
+from elysia.config import (
     check_base_lm_settings,
     check_complex_lm_settings,
     load_base_lm,
@@ -406,8 +406,8 @@ class Tree:
 
         # -- Initialise the tree
         self.set_debug(debug)
-        self.set_base_model()
-        self.set_complex_model()
+        self.base_lm = self.settings.BASE_MODEL_LM
+        self.complex_lm = self.settings.COMPLEX_MODEL_LM
 
         self.tools = {}
         self.set_dspy_initialisation(dspy_initialisation)
@@ -533,29 +533,15 @@ class Tree:
 
     def set_debug(self, debug: bool):
         self.debug = debug
-
-    def set_base_model(self):
-        if "BASE_MODEL" in dir(self.settings):
-            if self.debug:
-                self.base_lm = load_base_lm(self.settings)
-            else:
-                self.base_lm = self.settings.BASE_MODEL
-
-    def set_complex_model(self):
-        if "COMPLEX_MODEL" in dir(self.settings):
-            if self.debug:
-                self.complex_lm = load_complex_lm(self.settings)
-            else:
-                self.complex_lm = self.settings.COMPLEX_MODEL
-
-    def update_settings(self, settings: Settings):
-        self.settings = settings
-        self.set_base_model()
-        self.set_complex_model()
+        self.settings.LOCAL = debug
 
     def get_lm(self, model_type: str):
-        if self.debug:  # if in debug mode, model is already loaded into the Tree
-            return self.base_lm if model_type == "base" else self.complex_lm
+        if self.debug:  # if in debug mode, model is already loaded in the settings
+            return (
+                self.settings.BASE_MODEL_LM
+                if model_type == "base"
+                else self.settings.COMPLEX_MODEL_LM
+            )
         else:  # if not in debug mode, model is hot-loaded
             return (
                 load_base_lm(self.settings)
@@ -774,8 +760,8 @@ class Tree:
             "tree_data": deepcopy(self.tree_data),
             "action_information": deepcopy(self.action_information),
             "decision_history": deepcopy(self.decision_history),
-            "base_lm_used": self.base_lm.model if self.debug else self.base_lm,
-            "complex_lm_used": self.complex_lm.model if self.debug else self.complex_lm,
+            "base_lm_used": self.settings.BASE_MODEL,
+            "complex_lm_used": self.settings.COMPLEX_MODEL,
             "time_taken_seconds": time_taken_seconds,
             "training_updates": training_update,
             "initialisation": f"{self.branch_initialisation}/{self.dspy_initialisation}",
@@ -1308,10 +1294,6 @@ class Tree:
         memory_usage["history"] = asizeof.asizeof(self.history)
         memory_usage["training_updates"] = asizeof.asizeof(self.training_updates)
         memory_usage["action_information"] = asizeof.asizeof(self.action_information)
-
-        # Models
-        memory_usage["base_lm"] = asizeof.asizeof(self.base_lm)
-        memory_usage["complex_lm"] = asizeof.asizeof(self.complex_lm)
 
         # Mapping dictionaries
         memory_usage["query_mappings"] = {

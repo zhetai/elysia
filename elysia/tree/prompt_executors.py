@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 import dspy
 
 # dspy
-from elysia.dspy.environment_of_thought import EnvironmentOfThought
+from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
 
 # Globals
 from elysia.util.reference import create_reference

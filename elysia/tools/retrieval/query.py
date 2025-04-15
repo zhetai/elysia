@@ -2,7 +2,7 @@ from typing import List
 
 import dspy
 
-from elysia.dspy.environment_of_thought import EnvironmentOfThought
+from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
 from elysia.util.reference import create_reference
 from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
@@ -379,9 +379,9 @@ class Query(Tool):
                     # modify the original query output to be the chunked collection
                     for j, c in enumerate(query_output.target_collections):
                         if c == collection_name:
-                            query_output.target_collections[
-                                j
-                            ] = f"ELYSIA_CHUNKED_{collection_name}2__"
+                            query_output.target_collections[j] = (
+                                f"ELYSIA_CHUNKED_{collection_name}2__"
+                            )
 
             # Execute query within Weaviate
             async with client_manager.connect_to_async_client() as client:

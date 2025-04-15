@@ -1,6 +1,6 @@
 import dspy
 
-from elysia.dspy.environment_of_thought import EnvironmentOfThought
+from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
 from elysia.tools.other.prompt_templates import EnvironmentCondenserPrompt
 
 

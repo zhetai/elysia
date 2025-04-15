@@ -37,7 +37,7 @@ from elysia.config import nlp
 
 # util
 from elysia.util.reference import create_reference
-from elysia.util.lm import load_lm
+from elysia.config import load_lm
 
 router = APIRouter()
 

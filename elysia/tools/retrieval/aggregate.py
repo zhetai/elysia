@@ -2,7 +2,7 @@ from typing import List
 
 import dspy
 
-from elysia.dspy.environment_of_thought import EnvironmentOfThought
+from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
 from elysia.util.reference import create_reference
 from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning
 from elysia.tools.retrieval.objects import Aggregation

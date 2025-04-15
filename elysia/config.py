@@ -5,6 +5,8 @@ from typing import Callable
 import spacy
 from dotenv import load_dotenv
 
+from dspy import LM
+
 load_dotenv()
 
 try:
@@ -17,6 +19,14 @@ except Exception as e:
 class Settings:
     CLIENT_TIMEOUT: int = os.getenv("CLIENT_TIMEOUT", 3)
     VERSION = "0.2.0"
+
+    BASE_MODEL: str | None = None
+    BASE_PROVIDER: str | None = None
+    COMPLEX_MODEL: str | None = None
+    COMPLEX_PROVIDER: str | None = None
+
+    BASE_MODEL_LM: LM | None = None
+    COMPLEX_MODEL_LM: LM | None = None
 
     # Other API keys (for vectorisers etc.)
     API_KEYS = {}
@@ -51,7 +61,10 @@ class Settings:
     def from_config(cls, config: dict):
         settings = cls()
         for item in config:
-            setattr(settings, item, config[item])
+            if item not in ["BASE_MODEL_LM", "COMPLEX_MODEL_LM"]:
+                setattr(settings, item, config[item])
+        settings.load_base_dspy_model()
+        settings.load_complex_dspy_model()
         return settings
 
     @classmethod
@@ -59,6 +72,23 @@ class Settings:
         settings = cls()
         settings.default_config()
         return settings
+
+    @classmethod
+    def from_env_vars(cls):
+        settings = cls()
+        settings.set_config_from_env()
+        return settings
+
+    def set_config_from_env(self):
+        self.BASE_MODEL = os.getenv("BASE_MODEL", None)
+        self.COMPLEX_MODEL = os.getenv("COMPLEX_MODEL", None)
+        self.BASE_PROVIDER = os.getenv("BASE_PROVIDER", None)
+        self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER", None)
+        self.MODEL_API_BASE = os.getenv("MODEL_API_BASE", None)
+        self.LOCAL = os.getenv("LOCAL", "1") == "1"
+        self.set_api_keys_from_env()
+        self.load_base_dspy_model()
+        self.load_complex_dspy_model()
 
     def set_api_keys_from_env(self):
         self.WCD_URL = os.getenv("WCD_URL", "")
@@ -81,13 +111,37 @@ class Settings:
     def default_config(self):
         self.BASE_MODEL = os.getenv("BASE_MODEL", "gemini-2.0-flash-001")
         self.COMPLEX_MODEL = os.getenv("COMPLEX_MODEL", "gemini-2.0-flash-001")
-        self.BASE_PROVIDER = os.getenv("BASE_PROVIDER", "google")
-        self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER", "google")
+        self.BASE_PROVIDER = os.getenv("BASE_PROVIDER", "openrouter/google")
+        self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER", "openrouter/google")
         self.MODEL_API_BASE = os.getenv("MODEL_API_BASE", None)
-        self.LOCAL = os.getenv("LOCAL", "0") == "1"
+        self.LOCAL = os.getenv("LOCAL", "1") == "1"
         self.WCD_URL = os.getenv("WCD_URL")
         self.WCD_API_KEY = os.getenv("WCD_API_KEY")
         self.set_api_keys_from_env()
+        self.load_base_dspy_model()
+        self.load_complex_dspy_model()
+
+    def load_base_dspy_model(self):
+        if (
+            "LOCAL" in dir(self)
+            and self.LOCAL
+            and "BASE_MODEL" in dir(self)
+            and self.BASE_MODEL
+        ):
+            self.BASE_MODEL_LM = load_base_lm(self)
+        else:
+            self.BASE_MODEL_LM = None
+
+    def load_complex_dspy_model(self):
+        if (
+            "LOCAL" in dir(self)
+            and self.LOCAL
+            and "COMPLEX_MODEL" in dir(self)
+            and self.COMPLEX_MODEL
+        ):
+            self.COMPLEX_MODEL_LM = load_complex_lm(self)
+        else:
+            self.COMPLEX_MODEL_LM = None
 
     def configure(
         self,
@@ -104,8 +158,13 @@ class Settings:
             model_api_base: The API base to use (str).
             wcd_url: The Weaviate cloud URL to use (str).
             wcd_api_key: The Weaviate cloud API key to use (str).
+            local: Whether Elysia is running locally (bool).
             **kwargs: Additional API keys to set. E.g. `openai_apikey="..."`
         """
+
+        if "local" in kwargs:
+            self.LOCAL = kwargs["local"]
+            kwargs.pop("local")
 
         if "base_model" in kwargs:
             if "base_provider" not in kwargs:
@@ -129,6 +188,8 @@ class Settings:
             kwargs.pop("base_model")
             kwargs.pop("base_provider")
 
+            self.load_base_dspy_model()
+
         if "complex_model" in kwargs:
             if "complex_provider" not in kwargs:
                 raise ValueError(
@@ -151,6 +212,8 @@ class Settings:
             kwargs.pop("complex_model")
             kwargs.pop("complex_provider")
 
+            self.load_complex_dspy_model()
+
         if "model_api_base" in kwargs:
             self.MODEL_API_BASE = kwargs["model_api_base"]
             kwargs.pop("model_api_base")
@@ -168,39 +231,102 @@ class Settings:
             self.set_api_key(value, key)
 
     def __repr__(self) -> str:
-        if "BASE_MODEL" in self and self.BASE_MODEL is not None:
-            print("Base model: ", self.BASE_MODEL)
+        out = ""
+        if "BASE_MODEL" in dir(self) and self.BASE_MODEL is not None:
+            out += f"Base model: {self.BASE_MODEL}\n"
         else:
-            print("Base model: not set")
-        if "COMPLEX_MODEL" in self and self.COMPLEX_MODEL is not None:
-            print("Complex model: ", self.COMPLEX_MODEL)
+            out += "Base model: not set\n"
+        if "COMPLEX_MODEL" in dir(self) and self.COMPLEX_MODEL is not None:
+            out += f"Complex model: {self.COMPLEX_MODEL}\n"
         else:
-            print("Complex model: not set")
-        if "BASE_PROVIDER" in self and self.BASE_PROVIDER is not None:
-            print("Base provider: ", self.BASE_PROVIDER)
+            out += "Complex model: not set\n"
+        if "BASE_PROVIDER" in dir(self) and self.BASE_PROVIDER is not None:
+            out += f"Base provider: {self.BASE_PROVIDER}\n"
         else:
-            print("Base provider: not set")
-        if "COMPLEX_PROVIDER" in self and self.COMPLEX_PROVIDER is not None:
-            print("Complex provider: ", self.COMPLEX_PROVIDER)
+            out += "Base provider: not set\n"
+        if "COMPLEX_PROVIDER" in dir(self) and self.COMPLEX_PROVIDER is not None:
+            out += f"Complex provider: {self.COMPLEX_PROVIDER}\n"
         else:
-            print("Complex provider: not set")
-        if "MODEL_API_BASE" in self:
-            print("Model API base: ", self.MODEL_API_BASE)
+            out += "Complex provider: not set\n"
+        if "MODEL_API_BASE" in dir(self):
+            out += f"Model API base: {self.MODEL_API_BASE}\n"
+        else:
+            out += "Model API base: not set\n"
+        return out
 
 
-# TODO: move this to a frontend input
-# Frontend should read this file and call the corresponding endpoint to activate it
-# Otherwise this will conflict with Elysia as a python package
-# if os.path.exists("elysia_config.json"):
-#     with open("elysia_config.json", "r") as f:
-#         config = json.load(f)
-#     settings = Settings.from_config(config)
-# else:
+def check_base_lm_settings(settings: Settings):
+    if "BASE_MODEL" not in dir(settings) or settings.BASE_MODEL is None:
+        raise ValueError(
+            "No base model specified. "
+            "Use `elysia.config.configure(base_model=..., base_provider=...)` to set a base model. "
+            "E.g. `elysia.config.configure(base_model='gpt-4o-mini', base_provider='openai')`"
+        )
+
+    if "BASE_PROVIDER" not in dir(settings) or settings.BASE_PROVIDER is None:
+        raise ValueError(
+            "No base provider specified. "
+            "Use `elysia.config.configure(base_model=..., base_provider=...)` to set a base model. "
+            "E.g. `elysia.config.configure(base_model='gpt-4o-mini', base_provider='openai')`"
+        )
+
+
+def check_complex_lm_settings(settings: Settings):
+    if "COMPLEX_MODEL" not in dir(settings) or settings.COMPLEX_MODEL is None:
+        raise ValueError(
+            "No complex model specified. "
+            "Use `elysia.config.configure(complex_model=..., complex_provider=...)` to set a complex model. "
+            "E.g. `elysia.config.configure(complex_model='gpt-4o', complex_provider='openai')`"
+        )
+
+    if "COMPLEX_PROVIDER" not in dir(settings) or settings.COMPLEX_PROVIDER is None:
+        raise ValueError(
+            "No complex provider specified. "
+            "Use `elysia.config.configure(complex_model=..., complex_provider=...)` to set a complex model. "
+            "E.g. `elysia.config.configure(complex_model='gpt-4o', complex_provider='openai')`"
+        )
+
+
+def load_base_lm(settings: Settings):
+    check_base_lm_settings(settings)
+
+    return load_lm(
+        settings.BASE_PROVIDER,
+        settings.BASE_MODEL,
+        settings.MODEL_API_BASE if "MODEL_API_BASE" in dir(settings) else None,
+    )
+
+
+def load_complex_lm(settings: Settings):
+    check_complex_lm_settings(settings)
+
+    return load_lm(
+        settings.COMPLEX_PROVIDER,
+        settings.COMPLEX_MODEL,
+        settings.MODEL_API_BASE if "MODEL_API_BASE" in dir(settings) else None,
+    )
+
+
+def load_lm(
+    provider: str,
+    lm_name: str,
+    model_api_base: str | None = None,
+):
+    api_base = model_api_base if provider == "ollama" else None
+    full_lm_name = f"{provider}/{lm_name}"
+
+    if lm_name.startswith("o1") or lm_name.startswith("o3"):
+        lm = LM(model=full_lm_name, api_base=api_base, max_tokens=8000, temperature=1.0)
+    else:
+        lm = LM(model=full_lm_name, api_base=api_base, max_tokens=8000)
+
+    return lm
+
 
 # global settings that should never be used by the frontend
 # but used when using Elysia as a package
 settings = Settings()
-settings.set_api_keys_from_env()
+settings.set_config_from_env()
 
 
 def configure(**kwargs):

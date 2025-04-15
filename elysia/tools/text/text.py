@@ -3,7 +3,7 @@
 import dspy
 import dspy.predict
 
-from elysia.dspy.environment_of_thought import EnvironmentOfThought
+from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
 from elysia.util.reference import create_reference
 
 # LLM

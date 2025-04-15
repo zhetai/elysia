@@ -20,7 +20,7 @@ from elysia.api.utils.websocket import help_websocket
 from elysia.preprocess.collection import CollectionPreprocessor
 
 # LM
-from elysia.util.lm import load_lm
+from elysia.config import load_lm
 
 router = APIRouter()
 
