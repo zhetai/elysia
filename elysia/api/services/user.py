@@ -23,9 +23,6 @@ from elysia.util.logging import backend_print
 from elysia.util.objects import Timer
 from elysia.util.parsing import format_datetime
 
-ENABLE_RATE_LIMITING = os.getenv("ENABLE_RATE_LIMITING", "0") == "1"
-FORCE_RATE_LIMITING = os.getenv("FORCE_RATE_LIMITING", "0") == "1"
-
 
 class TreeTimeoutError(Update):
     def __init__(self):
@@ -43,35 +40,6 @@ class UserTimeoutError(Update):
             "user_timeout_error",
             {
                 "text": "You have been timed out due to inactivity. Please start a new conversation."
-            },
-        )
-
-
-class RateLimitError(Update):
-    def __init__(self, reset_time: datetime.datetime):
-        self.reset_time = reset_time
-        self.current_time = datetime.datetime.now(tz=datetime.timezone.utc)
-
-        self.hours_left = int(
-            round((self.reset_time - self.current_time).total_seconds() // 3600, 0)
-        )
-        self.minutes_left = int(
-            round((self.reset_time - self.current_time).total_seconds() // 60 % 60, 0)
-        )
-        self.seconds_left = int(
-            round((self.reset_time - self.current_time).total_seconds() % 60, 0)
-        )
-
-        super().__init__(
-            "rate_limit_error",
-            {
-                "text": f"You have exceeded the maximum number of requests per day. Please try again tomorrow!",
-                "reset_time": format_datetime(self.reset_time),
-                "time_left": {
-                    "hours": self.hours_left,
-                    "minutes": self.minutes_left,
-                    "seconds": self.seconds_left,
-                },
             },
         )
 

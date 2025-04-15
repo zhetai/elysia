@@ -1,12 +1,6 @@
-import asyncio
-import datetime
 import gc
 from contextlib import asynccontextmanager
 
-import litellm
-
-# Import logfire for logging
-import logfire
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,10 +25,6 @@ from elysia.api.routes import (
 # Services
 from elysia.api.services.user import UserManager
 from elysia.api.utils.resources import print_resources
-
-logfire.configure()
-litellm.callbacks = ["logfire"]
-litellm.success_callback = ["logfire"]
 
 
 async def perform_garbage_collection():
@@ -99,7 +89,3 @@ async def health_check():
     """Health check endpoint."""
     logger.info("Health check requested")
     return {"status": "healthy"}
-
-
-# Instrument the FastAPI app with Logfire
-logfire.instrument_fastapi(app)
