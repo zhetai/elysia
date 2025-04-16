@@ -69,17 +69,53 @@ async def collections(
                 f"ELYSIA_METADATA_{collection_name}__"
             )
 
-            vector_config = {}
+            vector_config = {"fields": {}, "global": {}}
             if config.vector_config:
-                for field_name, vectorised_field in config.vector_config.items():
-                    model = vectorised_field.vectorizer.model
+                for (
+                    named_vector_name,
+                    named_vector_config,
+                ) in config.vector_config.items():
+
+                    # for this vectoriser, what model is being used?
+                    model = named_vector_config.vectorizer.model
                     if isinstance(model, dict) and "model" in model:
                         model = model["model"]
+                    else:
+                        model = "Unknown"
 
-                    vector_config[field_name] = {
-                        "vectorizer": vectorised_field.vectorizer.vectorizer.name,
-                        "model": model,
-                    }
+                    # check what fields are being vectorised
+                    fields = named_vector_config.vectorizer.source_properties
+                    if fields is None:
+                        fields = [
+                            c.name
+                            for c in config.properties
+                            if c.data_type[:].startswith("text")
+                        ]
+
+                    # for each field, add the vectoriser and model to the vector config
+                    for field_name in fields:
+                        if field_name not in vector_config["fields"]:
+                            vector_config["fields"][field_name] = [
+                                {
+                                    "named_vector": named_vector_name,
+                                    "vectorizer": named_vector_config.vectorizer.vectorizer.name,
+                                    "model": model,
+                                }
+                            ]
+                        else:
+                            vector_config["fields"][field_name].append(
+                                {
+                                    "named_vector": named_vector_name,
+                                    "vectorizer": named_vector_config.vectorizer.vectorizer.name,
+                                    "model": model,
+                                }
+                            )
+
+                    # add the vectoriser and model to the global vector config
+                    # vector_config["fields"][field_name] = {
+                    #     "vectorizer": vectorised_field.vectorizer.vectorizer.name,
+                    #     "model": model,
+                    # }
 
             if config.vectorizer_config:
                 model = config.vectorizer_config.model
@@ -91,10 +127,7 @@ async def collections(
                     "model": model,
                 }
             else:
-                vector_config["global"] = {
-                    "vectorizer": None,
-                    "model": None,
-                }
+                vector_config["global"] = {}
 
             metadata.append(
                 {
