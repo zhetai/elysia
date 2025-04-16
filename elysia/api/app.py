@@ -31,12 +31,19 @@ async def perform_garbage_collection():
     gc.collect(generation=2)
 
 
-async def check_timeouts(user_manager: UserManager):
+async def check_timeouts():
+    user_manager = get_user_manager()
     await user_manager.check_all_trees_timeout()
 
 
-async def output_resources(user_manager: UserManager):
+async def output_resources():
+    user_manager = get_user_manager()
     await print_resources(user_manager, save_to_file=True)
+
+
+async def check_restart_clients():
+    user_manager = get_user_manager()
+    await user_manager.check_restart_clients()
 
 
 @asynccontextmanager
@@ -47,9 +54,9 @@ async def lifespan(app: FastAPI):
 
     # use prime numbers for intervals so they don't overlap
     scheduler.add_job(perform_garbage_collection, "interval", seconds=23)
-    scheduler.add_job(lambda: check_timeouts(user_manager), "interval", seconds=29)
-    scheduler.add_job(user_manager.check_restart_clients(), "interval", seconds=31)
-    scheduler.add_job(lambda: output_resources(user_manager), "interval", seconds=1103)
+    scheduler.add_job(check_timeouts, "interval", seconds=29)
+    scheduler.add_job(check_restart_clients, "interval", seconds=31)
+    scheduler.add_job(output_resources, "interval", seconds=1103)
 
     scheduler.start()
     yield

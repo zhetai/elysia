@@ -11,4 +11,3 @@ pre-commit==4.2.0
 
 # 
 openai==1.61.0
-litellm
