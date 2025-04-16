@@ -6,6 +6,9 @@ import time
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+# Tree
+from elysia.tree.objects import CollectionData
+
 # API Types
 from elysia.api.api_types import (
     CollectionMetadataData,
@@ -27,6 +30,7 @@ from elysia.tree.tree import Tree
 
 # Util
 from elysia.util.collection_metadata import (
+    retrieve_all_collection_names,
     async_get_collection_data_types,
     paginated_collection,
 )
@@ -202,7 +206,14 @@ async def collection_metadata(
     data: CollectionMetadataData, user_manager: UserManager = Depends(get_user_manager)
 ):
     try:
-        tree = user_manager.base_tree
+        client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
+        collection_names = await retrieve_all_collection_names(client_manager)
+        temp_collection_data = CollectionData(collection_names)
+        await temp_collection_data.set_collection_names(
+            collection_names, client_manager
+        )
+        metadata = temp_collection_data.output_full_metadata(with_mappings=True)
+
     except Exception as e:
         return JSONResponse(
             content={
@@ -213,7 +224,7 @@ async def collection_metadata(
         )
     return JSONResponse(
         content={
-            "metadata": tree.tree_data.output_collection_metadata(with_mappings=True),
+            "metadata": metadata,
             "error": "",
         },
         status_code=200,

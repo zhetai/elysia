@@ -73,7 +73,6 @@ class DebugData(BaseModel):
 
 class CollectionMetadataData(BaseModel):
     user_id: str
-    conversation_id: str
 
 
 class UserCollectionsData(BaseModel):
