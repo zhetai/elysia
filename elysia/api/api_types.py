@@ -49,6 +49,7 @@ class SetCollectionsData(BaseModel):
 
 
 class GetObjectData(BaseModel):
+    user_id: str
     collection_name: str
     uuid: str
 

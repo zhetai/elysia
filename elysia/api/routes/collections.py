@@ -35,8 +35,10 @@ router = APIRouter()
 
 
 @router.post("/collections")
-async def collections(user_manager: UserManager = Depends(get_user_manager)):
-    client_manager = user_manager.user_client_manager
+async def collections(
+    data: UserCollectionsData, user_manager: UserManager = Depends(get_user_manager)
+):
+    client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
 
     async with client_manager.connect_to_async_client() as client:
         collections = [
@@ -103,41 +105,12 @@ async def collections(user_manager: UserManager = Depends(get_user_manager)):
         )
 
 
-# @router.post("/user_collections")
-# async def user_collections(
-#     data: UserCollectionsData,
-#     user_manager: UserManager = Depends(get_user_manager)
-# ):
-
-#     tree_manager: TreeManager = user_manager.get_tree_manager(data.user_id)
-#     client_manager = user_manager.user_client_manager
-#     with client_manager.connect_to_client() as client:
-
-#         # get collection metadata
-#         t0 = time.time()
-#         metadata = []
-#         for collection_name in tree_manager.collection_names:
-#             collection = client.collections.get(collection_name)
-#             metadata.append(
-#                 {
-#                     "name": collection_name,
-#                     "total": len(collection),
-#                     "vectorizer": collection.config.get().vectorizer,  # None when using namedvectors, TODO: implement for named vectors
-#                     "processed": client.collections.exists(f"ELYSIA_METADATA_{collection_name}__")
-#                 }
-#             )
-
-#         logger.info(f"Returning collections: {metadata}")
-#         backend_print(f"Collections got in {time.time() - t0} seconds")
-#         return JSONResponse(content={"collections": metadata, "error": ""}, status_code=200)
-
-
 @router.post("/view_paginated_collection")
 async def view_paginated_collection(
     data: ViewPaginatedCollectionData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
-    client_manager = user_manager.user_client_manager
+    client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
     async with client_manager.connect_to_async_client() as client:
         # get collection properties
         data_types = await async_get_collection_data_types(client, data.collection_name)
@@ -160,52 +133,52 @@ async def view_paginated_collection(
         )
 
 
-@router.post("/view_paginated_collection_admin")
-async def view_paginated_collection_admin(
-    data: ViewPaginatedCollectionData,
-    user_manager: UserManager = Depends(get_user_manager),
-):
-    client_manager = user_manager.auth_client_manager
-    async with client_manager.connect_to_async_client() as client:
-        # get collection properties
-        data_types = await async_get_collection_data_types(client, data.collection_name)
+# @router.post("/view_paginated_collection_admin")
+# async def view_paginated_collection_admin(
+#     data: ViewPaginatedCollectionData,
+#     user_manager: UserManager = Depends(get_user_manager),
+# ):
+#     client_manager = user_manager.auth_client_manager
+#     async with client_manager.connect_to_async_client() as client:
+#         # get collection properties
+#         data_types = await async_get_collection_data_types(client, data.collection_name)
 
-        # obtain paginated results from collection
-        items = await paginated_collection(
-            client=client,
-            collection_name=data.collection_name,
-            page_size=data.page_size,
-            page_number=data.page_number,
-            sort_on=data.sort_on,
-            ascending=data.ascending,
-            filter_config=data.filter_config,
-        )
+#         # obtain paginated results from collection
+#         items = await paginated_collection(
+#             client=client,
+#             collection_name=data.collection_name,
+#             page_size=data.page_size,
+#             page_number=data.page_number,
+#             sort_on=data.sort_on,
+#             ascending=data.ascending,
+#             filter_config=data.filter_config,
+#         )
 
-        logger.info(f"Returning collection info for {data.collection_name}")
-        return JSONResponse(
-            content={"properties": data_types, "items": items, "error": ""},
-            status_code=200,
-        )
+#         logger.info(f"Returning collection info for {data.collection_name}")
+#         return JSONResponse(
+#             content={"properties": data_types, "items": items, "error": ""},
+#             status_code=200,
+#         )
 
 
-@router.post("/set_collections")
-async def set_collections(
-    data: SetCollectionsData, user_manager: UserManager = Depends(get_user_manager)
-):
-    client_manager = user_manager.user_client_manager
-    tree: Tree = await user_manager.get_tree(data.user_id, data.conversation_id)
-    await tree.set_collection_names(
-        data.collection_names,
-        client_manager=client_manager,
-    )
-    return JSONResponse(content={"error": ""}, status_code=200)
+# @router.post("/set_collections")
+# async def set_collections(
+#     data: SetCollectionsData, user_manager: UserManager = Depends(get_user_manager)
+# ):
+#     client_manager = user_manager.user_client_manager
+#     tree: Tree = await user_manager.get_tree(data.user_id, data.conversation_id)
+#     await tree.set_collection_names(
+#         data.collection_names,
+#         client_manager=client_manager,
+#     )
+#     return JSONResponse(content={"error": ""}, status_code=200)
 
 
 @router.post("/get_object")
 async def get_object(
     data: GetObjectData, user_manager: UserManager = Depends(get_user_manager)
 ):
-    client_manager = user_manager.user_client_manager
+    client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
     async with client_manager.connect_to_async_client() as client:
         error = ""
         collection = client.collections.get(data.collection_name)
@@ -228,15 +201,20 @@ async def get_object(
 async def collection_metadata(
     data: CollectionMetadataData, user_manager: UserManager = Depends(get_user_manager)
 ):
-    error_message = ""
     try:
         tree = user_manager.base_tree
     except Exception as e:
-        error_message = str(e)
+        return JSONResponse(
+            content={
+                "metadata": {},
+                "error": str(e),
+            },
+            status_code=200,
+        )
     return JSONResponse(
         content={
             "metadata": tree.tree_data.output_collection_metadata(with_mappings=True),
-            "error": error_message,
+            "error": "",
         },
         status_code=200,
     )

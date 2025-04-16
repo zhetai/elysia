@@ -145,3 +145,9 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+
+# Frontend
+elysia-frontend
+elysia-frontend/
+elysia-frontend/* 
+elysia-frontend/.git/* 
