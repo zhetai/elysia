@@ -42,6 +42,7 @@ class TreeManager:
         if conversation_id not in self.trees:
             self.trees[conversation_id] = {}
             self.trees[conversation_id]["tree"] = deepcopy(base_tree)
+            self.trees[conversation_id]["tree"].settings = config
             self.trees[conversation_id]["tree"].set_debug(debug)
             self.trees[conversation_id]["tree"].set_conversation_id(conversation_id)
             self.trees[conversation_id]["tree"].set_user_id(self.user_id)
@@ -52,17 +53,12 @@ class TreeManager:
             self.trees[conversation_id]["tree"].set_dspy_initialisation(
                 dspy_initialisation
             )
-            self.trees[conversation_id]["tree"].update_settings(config)
             self.trees[conversation_id]["event"] = asyncio.Event()
             self.trees[conversation_id]["event"].set()
 
             self.update_tree_last_request(conversation_id)
 
         self.timer.end(print_time=True, print_name="initialise_tree")
-
-    def update_settings(self, config: Settings):
-        for conversation_id in self.trees:
-            self.trees[conversation_id]["tree"].update_settings(config)
 
     def get_tree(self, base_tree: Tree, conversation_id: str):
         if conversation_id not in self.trees:

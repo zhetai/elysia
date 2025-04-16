@@ -6,6 +6,7 @@ import spacy
 from dotenv import load_dotenv
 
 from dspy import LM
+import uuid
 
 load_dotenv()
 
@@ -19,6 +20,7 @@ except Exception as e:
 class Settings:
     CLIENT_TIMEOUT: int = os.getenv("CLIENT_TIMEOUT", 3)
     VERSION = "0.2.0"
+    SETTINGS_ID = str(uuid.uuid4())
 
     BASE_MODEL: str | None = None
     BASE_PROVIDER: str | None = None
