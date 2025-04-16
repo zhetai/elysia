@@ -10,11 +10,11 @@ from elysia.util.parsing import format_datetime
 
 
 async def retrieve_all_collection_names(client):
-    all_collections = client.collections.list_all()
+    all_collections = await client.collections.list_all()
     return [
-        collection.name
+        collection
         for collection in all_collections
-        if not collection.name.startswith("ELYSIA_")
+        if not collection.startswith("ELYSIA_")
     ]
 
 

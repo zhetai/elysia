@@ -42,7 +42,8 @@ router = APIRouter()
 async def collections(
     data: UserCollectionsData, user_manager: UserManager = Depends(get_user_manager)
 ):
-    client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
+    user_local = await user_manager.get_user_local(data.user_id)
+    client_manager = user_local["client_manager"]
 
     async with client_manager.connect_to_async_client() as client:
         collections = [
@@ -114,7 +115,8 @@ async def view_paginated_collection(
     data: ViewPaginatedCollectionData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
-    client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
+    user_local = await user_manager.get_user_local(data.user_id)
+    client_manager = user_local["client_manager"]
     async with client_manager.connect_to_async_client() as client:
         # get collection properties
         data_types = await async_get_collection_data_types(client, data.collection_name)
@@ -182,7 +184,8 @@ async def view_paginated_collection(
 async def get_object(
     data: GetObjectData, user_manager: UserManager = Depends(get_user_manager)
 ):
-    client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
+    user_local = await user_manager.get_user_local(data.user_id)
+    client_manager = user_local["client_manager"]
     async with client_manager.connect_to_async_client() as client:
         error = ""
         collection = client.collections.get(data.collection_name)
@@ -206,8 +209,12 @@ async def collection_metadata(
     data: CollectionMetadataData, user_manager: UserManager = Depends(get_user_manager)
 ):
     try:
-        client_manager = user_manager.get_user_local(data.user_id)["client_manager"]
-        collection_names = await retrieve_all_collection_names(client_manager)
+        user_local = await user_manager.get_user_local(data.user_id)
+        client_manager = user_local["client_manager"]
+
+        async with client_manager.connect_to_async_client() as client:
+            collection_names = await retrieve_all_collection_names(client)
+
         temp_collection_data = CollectionData(collection_names)
         await temp_collection_data.set_collection_names(
             collection_names, client_manager
