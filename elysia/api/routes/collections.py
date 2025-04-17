@@ -20,6 +20,9 @@ from elysia.api.core.logging import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 
+# Utils
+from elysia.util.parsing import format_dict_to_serialisable
+
 # Util
 from elysia.util.collection_metadata import (
     retrieve_all_collection_names,
@@ -279,23 +282,29 @@ async def collection_metadata(
 ):
     logger.debug(f"/collection_metadata API request received")
     logger.debug(f"User ID: {data.user_id}")
+    logger.debug(f"Collection name: {data.collection_name}")
 
     try:
         user_local = await user_manager.get_user_local(data.user_id)
         client_manager = user_local["client_manager"]
 
         async with client_manager.connect_to_async_client() as client:
-            collection_names = await retrieve_all_collection_names(client)
+            metadata_name = f"ELYSIA_METADATA_{data.collection_name.lower()}__"
 
-        temp_collection_data = CollectionData(collection_names, logger)
-        await temp_collection_data.set_collection_names(
-            collection_names, client_manager
-        )
-        metadata = temp_collection_data.output_full_metadata(with_mappings=True)
+            # check if the collection itself exists
+            if not await client.collections.exists(data.collection_name.lower()):
+                raise Exception(f"Collection {data.collection_name} does not exist")
+
+            # check if the metadata collection exists
+            else:
+                metadata_collection = client.collections.get(metadata_name)
+                metadata = await metadata_collection.query.fetch_objects(limit=1)
+                properties = metadata.objects[0].properties
+                format_dict_to_serialisable(properties)
 
         return JSONResponse(
             content={
-                "metadata": metadata,
+                "metadata": properties,
                 "error": "",
             },
             status_code=200,

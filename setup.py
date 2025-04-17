@@ -1,24 +1,9 @@
 from setuptools import find_packages, setup
 
 
-def read_requirements():
+def read_reqs(fname):
     all_requirements = []
-    with open("requirements.txt") as req:
-        all_requirements.extend(
-            [
-                line.strip()
-                for line in req
-                if line.strip()
-                and not line.startswith("#")
-                and not line.startswith("https")
-            ]
-        )
-    return all_requirements
-
-
-def read_requirements_dev():
-    all_requirements = []
-    with open("requirements-dev.txt") as req:
+    with open(fname) as req:
         all_requirements.extend(
             [
                 line.strip()
@@ -47,10 +32,10 @@ setup(
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     packages=find_packages(),
-    install_requires=read_requirements(),
+    install_requires=read_reqs("requirements.txt"),
     include_package_data=True,
     extras_require={
-        "dev": read_requirements_dev(),
+        "dev": read_reqs("requirements-dev.txt"),
     },
     entry_points={
         "console_scripts": [
