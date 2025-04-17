@@ -14,6 +14,14 @@ router = APIRouter()
 
 
 async def process(data: dict, websocket: WebSocket, user_manager):
+    logger.debug(f"/query API request received")
+    logger.debug(f"User ID: {data['user_id']}")
+    logger.debug(f"Conversation ID: {data['conversation_id']}")
+    logger.debug(f"Query: {data['query']}")
+    logger.debug(f"Query ID: {data['query_id']}")
+    logger.debug(f"Training route: {data['route']}")
+    logger.debug(f"Training mimick model: {data['mimick']}")
+    logger.debug(f"Collection names: {data['collection_names']}")
 
     try:
         # optional arguments
@@ -28,7 +36,7 @@ async def process(data: dict, websocket: WebSocket, user_manager):
             mimick = False
 
         if data["collection_names"] == []:
-            client_manager = user_manager.get_user_local(data["user_id"])[
+            client_manager = await user_manager.get_user_local(data["user_id"])[
                 "client_manager"
             ]
             async with client_manager.connect_to_async_client() as client:
