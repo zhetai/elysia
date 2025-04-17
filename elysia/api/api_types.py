@@ -18,6 +18,7 @@ class GetCollectionsData(BaseModel):
 
 
 class ViewPaginatedCollectionData(BaseModel):
+    user_id: str
     collection_name: str
     page_size: int
     page_number: int

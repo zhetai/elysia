@@ -156,6 +156,7 @@ async def view_paginated_collection(
 ):
 
     logger.debug(f"/view_paginated_collection API request received")
+    logger.debug(f"User ID: {data.user_id}")
     logger.debug(f"Collection name: {data.collection_name}")
     logger.debug(f"Page size: {data.page_size}")
     logger.debug(f"Page number: {data.page_number}")
