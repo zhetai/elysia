@@ -43,12 +43,6 @@ class TitleData(BaseModel):
     text: str
 
 
-class SetCollectionsData(BaseModel):
-    user_id: str
-    conversation_id: str
-    collection_names: List[str]
-
-
 class GetObjectData(BaseModel):
     user_id: str
     collection_name: str

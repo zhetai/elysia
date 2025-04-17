@@ -8,7 +8,6 @@ from elysia.tree.objects import CollectionData
 from elysia.api.api_types import (
     CollectionMetadataData,
     GetObjectData,
-    SetCollectionsData,
     UserCollectionsData,
     ViewPaginatedCollectionData,
 )
@@ -265,6 +264,7 @@ async def get_object(
             data_types = await async_get_collection_data_types(
                 client, data.collection_name
             )
+            format_dict_to_serialisable(object)
 
         return JSONResponse(
             content={"properties": data_types, "items": [object], "error": error},
