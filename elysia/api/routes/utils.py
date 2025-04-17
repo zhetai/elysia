@@ -37,7 +37,8 @@ from elysia.config import nlp
 
 # util
 from elysia.util.reference import create_reference
-from elysia.config import load_lm
+from elysia.config import load_base_lm
+from elysia.api.core.logging import logger
 
 router = APIRouter()
 
@@ -48,12 +49,14 @@ async def named_entity_recognition(data: NERData):
     Performs Named Entity Recognition using spaCy.
     Returns a list of entities with their labels, start and end positions.
     """
-    doc = nlp(data.text)
-
-    out = {"text": data.text, "entity_spans": [], "noun_spans": [], "error": ""}
+    logger.debug(f"/ner API request received")
+    logger.debug(f"Text: {data.text}")
 
     try:
-        # Get entity spans
+
+        doc = nlp(data.text)
+        out = {"text": data.text, "entity_spans": [], "noun_spans": [], "error": ""}
+
         for ent in doc.ents:
             out["entity_spans"].append((ent.start_char, ent.end_char))
 
@@ -63,108 +66,143 @@ async def named_entity_recognition(data: NERData):
                 span = doc[token.i : token.i + 1]
                 out["noun_spans"].append((span.start_char, span.end_char))
 
-        logger.info(f"Returning NER results: {out}")
-    except Exception as e:
-        logger.error(f"Error in NER: {str(e)}")
-        out["error"] = str(e)
+        return JSONResponse(content=out, status_code=200)
 
-    return JSONResponse(content=out, status_code=200)
+    except Exception as e:
+        logger.exception(f"Error in /ner API")
+        return JSONResponse(
+            content={
+                "text": data.text,
+                "entity_spans": [],
+                "noun_spans": [],
+                "error": str(e),
+            },
+            status_code=200,
+        )
 
 
 @router.post("/title")
 async def title(data: TitleData, user_manager: UserManager = Depends(get_user_manager)):
+    logger.debug(f"/title API request received")
+    logger.debug(f"User ID: {data.user_id}")
+    logger.debug(f"Conversation ID: {data.conversation_id}")
+    logger.debug(f"Text: {data.text}")
 
     if user_manager.check_tree_timeout(data.user_id, data.conversation_id):
+        logger.warning(
+            f"(/title) Conversation {data.conversation_id} has timed out for user {data.user_id}"
+        )
         return JSONResponse(
             content={"title": "", "error": "Conversation has timed out"},
             status_code=401,
         )
 
-    config = user_manager.get_user_config(data.user_id)
-
     try:
+        config = user_manager.get_user_config(data.user_id)
         title_creator = dspy.asyncify(TitleCreatorExecutor())
         title = await title_creator(
             text=data.text,
-            lm=load_lm(config.BASE_PROVIDER, config.BASE_MODEL, config.MODEL_API_BASE),
+            lm=load_base_lm(config),
         )
-        logger.info(f"Returning title: {title.title}")
-    except Exception as e:
-        logger.error(f"Error in title: {str(e)}")
-        out = {"title": "", "error": str(e)}
-        return JSONResponse(content=out, status_code=200)
-
-    out = {"title": title.title, "error": ""}
-    return JSONResponse(content=out, status_code=200)
-
-
-@router.post("/object_relevance")
-async def object_relevance(
-    data: ObjectRelevanceData, user_manager: UserManager = Depends(get_user_manager)
-):
-    if user_manager.check_tree_timeout(data.user_id, data.conversation_id):
         return JSONResponse(
-            content={"title": "", "error": "Conversation has timed out"},
-            status_code=401,
+            content={"title": title.title, "error": ""},
+            status_code=200,
         )
-
-    config = user_manager.get_user_config(data.user_id)
-
-    error = ""
-    object_relevance = ObjectRelevanceExecutor()
-
-    try:
-        tree = await user_manager.get_tree(data.user_id, data.conversation_id)
-        user_prompt = tree.query_id_to_prompt[data.query_id]
-        prediction = object_relevance(
-            user_prompt=user_prompt,
-            objects=data.objects,
-            lm=load_lm(config.BASE_PROVIDER, config.BASE_MODEL, config.MODEL_API_BASE),
-        )
-        any_relevant = prediction.any_relevant
 
     except Exception as e:
-        any_relevant = True
-        error = str(e)
+        logger.exception(f"Error in /title API")
+        return JSONResponse(
+            content={"title": "", "error": str(e)},
+            status_code=200,
+        )
 
-    return JSONResponse(
-        content={
-            "conversation_id": data.conversation_id,
-            "any_relevant": any_relevant,
-            "error": error,
-        },
-        status_code=200,
-    )
+
+# @router.post("/object_relevance")
+# async def object_relevance(
+#     data: ObjectRelevanceData, user_manager: UserManager = Depends(get_user_manager)
+# ):
+#     logger.debug(f"/object_relevance API request received")
+#     logger.debug(f"User ID: {data.user_id}")
+#     logger.debug(f"Conversation ID: {data.conversation_id}")
+#     logger.debug(f"Query ID: {data.query_id}")
+#     logger.debug(f"Number of objects: {len(data.objects)}")
+
+#     if user_manager.check_tree_timeout(data.user_id, data.conversation_id):
+#         logger.warning(
+#             f"(/object_relevance) Conversation {data.conversation_id} has timed out for user {data.user_id}"
+#         )
+#         return JSONResponse(
+#             content={"title": "", "error": "Conversation has timed out"},
+#             status_code=401,
+#         )
+
+
+#     try:
+
+#         config = user_manager.get_user_config(data.user_id)
+
+#         error = ""
+#         object_relevance = ObjectRelevanceExecutor()
+
+#         tree = await user_manager.get_tree(data.user_id, data.conversation_id)
+#         user_prompt = tree.query_id_to_prompt[data.query_id]
+#         prediction = object_relevance(
+#             user_prompt=user_prompt,
+#             objects=data.objects,
+#             lm=load_lm(config.BASE_PROVIDER, config.BASE_MODEL, config.MODEL_API_BASE),
+#         )
+#         any_relevant = prediction.any_relevant
+
+#     except Exception as e:
+#         any_relevant = True
+#         error = str(e)
+
+#     return JSONResponse(
+#         content={
+#             "conversation_id": data.conversation_id,
+#             "any_relevant": any_relevant,
+#             "error": error,
+#         },
+#         status_code=200,
+#     )
 
 
 @router.post("/follow_up_suggestions")
 async def follow_up_suggestions(
     data: FollowUpSuggestionsData, user_manager: UserManager = Depends(get_user_manager)
 ):
+    logger.debug(f"/follow_up_suggestions API request received")
+    logger.debug(f"User ID: {data.user_id}")
+    logger.debug(f"Conversation ID: {data.conversation_id}")
+
     if user_manager.check_tree_timeout(data.user_id, data.conversation_id):
+        logger.warning(
+            f"(/follow_up_suggestions) Conversation {data.conversation_id} has timed out for user {data.user_id}"
+        )
         return JSONResponse(
-            content={"title": "", "error": "Conversation has timed out"},
+            content={"suggestions": [], "error": "Conversation has timed out"},
             status_code=401,
         )
 
-    # wait for tree event to be completed
-    await user_manager.get_user_local(data.user_id)["tree_manager"].get_event(
-        data.conversation_id
-    ).wait()
-
-    config = user_manager.get_user_config(data.user_id)
-
-    # get tree from user_id, conversation_id
-    tree = await user_manager.get_tree(data.user_id, data.conversation_id)
-    error = ""
-
-    follow_up_suggestor = FollowUpSuggestionsExecutor()
-    follow_up_suggestor.load(
-        "elysia/training/dspy_models/followup_suggestions/fewshot/gemini-2.0-flash-001_gemini-2.0-flash-001.json"
-    )
-    follow_up_suggestor = dspy.asyncify(follow_up_suggestor)
-
     try:
+        # wait for tree event to be completed
+        await user_manager.get_user_local(data.user_id)["tree_manager"].get_event(
+            data.conversation_id
+        ).wait()
+
+        config = user_manager.get_user_config(data.user_id)
+
+        # get tree from user_id, conversation_id
+        tree = await user_manager.get_tree(data.user_id, data.conversation_id)
+
+        # load dspy model for suggestor
+        follow_up_suggestor = FollowUpSuggestionsExecutor()
+        follow_up_suggestor.load(
+            "elysia/training/dspy_models/followup_suggestions/fewshot/gemini-2.0-flash-001_gemini-2.0-flash-001.json"
+        )
+        follow_up_suggestor = dspy.asyncify(follow_up_suggestor)
+
+        # get prediction
         prediction = await follow_up_suggestor(
             user_prompt=tree.tree_data.user_prompt,
             reference=create_reference(),
@@ -174,62 +212,77 @@ async def follow_up_suggestions(
                 with_mappings=False
             ),
             old_suggestions=tree.suggestions,
-            lm=load_lm(config.BASE_PROVIDER, config.BASE_MODEL, config.MODEL_API_BASE),
+            lm=load_base_lm(config),
         )
-        suggestions = prediction.suggestions
+
+        return JSONResponse(
+            content={"suggestions": prediction.suggestions, "error": ""},
+            status_code=200,
+        )
+
     except Exception as e:
-        suggestions = []
-        error = str(e)
+        logger.exception(f"Error in /follow_up_suggestions API")
+        return JSONResponse(
+            content={"suggestions": [], "error": str(e)}, status_code=200
+        )
 
     tree.suggestions.extend(suggestions)
-
-    return JSONResponse(
-        content={"suggestions": suggestions, "error": error}, status_code=200
-    )
 
 
 @router.post("/debug")
 async def debug(data: DebugData, user_manager: UserManager = Depends(get_user_manager)):
-    tree = await user_manager.get_tree(data.user_id, data.conversation_id)
-    if tree.debug:
-        base_lm = tree.base_lm
-        complex_lm = tree.complex_lm
+    logger.debug(f"/debug API request received")
+    logger.debug(f"User ID: {data.user_id}")
+    logger.debug(f"Conversation ID: {data.conversation_id}")
 
-        histories = [None] * 2
-        for i, lm in enumerate([base_lm, complex_lm]):
-            histories[i] = []
-            for lm_history in lm.history:
-                message_thread = []
-                for message in lm_history["messages"]:
-                    if isinstance(message["content"], list):
-                        # assume its a system message list with one dict element
-                        message["content"] = message["content"][0]["text"]
-                    message_thread.append(message)
+    try:
+        tree = await user_manager.get_tree(data.user_id, data.conversation_id)
+        if tree.debug:
+            base_lm = tree.base_lm
+            complex_lm = tree.complex_lm
 
-                message_thread.append(
-                    {
-                        "role": "assistant",
-                        "content": lm_history["response"].choices[0].message.content,
-                    }
-                )
-                histories[i].append(message_thread)
+            histories = [None] * 2
+            for i, lm in enumerate([base_lm, complex_lm]):
+                histories[i] = []
+                for lm_history in lm.history:
+                    message_thread = []
+                    for message in lm_history["messages"]:
+                        if isinstance(message["content"], list):
+                            # assume its a system message list with one dict element
+                            message["content"] = message["content"][0]["text"]
+                        message_thread.append(message)
 
-        out = {
-            "base_lm": {"model": base_lm.model, "chat": histories[0]},
-            "complex_lm": {"model": complex_lm.model, "chat": histories[1]},
-        }
-        return JSONResponse(content=out, status_code=200)
+                    message_thread.append(
+                        {
+                            "role": "assistant",
+                            "content": lm_history["response"]
+                            .choices[0]
+                            .message.content,
+                        }
+                    )
+                    histories[i].append(message_thread)
 
-    else:
-        return JSONResponse(content={}, status_code=200)
+            out = {
+                "base_lm": {"model": base_lm.model, "chat": histories[0]},
+                "complex_lm": {"model": complex_lm.model, "chat": histories[1]},
+            }
+            return JSONResponse(content=out, status_code=200)
+
+        else:
+            return JSONResponse(content={}, status_code=200)
+    except Exception as e:
+        logger.exception(f"Error in /debug API")
+        return JSONResponse(
+            content={"base_lm": {}, "complex_lm": {}, "error": str(e)}, status_code=200
+        )
 
 
-@router.post("/get_user_requests")
-async def get_user_requests(
-    data: GetUserRequestsData, user_manager: UserManager = Depends(get_user_manager)
-):
-    num_requests, max_requests = await user_manager.get_user_requests(data.user_id)
-    return JSONResponse(
-        content={"num_requests": num_requests, "max_requests": max_requests},
-        status_code=200,
-    )
+# @router.post("/get_user_requests")
+# async def get_user_requests(
+#     data: GetUserRequestsData, user_manager: UserManager = Depends(get_user_manager)
+# ):
+#     num_requests, max_requests = await user_manager.get_user_requests(data.user_id)
+#     return JSONResponse(
+#         content={"num_requests": num_requests, "max_requests": max_requests},
+#         status_code=200,
+#     )

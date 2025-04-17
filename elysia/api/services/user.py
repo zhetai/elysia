@@ -1,17 +1,9 @@
-import asyncio
 import datetime
 import os
 import random
-from asyncio import Lock
 
-import weaviate
 from dotenv import load_dotenv
-from weaviate.classes.aggregate import GroupByAggregate
-from weaviate.classes.init import Auth
-from weaviate.classes.query import Filter, Metrics
-from weaviate.util import generate_uuid5
 
-# Load environment variables from .env file
 load_dotenv()
 
 from elysia.api.services.tree import TreeManager
@@ -19,9 +11,8 @@ from elysia.config import Settings
 from elysia.objects import Error, Update
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
-from elysia.util.logging import backend_print
 from elysia.util.objects import Timer
-from elysia.util.parsing import format_datetime
+from elysia.api.core.logging import logger
 
 
 class TreeTimeoutError(Update):
@@ -60,9 +51,8 @@ class UserManager:
 
         self.date_of_reset = None
         self.users = {}
-        self.base_tree = Tree(
-            verbosity=2
-        )  # TODO: is this fine to be here? should it be user-specific?
+        # TODO: is this fine to be here? should it be user-specific?
+        self.base_tree = Tree()
 
     async def get_user_local(self, user_id: str):
         # add user if it doesn't exist
@@ -74,10 +64,11 @@ class UserManager:
             )
 
             # client manager starts with env variables, when config is updated, api keys are updated
-            self.users[user_id]["client_manager"] = ClientManager()
+            self.users[user_id]["client_manager"] = ClientManager(logger=logger)
 
             # config starts as empty dict
             self.users[user_id]["config"] = Settings()
+            self.users[user_id]["config"].setup_app_logger(logger)
 
         # update last request (adds last_request to user)
         await self.update_user_last_request(user_id)
@@ -98,7 +89,7 @@ class UserManager:
     async def check_restart_clients(self):
         # these check within these methods if the client has been used in the last X minutes
         for user_id in self.users:
-            self.users[user_id]["client_manager"].restart_client()
+            await self.users[user_id]["client_manager"].restart_client()
             await self.users[user_id]["client_manager"].restart_async_client()
 
     async def close_all_clients(self):
@@ -141,8 +132,8 @@ class UserManager:
             yield Error(
                 "User not found. The app may have been restarted whilst you were using it. Please refresh the page."
             ).to_frontend(user_id, conversation_id, query_id)
-            backend_print(
-                f"\n\n[bold red]User not found (this error should not occur!)[/bold red]\n\n"
+            logger.error(
+                f"\n\n[bold red]User not found [italic](this error should not occur!)[/italic][/bold red]\n\n"
             )
             return
         elif self.check_tree_timeout(user_id, conversation_id):

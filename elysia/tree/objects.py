@@ -1,12 +1,11 @@
 from typing import Any, List
-
+from logging import Logger
 from rich import print
 
 from elysia.objects import Result
 from elysia.util.client import ClientManager
 
 # Util
-from elysia.util.logging import backend_print
 from elysia.util.parsing import format_dict_to_serialisable, remove_whitespace
 
 
@@ -105,9 +104,10 @@ class CollectionData:
     Store of metadata used by the collection agents.
     """
 
-    def __init__(self, collection_names: list[str]):
+    def __init__(self, collection_names: list[str], logger: Logger | None = None):
         self.collection_names = collection_names
         self.metadata = {}
+        self.logger = logger
 
     async def set_collection_names(
         self, collection_names: list[str], client_manager: ClientManager
@@ -143,17 +143,15 @@ class CollectionData:
                 else:
                     self.removed_collections.append(collection_name)
 
-        if len(self.removed_collections) > 0:
-            backend_print(
-                "[bold orange]WARNING:[/bold orange] "
+        if len(self.removed_collections) > 0 and self.logger:
+            self.logger.warning(
                 "The following collections have not been pre-processed for Elysia. "
                 f"{self.removed_collections}. "
                 "Ignoring these collections for now."
             )
 
-        if len(self.incorrect_collections) > 0:
-            backend_print(
-                "[bold orange]WARNING:[/bold orange] "
+        if len(self.incorrect_collections) > 0 and self.logger:
+            self.logger.warning(
                 "The following collections cannot be found in this Weaviate cluster. "
                 f"{self.incorrect_collections}. "
                 "These are being ignored for now. Please check that the collection names are correct."

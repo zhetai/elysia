@@ -1,4 +1,8 @@
 from typing import List
+from logging import Logger
+
+from rich import print
+from rich.panel import Panel
 
 import dspy
 
@@ -10,7 +14,6 @@ from elysia.tools.retrieval.prompt_templates import AggregationPrompt
 from elysia.tools.retrieval.util import execute_weaviate_aggregation
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
-from elysia.util.logging import backend_print, backend_print_error, backend_print_panel
 from elysia.util.objects import TrainingUpdate, TreeUpdate
 from elysia.util.parsing import format_aggregation_response
 
@@ -18,10 +21,10 @@ from elysia.util.parsing import format_aggregation_response
 class Aggregate(Tool):
     def __init__(
         self,
-        verbosity: int = 0,
+        logger: Logger | None = None,
         **kwargs,
     ):
-        self.verbosity = verbosity
+        self.logger = logger
 
         super().__init__(
             name="aggregate",
@@ -66,27 +69,6 @@ class Aggregate(Tool):
 
         return previous_aggregations
 
-    def _handle_generic_error(
-        self,
-        e: Exception,
-        collection_name: str,
-        user_prompt: str,
-        aggregation_output: dict | List[dict] | None = None,
-        impossible_reasoning: str | None = None,
-    ):
-        metadata = {
-            "collection_name": collection_name,
-            "error_message": str(e),
-            "impossible": user_prompt,
-        }
-        if aggregation_output is not None:
-            metadata["aggregation_output"] = aggregation_output
-
-        if impossible_reasoning is not None:
-            metadata["impossible_reasoning"] = impossible_reasoning
-
-        return Aggregation([], metadata)
-
     def _handle_assertion_error(
         self,
         e: Exception,
@@ -121,14 +103,20 @@ class Aggregate(Tool):
             }
         )
 
+        if self.logger:
+            self.logger.debug("Aggregation Tool called!")
+            self.logger.debug("Arguments received:")
+            self.logger.debug(f"{inputs}")
+
         # Set up the dspy model
         aggregate_generator = EnvironmentOfThought(AggregationPrompt)
         aggregate_generator = dspy.asyncify(aggregate_generator)
 
         # Get the collections from the inputs
         collection_names = inputs["collection_names"]
-        if self.verbosity > 1:
-            backend_print(f"AGGREGATE: received collections: {collection_names}")
+
+        if self.logger:
+            self.logger.info(f"Collection names received: {collection_names}")
 
         # Get some metadata about the collection
         previous_aggregations = self._find_previous_aggregations(
@@ -161,6 +149,15 @@ class Aggregate(Tool):
                     collection_name,
                     tree_data.user_prompt,
                 )
+
+            if self.logger:
+                self.logger.warning(
+                    f"Something went wrong when creating the query. Continuing..."
+                )
+                self.logger.debug(
+                    f"The error was during the generation of the aggregation: {str(e)}"
+                )
+
             yield Warning(
                 f"Oops! Something went wrong when creating the query. Continuing..."
             )
@@ -176,15 +173,24 @@ class Aggregate(Tool):
         )
 
         # Return if model deems aggregation impossible
-        if aggregation.impossible:
-            for collection_name in collection_names:
-                yield self._handle_generic_error(
-                    Exception("Model judged aggregation to be impossible"),
-                    collection_name,
-                    tree_data.user_prompt,
-                    aggregation.aggregation_queries.model_dump(),
-                    aggregation.reasoning,
+        if aggregation.impossible or aggregation.aggregation_queries is None:
+            if self.logger:
+                self.logger.info(
+                    "Model judged this aggregation to be impossible. Returning to the decision tree..."
                 )
+            for collection_name in collection_names:
+                metadata = {
+                    "collection_name": collection_name,
+                    "impossible": tree_data.user_prompt,
+                    "impossible_reasoning": aggregation.reasoning,
+                    "aggregation_output": (
+                        aggregation.aggregation_queries.model_dump()
+                        if aggregation.aggregation_queries is not None
+                        else None
+                    ),
+                }
+                yield Aggregation([], metadata)
+
             yield TreeUpdate(
                 from_node="aggregate",
                 to_node="aggregate_executor",
@@ -195,8 +201,6 @@ class Aggregate(Tool):
 
         # Go through each response
         for i, aggregation_output in enumerate(aggregation.aggregation_queries):
-            if self.verbosity > 1:
-                backend_print(aggregation_output)
 
             # Execute query within Weaviate
             async with client_manager.connect_to_async_client() as client:
@@ -212,11 +216,16 @@ class Aggregate(Tool):
                             tree_data.user_prompt,
                             aggregation_output.model_dump(),
                         )
+                    if self.logger:
+                        self.logger.warning(
+                            f"Something went wrong with the LLM creating the query! Continuing..."
+                        )
+                        self.logger.debug(
+                            f"The error was during the execution of the aggregation in Weaviate: {str(e)}"
+                        )
                     yield Warning(
                         f"Something went wrong with the LLM creating the query! Continuing..."
                     )
-                    backend_print_error(f"Assertion error: {str(e)}")
-                    # dont exit because can try again for next collection etc
                     continue
 
             yield Status(
@@ -226,11 +235,14 @@ class Aggregate(Tool):
             for k, (collection_name, response) in enumerate(
                 zip(aggregation_output.target_collections, responses)
             ):
-                if self.verbosity > 0:
-                    backend_print_panel(
-                        code_strings[k],
-                        title=f"{collection_name} (Aggregation)",
-                        border_style="yellow",
+                if self.logger and self.logger.level <= 20:
+                    print(
+                        Panel.fit(
+                            code_strings[k],
+                            title=f"{collection_name} (Weaviate Aggregation Query)",
+                            border_style="yellow",
+                            padding=(1, 1),
+                        )
                     )
 
                 objects = [{collection_name: format_aggregation_response(response)}]
@@ -245,6 +257,9 @@ class Aggregate(Tool):
                 }
 
                 yield Aggregation(objects, metadata)
+
+        if self.logger:
+            self.logger.debug("Aggregation Tool finished!")
 
 
 # async def main():

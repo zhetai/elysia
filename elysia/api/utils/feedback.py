@@ -1,21 +1,16 @@
-# from elysia.globals.weaviate_client import client
 from datetime import datetime, timedelta
 
-import pandas as pd
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Filter, Metrics
 from weaviate.util import generate_uuid5
 
 from elysia.objects import Error
 from elysia.tree.tree import Tree
-from elysia.util.logging import backend_print, backend_print_error
 from elysia.util.parsing import format_datetime
-
-
-import weaviate
+from elysia.api.core.logging import logger
 import weaviate.classes as wvc
 import weaviate.classes.config as wc
-from weaviate.classes.init import Auth
+
 
 def create_feedback_collection(client):
     client.collections.create(
@@ -166,6 +161,8 @@ def create_feedback_collection(client):
         ],
         vectorizer_config=wvc.config.Configure.Vectorizer.none(),
     )
+    logger.info("Feedback collection (ELYSIA_FEEDBACK__) created!")
+
 
 async def create_feedback(
     user_id: str, conversation_id: str, query_id: str, feedback: int, tree: Tree, client
@@ -243,12 +240,11 @@ async def create_feedback(
                 properties=properties, uuid=session_uuid
             )
     except Exception as e:
-        backend_print_error(f"(create_feedback) In creating feedback: {e}")
+        logger.exception(f"Whilst inserting feedback to the feedback collection")
 
 
 async def view_feedback(user_id: str, conversation_id: str, query_id: str, client):
     if not await client.collections.exists("ELYSIA_FEEDBACK__"):
-        backend_print_error("(view_feedback) No feedback collection found")
         return Error("No feedback collection found")
 
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
@@ -269,7 +265,6 @@ async def view_feedback(user_id: str, conversation_id: str, query_id: str, clien
 
 async def remove_feedback(user_id: str, conversation_id: str, query_id: str, client):
     if not await client.collections.exists("ELYSIA_FEEDBACK__"):
-        backend_print_error("(remove_feedback) No feedback collection found")
         return Error("No feedback collection found")
 
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
@@ -332,9 +327,9 @@ async def feedback_metadata(client, user_id: str):
         agg_feedback_count_i = await feedback_collection.aggregate.over_all(
             filters=filters, return_metrics=[Metrics("feedback").integer(count=True)]
         )
-        feedback_by_value[
-            feedback_values[feedback_value]
-        ] = agg_feedback_count_i.properties["feedback"].count
+        feedback_by_value[feedback_values[feedback_value]] = (
+            agg_feedback_count_i.properties["feedback"].count
+        )
 
         for date_group in agg_feedback_i.groups:
             if date_group.grouped_by.value not in feedback_by_date:

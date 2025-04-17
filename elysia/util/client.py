@@ -1,15 +1,15 @@
 import asyncio
-import atexit
 import datetime
 import threading
+
 from contextlib import asynccontextmanager, contextmanager
+from logging import Logger
 
 import weaviate
 from weaviate.classes.init import Auth
 
 from elysia.config import Settings
 from elysia.config import settings as environment_settings
-from elysia.util.logging import backend_print_error
 
 api_key_map = {
     # Regular API keys
@@ -51,6 +51,11 @@ api_key_map = {
 }
 
 
+# TODO: make client manager have some error messages when WCD_URL etc is not set.
+# e.g. client_manager = ClientManager() is fine, but if no env vars, it will give a warning.
+#      but the warning will say "this is fine if you are not going to use weaviate for retrieval"
+#      however, if a tool is called that tries to retrieve, it should raise an error within the client manager.
+#      i.e. client_manager is never None, so when doing things like this, it should raise an error/warning
 class ClientManager:
     """
     Handles the creation and management of the Weaviate client.
@@ -64,6 +69,7 @@ class ClientManager:
         wcd_url: str = "",
         wcd_api_key: str = "",
         client_timeout: int | None = None,
+        logger: Logger | None = None,
         **kwargs,
     ):
         """
@@ -81,6 +87,8 @@ class ClientManager:
                 HUGGINGFACE_APIKEY="my-huggingface-api-key...",
             )
         """
+
+        self.logger = logger
 
         if client_timeout is None:
             self.client_timeout = environment_settings.CLIENT_TIMEOUT
@@ -102,9 +110,9 @@ class ClientManager:
         self.headers = {}
         for api_key in environment_settings.API_KEYS:
             if api_key.lower() in [a.lower() for a in api_key_map.keys()]:
-                self.headers[
-                    api_key_map[api_key.upper()]
-                ] = environment_settings.API_KEYS[api_key]
+                self.headers[api_key_map[api_key.upper()]] = (
+                    environment_settings.API_KEYS[api_key]
+                )
 
         # From kwargs
         for kwarg in kwargs:
@@ -142,7 +150,7 @@ class ClientManager:
             if api_key.lower() in [a.lower() for a in api_key_map.keys()]:
                 self.headers[api_key_map[api_key.upper()]] = settings.API_KEYS[api_key]
 
-        self.restart_client()
+        await self.restart_client()
         await self.restart_async_client()
 
     async def start_clients(self):
@@ -153,11 +161,11 @@ class ClientManager:
             self.async_client = await self.get_async_client()
             self.async_restart_event.set()
 
-        if not await self.async_client.is_ready():
+        if not self.async_client.is_connected():
             await self.async_client.connect()
         self.async_init_completed = True
 
-        if not self.client.is_ready():
+        if not self.client.is_connected():
             self.client.connect()
 
     def update_last_user_request(self):
@@ -251,9 +259,10 @@ class ClientManager:
                                 await asyncio.sleep(check_interval)
                                 time_spent += check_interval
                                 if time_spent > max_wait_time:
-                                    backend_print_error(
-                                        f"Async client restart timed out after {max_wait_time} seconds. "
-                                    )
+                                    if self.logger:
+                                        self.logger.error(
+                                            f"Async client restart timed out after {max_wait_time} seconds. "
+                                        )
                                     break
                             finally:
                                 # Re-acquire lock after sleep
@@ -261,9 +270,10 @@ class ClientManager:
 
                     # Handle timeout case - must reset state regardless of timeout
                     if self.async_in_use_counter > 0:
-                        backend_print_error(
-                            "Force resetting async client state due to timeout"
-                        )
+                        if self.logger:
+                            self.logger.error(
+                                "Force resetting async client state due to timeout"
+                            )
                         self.async_in_use_counter = 0
 
                     # Whether we timed out or not, we need to restart the client
@@ -278,9 +288,10 @@ class ClientManager:
                         # Create a new client instance
                         self.async_client = await self.get_async_client()
                     except Exception as e:
-                        backend_print_error(
-                            f"Error during async client restart: {str(e)}"
-                        )
+                        if self.logger:
+                            self.logger.error(
+                                f"Error during async client restart: {str(e)}"
+                            )
                         # Create a new client anyway to ensure we have a valid client
                         self.async_client = await self.get_async_client()
                     finally:
@@ -289,9 +300,10 @@ class ClientManager:
                         self.async_restart_event.set()
 
             except Exception as e:
-                backend_print_error(
-                    f"Unexpected error in async client restart: {str(e)}"
-                )
+                if self.logger:
+                    self.logger.error(
+                        f"Unexpected error in async client restart: {str(e)}"
+                    )
                 # Ensure the event is set in all error cases
                 self.async_restart_event.set()
                 # Attempt to create a new client
@@ -334,10 +346,11 @@ class ClientManager:
                                 await asyncio.sleep(check_interval)
                                 time_spent += check_interval
                                 if time_spent > max_wait_time:
-                                    backend_print_error(
-                                        f"Sync client restart timed out after {max_wait_time}s. "
-                                        f"Initial counter: {last_recorded_counter}, Current: {self.sync_in_use_counter}"
-                                    )
+                                    if self.logger:
+                                        self.logger.error(
+                                            f"Sync client restart timed out after {max_wait_time}s. "
+                                            f"Initial counter: {last_recorded_counter}, Current: {self.sync_in_use_counter}"
+                                        )
                                     break
                             finally:
                                 # Re-acquire lock
@@ -345,9 +358,10 @@ class ClientManager:
 
                     # Handle timeout case - must reset state regardless of timeout
                     if self.sync_in_use_counter > 0:
-                        backend_print_error(
-                            "Force resetting sync client state due to timeout"
-                        )
+                        if self.logger:
+                            self.logger.error(
+                                "Force resetting sync client state due to timeout"
+                            )
                         self.sync_in_use_counter = 0
 
                     # Whether we timed out or not, we need to restart the client
@@ -359,9 +373,10 @@ class ClientManager:
                         # Create a new client instance
                         self.client = self.get_client()
                     except Exception as e:
-                        backend_print_error(
-                            f"Error during sync client restart: {str(e)}"
-                        )
+                        if self.logger:
+                            self.logger.error(
+                                f"Error during sync client restart: {str(e)}"
+                            )
                         # Create a new client anyway
                         self.client = self.get_client()
                     finally:
@@ -369,9 +384,10 @@ class ClientManager:
                         self.sync_restart_event.set()
 
             except Exception as e:
-                backend_print_error(
-                    f"Unexpected error in sync client restart: {str(e)}"
-                )
+                if self.logger:
+                    self.logger.error(
+                        f"Unexpected error in sync client restart: {str(e)}"
+                    )
                 # Ensure the event is set in all error cases
                 self.sync_restart_event.set()
                 # Attempt to create a new client

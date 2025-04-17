@@ -13,7 +13,7 @@ from elysia.util.collection_metadata import retrieve_all_collection_names
 router = APIRouter()
 
 
-async def process(data: dict, websocket: WebSocket, user_manager):
+async def process(data: dict, websocket: WebSocket, user_manager: UserManager):
     logger.debug(f"/query API request received")
     logger.debug(f"User ID: {data['user_id']}")
     logger.debug(f"Conversation ID: {data['conversation_id']}")
@@ -34,14 +34,6 @@ async def process(data: dict, websocket: WebSocket, user_manager):
             mimick = data["mimick"]
         else:
             mimick = False
-
-        if data["collection_names"] == []:
-            client_manager = await user_manager.get_user_local(data["user_id"])[
-                "client_manager"
-            ]
-            async with client_manager.connect_to_async_client() as client:
-                collection_names = await retrieve_all_collection_names(client)
-            data["collection_names"] = collection_names
 
         async for yielded_result in user_manager.process_tree(
             user_id=data["user_id"],
@@ -69,7 +61,7 @@ async def process(data: dict, websocket: WebSocket, user_manager):
             await asyncio.sleep(0.005)
 
     except Exception as e:
-        logger.error(f"Error in process function: {str(e)}")
+        logger.exception(f"Error in /query API")
 
         if "conversation_id" in data:
             error = Error(text=f"{str(e)}")

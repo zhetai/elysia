@@ -28,10 +28,13 @@ router = APIRouter()
 async def process_collection(
     data: ProcessCollectionData, websocket: WebSocket, user_manager: UserManager
 ):
+    logger.debug(f"/process_collection API request received")
+    logger.debug(f"User ID: {data.user_id}")
+    logger.debug(f"Collection name: {data.collection_name}")
+
     user = await user_manager.get_user_local(data["user_id"])
     config = user["config"]
 
-    # try:
     preprocessor = CollectionPreprocessor(
         lm=load_lm(
             provider=config.BASE_PROVIDER,

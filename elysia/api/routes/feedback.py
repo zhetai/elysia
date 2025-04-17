@@ -8,15 +8,28 @@ from elysia.api.api_types import (
 )
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
-from elysia.api.utils.feedback import create_feedback, feedback_metadata, remove_feedback
+from elysia.api.utils.feedback import (
+    create_feedback,
+    feedback_metadata,
+    remove_feedback,
+)
+from elysia.api.core.logging import logger
 
 router = APIRouter()
+
+# TODO: feedback is based on individual users now, not the auth client manager, so these are broken
 
 
 @router.post("/add_feedback")
 async def run_add_feedback(
     data: AddFeedbackData, user_manager: UserManager = Depends(get_user_manager)
 ):
+    logger.debug(f"/add_feedback API request received")
+    logger.debug(f"User ID: {data.user_id}")
+    logger.debug(f"Conversation ID: {data.conversation_id}")
+    logger.debug(f"Query ID: {data.query_id}")
+    logger.debug(f"Feedback: {data.feedback}")
+
     tree = await user_manager.get_tree(data.user_id, data.conversation_id)
 
     async with user_manager.auth_client_manager.connect_to_async_client() as client:

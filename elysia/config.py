@@ -1,6 +1,8 @@
 import json
 import os
 from typing import Callable
+from logging import Logger
+from rich.logging import logging, RichHandler
 
 import spacy
 from dotenv import load_dotenv
@@ -18,6 +20,8 @@ except Exception as e:
 
 
 class Settings:
+
+    # Default settings
     CLIENT_TIMEOUT: int = os.getenv("CLIENT_TIMEOUT", 3)
     VERSION = "0.2.0"
     SETTINGS_ID = str(uuid.uuid4())
@@ -30,8 +34,40 @@ class Settings:
     BASE_MODEL_LM: LM | None = None
     COMPLEX_MODEL_LM: LM | None = None
 
-    # Other API keys (for vectorisers etc.)
+    VERBOSITY: int = 1
+
     API_KEYS = {}
+
+    logger = logging.getLogger("rich")
+    logger.setLevel(logging.NOTSET)
+
+    # Remove any existing handlers before adding a new one
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
+
+    logger.propagate = False
+    LOGGING_LEVEL = "NOTSET"
+    LOGGING_LEVEL_INT = 0
+
+    def setup_app_logger(self, logger: Logger):
+        """
+        Override existing logger with the app-level logger.
+        """
+        self.logger = logger
+        self.LOGGING_LEVEL_INT = logger.level
+        inverted_logging_mapping = {
+            v: k for k, v in logging.getLevelNamesMapping().items()
+        }
+        self.LOGGING_LEVEL = inverted_logging_mapping[self.LOGGING_LEVEL_INT]
+
+    def configure_logger(self, level: str = "NOTSET"):
+        """
+        Configure the logger with a RichHandler.
+        """
+        self.logger.setLevel(level)
+        self.LOGGING_LEVEL = level
+        self.LOGGING_LEVEL_INT = logging.getLevelNamesMapping()[level]
 
     def set_api_key(self, api_key: str, api_key_name: str):
         os.environ[api_key_name] = api_key
@@ -48,6 +84,7 @@ class Settings:
                     for item in dir(self)
                     if not item.startswith("_")
                     and not isinstance(getattr(self, item), Callable)
+                    and item not in ["BASE_MODEL_LM", "COMPLEX_MODEL_LM", "logger"]
                 },
                 f,
                 indent=4,
@@ -58,15 +95,23 @@ class Settings:
             config = json.load(f)
         for item in config:
             setattr(self, item, config[item])
+        self.load_base_dspy_model()
+        self.load_complex_dspy_model()
+        self.logger = logging.getLogger("rich")
+        self.logger.setLevel(self.LOGGING_LEVEL)
+        self.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
 
     @classmethod
     def from_config(cls, config: dict):
         settings = cls()
         for item in config:
-            if item not in ["BASE_MODEL_LM", "COMPLEX_MODEL_LM"]:
-                setattr(settings, item, config[item])
+            setattr(settings, item, config[item])
         settings.load_base_dspy_model()
         settings.load_complex_dspy_model()
+        settings.logger = logging.getLogger("rich")
+        settings.logger.setLevel(settings.LOGGING_LEVEL)
+        settings.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
+
         return settings
 
     @classmethod
@@ -88,6 +133,7 @@ class Settings:
         self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER", None)
         self.MODEL_API_BASE = os.getenv("MODEL_API_BASE", None)
         self.LOCAL = os.getenv("LOCAL", "1") == "1"
+        self.LOGGING_LEVEL = os.getenv("LOGGING_LEVEL", "NOTSET")
         self.set_api_keys_from_env()
         self.load_base_dspy_model()
         self.load_complex_dspy_model()
@@ -111,6 +157,7 @@ class Settings:
             self.set_api_key(self.API_KEYS[api_key], api_key)
 
     def default_config(self):
+        # TODO: this could be a lot smarter, checking what api keys are available etc.
         self.BASE_MODEL = os.getenv("BASE_MODEL", "gemini-2.0-flash-001")
         self.COMPLEX_MODEL = os.getenv("COMPLEX_MODEL", "gemini-2.0-flash-001")
         self.BASE_PROVIDER = os.getenv("BASE_PROVIDER", "openrouter/google")
@@ -119,9 +166,12 @@ class Settings:
         self.LOCAL = os.getenv("LOCAL", "1") == "1"
         self.WCD_URL = os.getenv("WCD_URL")
         self.WCD_API_KEY = os.getenv("WCD_API_KEY")
+        self.VERBOSITY = int(os.getenv("VERBOSITY", "2"))
         self.set_api_keys_from_env()
         self.load_base_dspy_model()
         self.load_complex_dspy_model()
+        self.LOGGING_LEVEL = os.getenv("LOGGING_LEVEL", "NOTSET")
+        self.LOGGING_LEVEL_INT = logging.getLevelNamesMapping()[self.LOGGING_LEVEL]
 
     def load_base_dspy_model(self):
         if (
@@ -161,8 +211,12 @@ class Settings:
             wcd_url: The Weaviate cloud URL to use (str).
             wcd_api_key: The Weaviate cloud API key to use (str).
             local: Whether Elysia is running locally (bool).
+            logging_level: The logging level to use (str). e.g. "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
             **kwargs: Additional API keys to set. E.g. `openai_apikey="..."`
         """
+
+        # convert all kwargs to lowercase for consistency
+        kwargs = {kwarg.lower(): kwargs[kwarg] for kwarg in kwargs}
 
         if "local" in kwargs:
             self.LOCAL = kwargs["local"]
@@ -228,9 +282,25 @@ class Settings:
             self.WCD_API_KEY = kwargs["wcd_api_key"]
             kwargs.pop("wcd_api_key")
 
+        if "logging_level" in kwargs:
+            self.LOGGING_LEVEL = kwargs["logging_level"]
+            self.LOGGING_LEVEL_INT = logging.getLevelNamesMapping()[self.LOGGING_LEVEL]
+            self.logger.setLevel(self.LOGGING_LEVEL)
+            kwargs.pop("logging_level")
+
         # remainder of kwargs are API keys or saved there
+        removed_kwargs = []
         for key, value in kwargs.items():
-            self.set_api_key(value, key)
+            if key.endswith("api_key"):
+                self.set_api_key(value, key)
+                removed_kwargs.append(key)
+
+        for key in removed_kwargs:
+            kwargs.pop(key)
+
+        # remaining kwargs are not API keys
+        if len(kwargs) > 0:
+            self.logger.warning("Unknown arguments: " + ", ".join(kwargs.keys()))
 
     def __repr__(self) -> str:
         out = ""

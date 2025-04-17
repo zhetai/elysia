@@ -14,7 +14,6 @@ from functools import lru_cache
 from elysia.config import Settings
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
-from elysia.util.logging import backend_print
 from elysia.util.objects import Timer
 
 
@@ -118,9 +117,6 @@ class TreeManager:
         for i, conversation_id in enumerate(self.trees):
             if self.check_tree_timeout(conversation_id):
                 convs_to_remove.append(conversation_id)
-
-        if len(convs_to_remove) > 0:
-            backend_print(f"Removing {len(convs_to_remove)} trees that have timed out.")
 
         for conversation_id in convs_to_remove:
             del self.trees[conversation_id]

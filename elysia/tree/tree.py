@@ -13,6 +13,13 @@ import nest_asyncio
 from dspy import LM
 from pympler import asizeof
 from rich import print
+from rich.console import Console
+from rich.live import Live
+from rich.text import Text as RichText
+from rich.panel import Panel
+
+import logging
+from logging import Logger
 
 # Weaviate
 from elysia.config import Settings
@@ -30,6 +37,7 @@ from elysia.objects import (
     Tool,
     Update,
     Warning,
+    Status,
 )
 from elysia.tools.retrieval.aggregate import Aggregate
 
@@ -50,11 +58,11 @@ from elysia.config import (
     load_base_lm,
     load_complex_lm,
 )
-from elysia.util.logging import backend_print, backend_print_panel
 from elysia.util.objects import LMTimer, Timer, TrainingUpdate, TreeUpdate
 
 # Util
 from elysia.util.parsing import remove_whitespace
+from elysia.util.collection_metadata import retrieve_all_collection_names
 
 
 class RecursionLimitException(Exception):
@@ -88,14 +96,14 @@ class DecisionNode:
         root: bool = False,
         model_filepath: str = "",
         load_dspy_model: bool = True,
-        verbosity: int = 1,
+        logger: Logger = None,
     ):
         self.id = id
         self.instruction = instruction
         self.options = options
         self.root = root
         self.load_dspy_model = load_dspy_model
-        self.verbosity = verbosity
+        self.logger = logger
         self.model_filepath = model_filepath
 
     def _load_model(self, executor):
@@ -106,14 +114,14 @@ class DecisionNode:
         ):
             try:
                 executor.load(self.model_filepath)
-                if self.verbosity > 1:
-                    backend_print(
+                if self.logger:
+                    self.logger.info(
                         f"[green]Loaded Decision model[/green] at [italic magenta]{self.model_filepath}[/italic magenta]"
                     )
             except Exception as e:
-                if self.verbosity > 1:
-                    backend_print(
-                        f"[red]Failed to load Decision model[/red] at {self.model_filepath}: {e}"
+                if self.logger:
+                    self.logger.error(
+                        f"Failed to load Decision model at {self.model_filepath}"
                     )
 
         return executor
@@ -203,7 +211,7 @@ class DecisionNode:
         **kwargs,
     ):
         decision_executor = DecisionExecutor(self._get_options())
-        decision_executor = self._load_model(decision_executor)
+        # decision_executor = self._load_model(decision_executor)
         decision_executor = dspy.asyncify(decision_executor)
 
         output = await decision_executor(
@@ -240,6 +248,8 @@ class DecisionNode:
             reasoning=output.reasoning,
             last_in_branch=True,
         )
+
+        yield Status(self.options[output.function_name]["status"])
 
         if output.function_name != "text_response":
             yield Response(output.message_update)
@@ -376,7 +386,6 @@ class Tree:
         self,
         user_id: str = "1",
         conversation_id: str = "1",
-        verbosity: int = 1,
         branch_initialisation: str = "default",
         dspy_initialisation: str = "mipro",
         load_dspy_model: bool = True,
@@ -386,7 +395,6 @@ class Tree:
         # Define base variables of the tree
         self.user_id = user_id
         self.conversation_id = conversation_id
-        self.verbosity = verbosity
         self.load_dspy_model = load_dspy_model
         self.settings = settings
 
@@ -433,17 +441,18 @@ class Tree:
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
-            collection_data=CollectionData(collection_names=[]),
+            collection_data=CollectionData(
+                collection_names=[], logger=self.settings.logger
+            ),
             recursion_limit=5,
         )
 
         # Print the tree if required
-        if verbosity > 1:
-            backend_print("Initialised tree with the following decision nodes:")
-            for decision_node in self.decision_nodes.values():
-                backend_print(
-                    f"  - [magenta]{decision_node.id}[/magenta]: {list(decision_node.options.keys())}"
-                )
+        self.settings.logger.info("Initialised tree with the following decision nodes:")
+        for decision_node in self.decision_nodes.values():
+            self.settings.logger.info(
+                f"  - [magenta]{decision_node.id}[/magenta]: {list(decision_node.options.keys())}"
+            )
 
     def default_init(self):
         self.add_branch(
@@ -657,8 +666,9 @@ class Tree:
         collection_names: list[str],
         client_manager: ClientManager,
     ):
-        if self.verbosity > 1:
-            backend_print(f"Setting collection names to: {collection_names}")
+        self.settings.logger.info(
+            f"Using the following collection names: {collection_names}"
+        )
 
         collection_names = await self.tree_data.set_collection_names(
             collection_names, client_manager
@@ -675,8 +685,8 @@ class Tree:
                 self.decision_nodes[branch_id].remove_option(empty_branch)
 
         for empty_branch in empty_branches:
-            backend_print(
-                f"[bold orange]WARNING:[/bold orange] Removing empty branch: {empty_branch}",
+            self.settings.logger.warning(
+                f"Removing empty branch: {empty_branch}",
                 "No tools are attached to this branch, so it has been removed.",
                 f"To add a tool to this branch, use .add_tool(tool_name, branch_id={empty_branch})",
             )
@@ -774,7 +784,7 @@ class Tree:
 
     def add_tool(self, branch_id: str, tool: type, **kwargs):
         tool_instance = tool(
-            verbosity=self.verbosity,
+            logger=self.settings.logger,
             load_dspy_model=self.load_dspy_model,
             **kwargs,
         )
@@ -841,14 +851,12 @@ class Tree:
                 "Set `root=True` to create a root branch or choose where this branch stems from."
             )
         if root and description != "":
-            backend_print(
-                f"[bold orange]WARNING:[/bold orange] Description is not used for root branches. "
-            )
+            self.settings.logger.warning(f"Description is not used for root branches. ")
             description = ""
 
         if root and from_branch_id != "":
-            backend_print(
-                f"[bold orange]WARNING:[/bold orange] `from_branch_id` is not used for root branches. "
+            self.settings.logger.warning(
+                "`from_branch_id` is not used for root branches. "
                 "(As this is the root branch, it does not stem from any other branch.)"
                 "If you wish this to be stemming from a previous branch, set `root=False`."
             )
@@ -875,7 +883,7 @@ class Tree:
             root=root,
             load_dspy_model=self.load_dspy_model,
             model_filepath=self.model_filepath,
-            verbosity=self.verbosity,
+            logger=self.settings.logger,
         )
         self.decision_nodes[branch_id] = decision_node
 
@@ -974,11 +982,14 @@ class Tree:
 
         if isinstance(result, Text):
             self._update_conversation_history("assistant", result.text)
-            if self.verbosity > 1:
-                backend_print_panel(
-                    result.text,
-                    title="Assistant response",
-                    border_style="cyan",
+            if self.settings.LOGGING_LEVEL_INT <= 20:
+                print(
+                    Panel.fit(
+                        result.text,
+                        title="Assistant response",
+                        border_style="cyan",
+                        padding=(1, 1),
+                    )
                 )
 
         return await self.returner(
@@ -998,10 +1009,9 @@ class Tree:
         _first_run: bool = True,
         **kwargs,
     ):
-        collection_names = [c.lower() for c in collection_names]
 
         if client_manager is None:
-            client_manager = ClientManager()
+            client_manager = ClientManager(logger=self.settings.logger)
 
         # Some initial steps if this is the first run (no recursion yet)
         if _first_run:
@@ -1024,6 +1034,13 @@ class Tree:
             await client_manager.start_clients()
 
             # Initialise the collections
+            # TODO: with client manager error handling, another bool check to see if client manager is active
+            # if active, keep collection names empty
+            if collection_names == []:
+                async with client_manager.connect_to_async_client() as client:
+                    collection_names = await retrieve_all_collection_names(client)
+
+            collection_names = [c.lower() for c in collection_names]
             await self.set_collection_names(
                 collection_names,
                 client_manager,
@@ -1036,11 +1053,14 @@ class Tree:
             if training_route != "":
                 training_route = training_route.split("/")
 
-            if self.verbosity > 1:
-                backend_print_panel(
-                    user_prompt,
-                    title="User prompt",
-                    border_style="yellow",
+            if self.settings.LOGGING_LEVEL_INT <= 20:
+                print(
+                    Panel.fit(
+                        user_prompt,
+                        title="User prompt",
+                        border_style="yellow",
+                        padding=(1, 1),
+                    )
                 )
 
         base_lm = self.get_lm("base")
@@ -1068,8 +1088,7 @@ class Tree:
             # else:
             # If training, decide from the training route
             if len(training_route) > 0:
-                if self.verbosity > 1:
-                    backend_print(f"Training route: {training_route}")
+                self.settings.logger.info(f"Route that will be used: {training_route}")
 
                 (
                     self.current_decision,
@@ -1117,12 +1136,11 @@ class Tree:
 
             # additional end criteria, recursion limit reached
             if self.tree_data.num_trees_completed > self.tree_data.recursion_limit:
-                if self.verbosity > 1:
-                    backend_print(
-                        f"Warning: [bold red]Recursion limit reached! ({self.tree_data.num_trees_completed})[/bold red]"
-                    )
+                self.settings.logger.warning(
+                    f"Recursion limit reached! ({self.tree_data.num_trees_completed})"
+                )
                 yield await self.returner(
-                    Warning("Recursion limit reached! Forcing text response."),
+                    Warning("Decision tree reached recursion limit!"),
                     query_id=self.prompt_to_query_id[user_prompt],
                 )
                 completed = True
@@ -1140,13 +1158,16 @@ class Tree:
             self.decision_history.append(self.current_decision.function_name)
 
             # print the current node information
-            if self.verbosity > 1:
-                backend_print(f"Node: [magenta]{current_decision_node.id}[/magenta]")
-                backend_print(
-                    f"Instruction: [italic]{current_decision_node.instruction.strip()}[/italic]"
-                )
-                backend_print(
-                    f"Decision: [green]{self.current_decision.function_name}[/green]\n"
+            if self.settings.LOGGING_LEVEL_INT <= 20:
+                print(
+                    Panel.fit(
+                        f"[bold]Node:[/bold] [magenta]{current_decision_node.id}[/magenta]\n"
+                        f"[bold]Decision:[/bold] [green]{self.current_decision.function_name}[/green]\n"
+                        f"[bold]Reasoning:[/bold] {self.current_decision.reasoning}\n",
+                        title="Current Decision",
+                        border_style="magenta",
+                        padding=(1, 1),
+                    )
                 )
 
             # end of current tree
@@ -1216,27 +1237,27 @@ class Tree:
                 Completed(), query_id=self.prompt_to_query_id[user_prompt]
             )
 
-            if self.verbosity > 0:
-                backend_print(
-                    f"[bold green]Model identified overall goal as completed![/bold green]"
-                )
-                backend_print(
-                    f"Time taken: {time.time() - self.start_time:.2f} seconds"
-                )
-                backend_print(f"Tasks completed:\n")
-                for task in self.decision_history:
-                    backend_print(f"     - {task}")
+            self.settings.logger.info(
+                f"[bold green]Model identified overall goal as completed![/bold green]"
+            )
+            self.settings.logger.debug(
+                f"Time taken: {time.time() - self.start_time:.2f} seconds"
+            )
+            self.settings.logger.info(f"Tasks completed:\n")
+            for task in self.decision_history:
+                self.settings.logger.info(f"     - {task}")
 
             if close_clients_after_completion:
                 await client_manager.close_clients()
 
         # otherwise, end of the tree for this iteration, and recursively call process() to restart the tree
         else:
-            if self.verbosity > 1:
-                backend_print(
-                    f"Model did [bold red]not[/bold red] yet complete overall goal! "
-                    f"Restarting tree (Recursion: {self.tree_data.num_trees_completed+1}/{self.tree_data.recursion_limit})..."
-                )
+            self.settings.logger.info(
+                f"Model did [bold red]not[/bold red] yet complete overall goal! "
+            )
+            self.settings.logger.debug(
+                f"Restarting tree (Recursion: {self.tree_data.num_trees_completed+1}/{self.tree_data.recursion_limit})..."
+            )
 
             # recursive call to restart the tree since the goal was not completed
             self.tree_data.num_trees_completed += 1
@@ -1259,11 +1280,43 @@ class Tree:
         async def run_process():
             results = []
             async for result in self.process(*args, **kwargs):
-                results.append(result)
+                if (
+                    result is not None
+                    and "type" in result
+                    and result["type"] == "result"
+                ):
+                    results.append(result["payload"]["objects"])
             return results
 
+        async def run_with_live():
+            console = Console()
+
+            with console.status("[bold indigo]Thinking...") as status:
+                results = []
+                async for result in self.process(*args, **kwargs):
+                    if (
+                        result is not None
+                        and "type" in result
+                        and result["type"] == "result"
+                    ):
+                        results.append(result["payload"]["objects"])
+
+                    if (
+                        result is not None
+                        and "type" in result
+                        and result["type"] == "status"
+                    ):
+                        status.update(f"[bold indigo]{result['payload']['text']}")
+
         loop = asyncio.get_event_loop()
-        return loop.run_until_complete(run_process())
+        if self.settings.LOGGING_LEVEL_INT <= 10:
+            yielded_results = loop.run_until_complete(run_with_live())
+        else:
+            yielded_results = loop.run_until_complete(run_process())
+
+        text = self.tree_data.conversation_history[-1]["content"]
+
+        return text, yielded_results
 
     def detailed_memory_usage(self) -> dict:
         """

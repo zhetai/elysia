@@ -12,8 +12,9 @@ def read_requirements():
                 and not line.startswith("#")
                 and not line.startswith("https")
             ]
-        ) 
+        )
     return all_requirements
+
 
 def read_requirements_dev():
     all_requirements = []
@@ -26,7 +27,7 @@ def read_requirements_dev():
                 and not line.startswith("#")
                 and not line.startswith("https")
             ]
-        ) 
+        )
     return all_requirements
 
 
@@ -50,5 +51,10 @@ setup(
     include_package_data=True,
     extras_require={
         "dev": read_requirements_dev(),
+    },
+    entry_points={
+        "console_scripts": [
+            "elysia=elysia.api.cli:cli",
+        ],
     },
 )

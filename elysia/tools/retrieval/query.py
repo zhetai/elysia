@@ -1,4 +1,9 @@
 from typing import List
+from logging import Logger
+
+
+from rich import print
+from rich.panel import Panel
 
 import dspy
 
@@ -22,12 +27,11 @@ from elysia.tools.retrieval.prompt_templates import (
 from elysia.tools.retrieval.util import execute_weaviate_query
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
-from elysia.util.logging import backend_print, backend_print_error, backend_print_panel
 from elysia.util.objects import TrainingUpdate, TreeUpdate
 
 
 class Query(Tool):
-    def __init__(self, verbosity: int = 0, **kwargs):
+    def __init__(self, logger: Logger | None = None, **kwargs):
         super().__init__(
             name="query",
             description="""
@@ -47,7 +51,7 @@ class Query(Tool):
             end=False,
         )
 
-        self.verbosity = verbosity
+        self.logger = logger
         self.retrieval_map = {
             "conversation": ConversationRetrieval,
             "message": MessageRetrieval,
@@ -189,11 +193,15 @@ class Query(Tool):
             }
         )
 
+        if self.logger:
+            self.logger.debug("Query Tool called!")
+            self.logger.debug(f"Inputs: {inputs}")
+
         # Get the collections
         collection_names = [c.lower() for c in inputs["collection_names"]]
 
-        if self.verbosity > 1:
-            backend_print(f"QUERY: received collections: {collection_names}")
+        if self.logger:
+            self.logger.debug(f"Collection names received: {collection_names}")
 
         # Set up the dspy model
         query_generator = EnvironmentOfThought(QueryCreatorPrompt)
@@ -204,6 +212,9 @@ class Query(Tool):
             tree_data.environment.environment,
             tree_data.collection_data.collection_names,
         )
+
+        if self.logger:
+            self.logger.debug(f"Previous queries: {previous_queries}")
 
         # Get schemas for these collections
         schemas = tree_data.output_collection_metadata(with_mappings=True)
@@ -245,6 +256,14 @@ class Query(Tool):
                 yield self._handle_generic_error(
                     e, collection_name, tree_data.user_prompt
                 )
+
+            if self.logger:
+                self.logger.warning(
+                    f"Oops! Something went wrong when creating the query. Continuing..."
+                )
+                self.logger.debug(
+                    f"The error was during the generation of the query: {str(e)}"
+                )
             yield Warning(
                 f"Oops! Something went wrong when creating the query. Continuing..."
             )
@@ -261,17 +280,25 @@ class Query(Tool):
 
         # Return if model deems query impossible
         if query.impossible or query.query_output is None:
+
             for collection_name in collection_names:
-                yield self._handle_generic_error(
-                    Exception("Model judged query to be impossible"),
-                    collection_name,
-                    tree_data.user_prompt,
-                    (
+                metadata = {
+                    "collection_name": collection_name,
+                    "impossible": tree_data.user_prompt,
+                    "impossible_reasoning": query.reasoning,
+                    "query_output": (
                         query.query_output.model_dump()
                         if query.query_output is not None
                         else None
                     ),
+                }
+                yield BoringGenericRetrieval([], metadata)
+
+            if self.logger:
+                self.logger.warning(
+                    f"Model judged query to be impossible. Returning to the decision tree..."
                 )
+
             yield TreeUpdate(
                 from_node="query",
                 to_node="query_executor",
@@ -313,12 +340,14 @@ class Query(Tool):
         for i, query_output in enumerate(query.query_output):
             collection_names = query_output.target_collections.copy()
 
-            if self.verbosity > 1:
-                backend_print(query_output)
-
             for collection_name in collection_names:
                 # Get display types
                 display_type = query.data_display[collection_name].display_type
+
+                if self.logger:
+                    self.logger.debug(
+                        f"Display type for collection {collection_name}: {display_type}"
+                    )
 
                 # Evaluate if this collection/query needs chunking
                 needs_chunking = self._evaluate_needs_chunking(
@@ -331,7 +360,7 @@ class Query(Tool):
                 )  # used for chunking
 
                 if needs_chunking:
-                    # Only run this once.
+
                     if not chunking_status_sent:
                         yield Status("Chunking collections...")
                         yield TreeUpdate(
@@ -344,6 +373,9 @@ class Query(Tool):
                             ),
                         )
                         chunking_status_sent = True
+
+                    if self.logger:
+                        self.logger.debug(f"Chunking {collection_name}")
 
                     # set up chunking (create reference in this collection)
                     collection_chunker = AsyncCollectionChunker(collection_name)
@@ -380,8 +412,13 @@ class Query(Tool):
                     for j, c in enumerate(query_output.target_collections):
                         if c == collection_name:
                             query_output.target_collections[j] = (
-                                f"ELYSIA_CHUNKED_{collection_name}2__"
+                                f"ELYSIA_CHUNKED_{collection_name}__"
                             )
+
+                    if self.logger:
+                        self.logger.debug(
+                            f"Chunked {collection_name} and updated query output to {query_output.target_collections}"
+                        )
 
             # Execute query within Weaviate
             async with client_manager.connect_to_async_client() as client:
@@ -397,10 +434,17 @@ class Query(Tool):
                             tree_data.user_prompt,
                             query_output.model_dump(),
                         )
+
+                    if self.logger:
+                        self.logger.warning(
+                            f"Something went wrong with the LLM creating the query! Continuing..."
+                        )
+                        self.logger.debug(
+                            f"The assertion error was during the execution of the query: {str(e)}"
+                        )
                     yield Warning(
                         f"Something went wrong with the LLM creating the query! Continuing..."
                     )
-                    backend_print_error(f"Assertion error: {str(e)}")
                     # dont exit because can try again for next collection etc
                     continue
 
@@ -411,11 +455,14 @@ class Query(Tool):
             for k, (collection_name, response) in enumerate(
                 zip(collection_names, responses)
             ):
-                if self.verbosity > 1:
-                    backend_print_panel(
-                        code_strings[k],
-                        title=f"{collection_name} (Query)",
-                        border_style="yellow",
+                if self.logger and self.logger.level <= 20:
+                    print(
+                        Panel.fit(
+                            code_strings[k],
+                            title=f"{collection_name} (Weaviate Query)",
+                            border_style="yellow",
+                            padding=(1, 1),
+                        )
                     )
 
                 # Get display type and summarise items bool
@@ -460,6 +507,11 @@ class Query(Tool):
                     await output.async_init(client_manager)
 
                 if summarise_items:
+                    if self.logger:
+                        self.logger.debug(
+                            f"{collection_name} will have itemised summaries."
+                        )
+
                     object_summariser = dspy.ChainOfThought(ObjectSummaryPrompt)
                     object_summariser = dspy.asyncify(object_summariser)
                     yield Status(
@@ -469,6 +521,9 @@ class Query(Tool):
                     summariser = await object_summariser(
                         objects=output.to_json(), lm=base_lm
                     )
+
+                    if self.logger:
+                        self.logger.debug(f"Summarisation complete.")
 
                     if not summarise_status_sent:
                         yield TreeUpdate(
@@ -501,6 +556,9 @@ class Query(Tool):
                 reasoning="This step was skipped because the LLM determined that no output types were summaries.",
                 last_in_branch=True,
             )
+
+        if self.logger:
+            self.logger.debug("Query Tool finished!")
 
 
 # async def main():
