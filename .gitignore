@@ -151,3 +151,5 @@ elysia-frontend
 elysia-frontend/
 elysia-frontend/* 
 elysia-frontend/.git/* 
+
+elysia/api/static/*

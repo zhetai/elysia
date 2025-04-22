@@ -13,10 +13,6 @@ class QueryData(BaseModel):
     mimick: Optional[bool] = False
 
 
-class GetCollectionsData(BaseModel):
-    user_id: str
-
-
 class ViewPaginatedCollectionData(BaseModel):
     user_id: str
     collection_name: str

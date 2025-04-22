@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from elysia.api.api_types import InitialiseTreeData
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 
 router = APIRouter()
 

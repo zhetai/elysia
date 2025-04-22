@@ -7,7 +7,7 @@ from weaviate.util import generate_uuid5
 from elysia.objects import Error
 from elysia.tree.tree import Tree
 from elysia.util.parsing import format_datetime
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 import weaviate.classes as wvc
 import weaviate.classes.config as wc
 

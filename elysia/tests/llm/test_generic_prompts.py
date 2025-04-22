@@ -23,17 +23,20 @@ class TestGenericPrompts(TestTree):
         tree = asyncio.run(
             self.run_tree(
                 user_prompt,
-                [
-                    "ecommerce",
-                    "example_verba_email_chains",
-                    "example_verba_github_issues",
-                    "example_verba_slack_conversations",
-                    "weather",
-                    "ML_Wikipedia",
-                    "weaviate_blogs",
-                ],
+                [],
             )
         )
+
+        # passing empty collection list should mean all collections are searched
+        self.assertIn("example_verba_github_issues", tree.tree_data.collection_names)
+        self.assertIn("example_verba_email_chains", tree.tree_data.collection_names)
+        self.assertIn(
+            "example_verba_slack_conversations", tree.tree_data.collection_names
+        )
+        self.assertIn("weather", tree.tree_data.collection_names)
+        self.assertIn("ml_wikipedia", tree.tree_data.collection_names)
+        self.assertIn("weaviate_blogs", tree.tree_data.collection_names)
+        self.assertIn("weaviate_documentation", tree.tree_data.collection_names)
 
         self.assertIn("query", tree.decision_history)
 

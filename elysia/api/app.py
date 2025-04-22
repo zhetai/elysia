@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger, set_log_level
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.middleware.error_handlers import register_error_handlers
 from elysia.api.routes import (
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     user_manager = get_user_manager()
 
     scheduler = AsyncIOScheduler()
-    logger.setLevel("INFO")  # TODO: change to WARNING if in prod
+    set_log_level("INFO")  # TODO: change to WARNING if in prod
 
     # use prime numbers for intervals so they don't overlap
     scheduler.add_job(perform_garbage_collection, "interval", seconds=23)

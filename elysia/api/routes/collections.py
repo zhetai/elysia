@@ -13,7 +13,7 @@ from elysia.api.api_types import (
 )
 
 # Logging
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 
 # user manager
 from elysia.api.dependencies.common import get_user_manager

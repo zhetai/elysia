@@ -7,7 +7,7 @@ from starlette.websockets import WebSocketDisconnect
 from elysia.api.api_types import ProcessCollectionData
 
 # Logging
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 
 # User manager
 from elysia.api.dependencies.common import get_user_manager
@@ -20,7 +20,7 @@ from elysia.api.utils.websocket import help_websocket
 from elysia.preprocess.collection import CollectionPreprocessor
 
 # LM
-from elysia.config import load_lm
+from elysia.config import load_base_lm
 
 router = APIRouter()
 
@@ -29,19 +29,13 @@ async def process_collection(
     data: ProcessCollectionData, websocket: WebSocket, user_manager: UserManager
 ):
     logger.debug(f"/process_collection API request received")
-    logger.debug(f"User ID: {data.user_id}")
-    logger.debug(f"Collection name: {data.collection_name}")
+    logger.debug(f"User ID: {data['user_id']}")
+    logger.debug(f"Collection name: {data['collection_name']}")
 
     user = await user_manager.get_user_local(data["user_id"])
     config = user["config"]
 
-    preprocessor = CollectionPreprocessor(
-        lm=load_lm(
-            provider=config.BASE_PROVIDER,
-            lm_name=config.BASE_MODEL,
-            model_api_base=config.MODEL_API_BASE,
-        )
-    )
+    preprocessor = CollectionPreprocessor(lm=load_base_lm(config))
     async for result in preprocessor(
         collection_name=data["collection_name"],
         client_manager=user["client_manager"],

@@ -7,7 +7,11 @@ from rich.logging import logging, RichHandler
 import spacy
 from dotenv import load_dotenv
 
+import dspy
 from dspy import LM
+from dspy.utils import DummyLM
+from dspy.utils.callback import with_callbacks
+
 import uuid
 
 load_dotenv()
@@ -379,6 +383,28 @@ def load_complex_lm(settings: Settings):
     )
 
 
+class MyDummyLM(LM):
+
+    @with_callbacks
+    def __call__(self, prompt=None, messages=None, **kwargs):
+        user_message = messages[-1]["content"]
+
+        categories = []
+        no_categories = True
+        while no_categories:
+            start_idx = user_message.find("[[ ## ") + len("[[ ## ")
+            end_idx = user_message.find(" ## ]]", start_idx)
+            if start_idx == -1 or end_idx == -1:
+                no_categories = False
+            else:
+                categories.append(user_message[start_idx:end_idx])
+                user_message = user_message[end_idx + len(" ## ]]") :]
+
+        return DummyLM([{cat: "Test!"} for cat in categories])(
+            messages=messages, **kwargs
+        )
+
+
 def load_lm(
     provider: str,
     lm_name: str,
@@ -388,11 +414,11 @@ def load_lm(
     full_lm_name = f"{provider}/{lm_name}"
 
     if lm_name.startswith("o1") or lm_name.startswith("o3"):
-        lm = LM(model=full_lm_name, api_base=api_base, max_tokens=8000, temperature=1.0)
-    else:
-        lm = LM(model=full_lm_name, api_base=api_base, max_tokens=8000)
+        return LM(
+            model=full_lm_name, api_base=api_base, max_tokens=8000, temperature=1.0
+        )
 
-    return lm
+    return LM(model=full_lm_name, api_base=api_base, max_tokens=8000)
 
 
 # global settings that should never be used by the frontend

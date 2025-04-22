@@ -14,7 +14,7 @@ from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.util.client import ClientManager
 from elysia.config import Settings
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 
 router = APIRouter()
 

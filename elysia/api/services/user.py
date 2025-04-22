@@ -12,7 +12,7 @@ from elysia.objects import Error, Update
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
 from elysia.util.objects import Timer
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 
 
 class TreeTimeoutError(Update):

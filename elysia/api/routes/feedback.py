@@ -13,7 +13,7 @@ from elysia.api.utils.feedback import (
     feedback_metadata,
     remove_feedback,
 )
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 
 router = APIRouter()
 

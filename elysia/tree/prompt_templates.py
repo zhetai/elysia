@@ -4,13 +4,14 @@ import dspy
 
 
 def construct_decision_prompt(
-    available_tasks: list[dict] | None = None,
+    available_tasks: list[str] | None = None,
 ) -> dspy.Signature:
     ActionLiteral = (
         Literal[tuple(available_tasks)]
         if (available_tasks is not None and len(available_tasks) > 0)  # type: ignore
         else str
     )
+    ActionLiteral.default = available_tasks[0]
 
     class DecisionPrompt(dspy.Signature):
         """

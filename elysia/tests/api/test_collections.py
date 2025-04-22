@@ -1,34 +1,11 @@
-import os
-import random
-import sys
 import unittest
 
 from fastapi.responses import JSONResponse
 
-sys.path.append(os.getcwd())
-
-import elysia
-from elysia.tree.tree import Tree
-
-from elysia.preprocess.collection import CollectionPreprocessor
-
-from elysia.util.client import ClientManager
-
-# api imports
 import asyncio
-import os
-import sys
-
-sys.path.append(os.getcwd())
-# os.chdir("../..")
-
 import json
 
-from rich import print
-from weaviate.util import generate_uuid5
-
 from elysia.api.api_types import (
-    GetCollectionsData,
     GetObjectData,
     ViewPaginatedCollectionData,
     UserCollectionsData,
@@ -42,9 +19,9 @@ from elysia.api.routes.collections import (
     get_object,
 )
 
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger, set_log_level
 
-logger.setLevel("CRITICAL")
+set_log_level("CRITICAL")
 
 
 def read_response(response: JSONResponse):
@@ -107,6 +84,7 @@ class TestEndpoints(unittest.TestCase):
                 collection = client.collections.get("example_verba_github_issues")
                 uuid = str(collection.query.fetch_objects(limit=1).objects[0].uuid)
 
+            # test with valid UUID
             basic = loop.run_until_complete(
                 get_object(
                     GetObjectData(
@@ -187,6 +165,7 @@ class TestEndpoints(unittest.TestCase):
             filter = read_response(filter)
             self.assertTrue(filter["error"] == "")
 
+            # test with out of bounds page number, should return empty list
             out_of_bounds = loop.run_until_complete(
                 view_paginated_collection(
                     ViewPaginatedCollectionData(
@@ -211,10 +190,7 @@ class TestEndpoints(unittest.TestCase):
                 )
             )
             out_of_bounds = read_response(out_of_bounds)
-            if out_of_bounds["error"] != "":
-                print(out_of_bounds["error"])
             self.assertTrue(out_of_bounds["error"] == "")
-
             self.assertTrue(len(out_of_bounds["items"]) == 0)
 
         finally:

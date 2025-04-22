@@ -7,7 +7,7 @@ from fastapi.dependencies.utils import solve_dependencies
 from starlette.websockets import WebSocketDisconnect
 
 # Logging
-from elysia.api.core.logging import logger
+from elysia.api.core.log import logger
 
 # Objects
 from elysia.objects import Error
