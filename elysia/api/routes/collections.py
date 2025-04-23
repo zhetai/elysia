@@ -59,87 +59,102 @@ async def collections(
                 logger.debug(
                     f"Gathering information for collection_name: {collection_name}"
                 )
-                # for vectoriser
-                collection = client.collections.get(collection_name)
-                config = await collection.config.get()
 
-                # for total count
-                all_aggregate = await collection.aggregate.over_all(total_count=True)
-                len = all_aggregate.total_count
+                try:
+                    # for vectoriser
+                    collection = client.collections.get(collection_name)
+                    config = await collection.config.get()
 
-                # for processed
-                processed = await client.collections.exists(
-                    f"ELYSIA_METADATA_{collection_name}__"
-                )
+                    # for total count
+                    all_aggregate = await collection.aggregate.over_all(
+                        total_count=True
+                    )
+                    len = all_aggregate.total_count
 
-                vector_config = {"fields": {}, "global": {}}
-                if config.vector_config:
-                    for (
-                        named_vector_name,
-                        named_vector_config,
-                    ) in config.vector_config.items():
+                    # for processed
+                    processed = await client.collections.exists(
+                        f"ELYSIA_METADATA_{collection_name}__"
+                    )
 
-                        # for this vectoriser, what model is being used?
-                        model = named_vector_config.vectorizer.model
+                    vector_config = {"fields": {}, "global": {}}
+                    if config.vector_config:
+                        for (
+                            named_vector_name,
+                            named_vector_config,
+                        ) in config.vector_config.items():
+
+                            # for this vectoriser, what model is being used?
+                            model = named_vector_config.vectorizer.model
+                            if isinstance(model, dict) and "model" in model:
+                                model = model["model"]
+                            else:
+                                model = "Unknown"
+
+                            # check what fields are being vectorised
+                            fields = named_vector_config.vectorizer.source_properties
+                            if fields is None:
+                                fields = [
+                                    c.name
+                                    for c in config.properties
+                                    if c.data_type[:].startswith("text")
+                                ]
+
+                            # for each field, add the vectoriser and model to the vector config
+                            for field_name in fields:
+                                if field_name not in vector_config["fields"]:
+                                    vector_config["fields"][field_name] = [
+                                        {
+                                            "named_vector": named_vector_name,
+                                            "vectorizer": named_vector_config.vectorizer.vectorizer.name,
+                                            "model": model,
+                                        }
+                                    ]
+                                else:
+                                    vector_config["fields"][field_name].append(
+                                        {
+                                            "named_vector": named_vector_name,
+                                            "vectorizer": named_vector_config.vectorizer.vectorizer.name,
+                                            "model": model,
+                                        }
+                                    )
+
+                            # add the vectoriser and model to the global vector config
+                            # vector_config["fields"][field_name] = {
+                            #     "vectorizer": vectorised_field.vectorizer.vectorizer.name,
+                            #     "model": model,
+                            # }
+
+                    if config.vectorizer_config:
+                        model = config.vectorizer_config.model
                         if isinstance(model, dict) and "model" in model:
                             model = model["model"]
-                        else:
-                            model = "Unknown"
 
-                        # check what fields are being vectorised
-                        fields = named_vector_config.vectorizer.source_properties
-                        if fields is None:
-                            fields = [
-                                c.name
-                                for c in config.properties
-                                if c.data_type[:].startswith("text")
-                            ]
+                        vector_config["global"] = {
+                            "vectorizer": config.vectorizer_config.vectorizer.name,
+                            "model": model,
+                        }
+                    else:
+                        vector_config["global"] = {}
 
-                        # for each field, add the vectoriser and model to the vector config
-                        for field_name in fields:
-                            if field_name not in vector_config["fields"]:
-                                vector_config["fields"][field_name] = [
-                                    {
-                                        "named_vector": named_vector_name,
-                                        "vectorizer": named_vector_config.vectorizer.vectorizer.name,
-                                        "model": model,
-                                    }
-                                ]
-                            else:
-                                vector_config["fields"][field_name].append(
-                                    {
-                                        "named_vector": named_vector_name,
-                                        "vectorizer": named_vector_config.vectorizer.vectorizer.name,
-                                        "model": model,
-                                    }
-                                )
-
-                        # add the vectoriser and model to the global vector config
-                        # vector_config["fields"][field_name] = {
-                        #     "vectorizer": vectorised_field.vectorizer.vectorizer.name,
-                        #     "model": model,
-                        # }
-
-                if config.vectorizer_config:
-                    model = config.vectorizer_config.model
-                    if isinstance(model, dict) and "model" in model:
-                        model = model["model"]
-
-                    vector_config["global"] = {
-                        "vectorizer": config.vectorizer_config.vectorizer.name,
-                        "model": model,
-                    }
-                else:
-                    vector_config["global"] = {}
-
-                metadata.append(
-                    {
-                        "name": collection_name,
-                        "total": len,
-                        "vectorizer": vector_config,
-                        "processed": processed,
-                    }
-                )
+                    metadata.append(
+                        {
+                            "name": collection_name,
+                            "total": len,
+                            "vectorizer": vector_config,
+                            "processed": processed,
+                            "error": False,
+                        }
+                    )
+                except Exception as e:
+                    metadata.append(
+                        {
+                            "name": collection_name,
+                            "total": 0,
+                            "vectorizer": {},
+                            "processed": False,
+                            "error": True,
+                        }
+                    )
 
             return JSONResponse(
                 content={"collections": metadata, "error": ""}, status_code=200
