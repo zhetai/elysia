@@ -49,18 +49,16 @@ async def help_websocket(websocket: WebSocket, ws_route: callable):
 
                             # Check if it's a disconnect request
                             if data.get("type") == "disconnect":
-                                # logger.info("Received disconnect request")
                                 return
 
                         except asyncio.TimeoutError:
-                            # This is just the short receive timeout, not an error condition
                             continue
 
                 except Exception as e:
                     error = Error(text=str(e))
                     error_payload = await error.to_frontend("", "")
                     await websocket.send_json(error_payload)
-                    logger.exception(f"Error in websocket communication")
+                    logger.error(f"Error in websocket communication: {str(e)}")
 
                 # logger.info(f"Memory usage after receiving: {psutil.Process().memory_info().rss / 1024 / 1024}MB")
                 # logger.info(f"Processing time: {time.time() - start_time}s")
@@ -80,7 +78,7 @@ async def help_websocket(websocket: WebSocket, ws_route: callable):
                     raise  # Re-raise other RuntimeErrors
 
             except Exception as e:
-                logger.exception(f"Error in WebSocket")
+                logger.error(f"Error in WebSocket: {str(e)}")
                 try:
                     if data and "conversation_id" in data:
                         error = Error(text=str(e))
@@ -103,4 +101,4 @@ async def help_websocket(websocket: WebSocket, ws_route: callable):
         try:
             await websocket.close()
         except RuntimeError:
-            logger.debug("WebSocket already closed")
+            logger.info("WebSocket already closed")

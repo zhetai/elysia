@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     user_manager = get_user_manager()
 
     scheduler = AsyncIOScheduler()
-    set_log_level("INFO")  # TODO: change to WARNING if in prod
+    set_log_level("DEBUG")  # TODO: change to WARNING if in prod
 
     # use prime numbers for intervals so they don't overlap
     scheduler.add_job(perform_garbage_collection, "interval", seconds=23)
@@ -101,20 +101,20 @@ async def health_check():
 
 
 # Mount the app from static files
-BASE_DIR = Path(__file__).resolve().parent
+# BASE_DIR = Path(__file__).resolve().parent
 
-# Serve the assets (JS, CSS, images, etc.)
-app.mount(
-    "/static/_next",
-    StaticFiles(directory=BASE_DIR / "static/_next"),
-    name="next-assets",
-)
+# # Serve the assets (JS, CSS, images, etc.)
+# app.mount(
+#     "/static/_next",
+#     StaticFiles(directory=BASE_DIR / "static/_next"),
+#     name="next-assets",
+# )
 
-# Serve the main page and other static files
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="app")
+# # Serve the main page and other static files
+# app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="app")
 
 
-@app.get("/")
-@app.head("/")
-async def serve_frontend():
-    return FileResponse(os.path.join(BASE_DIR, "static/index.html"))
+# @app.get("/")
+# @app.head("/")
+# async def serve_frontend():
+#     return FileResponse(os.path.join(BASE_DIR, "static/index.html"))
