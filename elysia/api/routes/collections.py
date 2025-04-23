@@ -52,9 +52,13 @@ async def collections(
             ]
 
         async with client_manager.connect_to_async_client() as client:
+
             # get collection metadata
             metadata = []
             for collection_name in collections:
+                logger.debug(
+                    f"Gathering information for collection_name: {collection_name}"
+                )
                 # for vectoriser
                 collection = client.collections.get(collection_name)
                 config = await collection.config.get()
