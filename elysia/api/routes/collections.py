@@ -46,7 +46,7 @@ async def collections(
 
         async with client_manager.connect_to_async_client() as client:
             collections = [
-                c
+                c.lower()
                 for c in await client.collections.list_all()
                 if not c.startswith("ELYSIA_")
             ]
