@@ -17,7 +17,6 @@ class CondenseEnvironmentExecutor(dspy.Module):
         reference: dict,
         conversation_history: list[dict],
         tasks_completed: str,
-        current_message: str,
         environment: dict,
     ):
         prediction = self.condense_environment_prompt(
@@ -25,7 +24,6 @@ class CondenseEnvironmentExecutor(dspy.Module):
             reference=reference,
             conversation_history=conversation_history,
             tasks_completed=tasks_completed,
-            current_message=current_message,
             environment=environment,
         )
         return prediction

@@ -90,10 +90,6 @@ def create_feedback_collection(client):
                     ),
                 ],
             ),
-            wc.Property(
-                name="current_message",
-                data_type=wc.DataType.TEXT,
-            ),
             # Extra specifics
             wc.Property(
                 name="route",
@@ -203,7 +199,6 @@ async def create_feedback(
         "user_prompt": history["tree_data"].user_prompt,
         "conversation_history": history["tree_data"].conversation_history,
         "tasks_completed": history["tree_data"].tasks_completed,
-        "current_message": history["tree_data"].current_message,
         "route": history["decision_history"],
         "action_information": history["action_information"],
         "time_taken_seconds": history["time_taken_seconds"],

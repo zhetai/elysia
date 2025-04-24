@@ -11,7 +11,6 @@ def construct_decision_prompt(
         if (available_tasks is not None and len(available_tasks) > 0)  # type: ignore
         else str
     )
-    ActionLiteral.default = available_tasks[0]
 
     class DecisionPrompt(dspy.Signature):
         """
@@ -155,30 +154,6 @@ def construct_decision_prompt(
             Even if not all actions can be completed, you should stop if you have done everything possible.
             """.strip()
         )
-
-        # confidence_score: float = dspy.OutputField(
-        #     description="""
-        #     A decimal score between 0 and 1 that represents your confidence in the accuracy of the task selection.
-        #     """.strip()
-        # )
-
-        # todo: str = dspy.OutputField(
-        #     description="""
-        #     A brief description of what you are planning to do next to answer the user's input prompt, or whether it is possible, AFTER completing this task.
-        #     This is essentially communication to yourself in the future, so write out your plan for how this task follows into future ones.
-        #     Be specific to the information you can see and specific to the task and prompt at hand. Use your observations and context to inform your todo.
-        #     """.strip()
-        # )
-
-        # full_chat_response: str = dspy.OutputField(
-        #     description="""
-        #     Complete response to user based on available information.
-        #     If the user cannot be satisfied, explain why and suggest alternative approaches.
-        #     The full chat response is a direct communication to the user, so do not include any meta information about your decision process, reply directly to the user prompt.
-        #     Use gender-neutral language, be friendly, do not say 'the user', speak directly to them.
-        #     This is independent of the current_message field, and independent of the reasoning_update_message field. Write without any <tags>.
-        #     """.strip()
-        # )
 
     return DecisionPrompt
 

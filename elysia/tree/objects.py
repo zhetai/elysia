@@ -13,6 +13,30 @@ from elysia.util.parsing import format_dict_to_serialisable, remove_whitespace
 class Environment:
     """
     Store of all objects across different types of queries and responses.
+
+    The environment is formatted as follows:
+    ```python
+    {
+        "function_name": {
+            "result_name": [
+                {
+                    "metadata": dict,
+                    "objects": list[dict],
+                },
+                ...
+            ]
+        }
+    }
+    ```
+
+    Where `"function_name"` is the name of the function that the result belongs to,
+    e.g. if the result came from a tool called `"query"`, then `"function_name"` is `"query"`.
+
+    `"result_name"` is the name of the Result object, e.g. if the result is a list of objects, then `"result_name"` is `"objects"`.
+
+    `"metadata"` is the metadata of the result, e.g. the time taken to retrieve the result, the query used, etc.
+
+
     """
 
     def __init__(self, environment: dict[str, dict[str, List[Result]]] = {}):
@@ -51,6 +75,14 @@ class Environment:
         ]
 
     def add(self, result: Result, function_name: str):
+        """
+        Adds a result to the environment.
+        Is called automatically by the tree when a result is returned from an agent.
+
+        Args:
+            result (Result): The result to add to the environment.
+            function_name (str): The name of the function that the result belongs to.
+        """
         objects = result.to_json()
         name = result.name
 
@@ -95,14 +127,15 @@ class Environment:
                     )
 
     def to_json(self):
+        """
+        Converts the environment to a JSON serialisable format.
+        Used to access specific objects from the environment.
+        """
         return self.environment
 
 
 # -- Collection Data --
 class CollectionData:
-    """
-    Store of metadata used by the collection agents.
-    """
 
     def __init__(self, collection_names: list[str], logger: Logger | None = None):
         self.collection_names = collection_names
@@ -242,17 +275,34 @@ class TreeData:
         conversation_history: list[dict] = [],
         environment: Environment = Environment(),
         tasks_completed: list[dict] = [],
-        current_message: str = "",
-        collection_return_types: dict = {},
         num_trees_completed: int = 0,
         recursion_limit: int = 3,
     ):
+        """
+        Args:
+            collection_data (CollectionData): The collection data to use for the tree, described in the CollectionData class.
+            user_prompt (str): The user's prompt.
+            conversation_history (list[dict]): The conversation history stored in the current tree, of the form:
+                ```python
+                [
+                    {
+                        "role": "user" | "assistant",
+                        "content": str,
+                    },
+                    ...
+                ]
+                ```
+            environment (Environment): The environment, described in the Environment class.
+            tasks_completed (list[dict]): The tasks completed as a list of dictionaries.
+                This is separate from the environment, as it separates what tasks were completed in each prompt in which order.
+            num_trees_completed (int): The current level of the decision tree, how many iterations have been completed so far.
+            recursion_limit (int): The maximum number of iterations allowed in the decision tree.
+        """
         # -- Base Data --
         self.user_prompt = user_prompt
         self.conversation_history = conversation_history
         self.environment = environment
         self.tasks_completed = tasks_completed
-        self.current_message = current_message
         self.num_trees_completed = num_trees_completed
         self.recursion_limit = recursion_limit
 
@@ -287,7 +337,6 @@ class TreeData:
 
     def soft_reset(self):
         self.previous_reasoning = {}
-        self.current_message = ""
 
     def _update_task(self, task_dict, key, value):
         if value is not None:
@@ -367,6 +416,14 @@ class TreeData:
                 )
 
     def tasks_completed_string(self):
+        """
+        Output a nicely formatted string of the tasks completed so far, designed to be used in the LLM prompt.
+        This is where the outputs of the `llm_message` fields are displayed.
+        You can use this if you are interfacing with LLMs in tools, to help it understand the context of the tasks completed so far.
+
+        Returns:
+            str: A separated and formatted string of the tasks completed so far in an LLM-parseable format.
+        """
         out = ""
         for j, task_prompt in enumerate(self.tasks_completed):
             out += f"<prompt_{j+1}>\n"
@@ -406,42 +463,79 @@ class TreeData:
         return out
 
     def output_collection_metadata(self, with_mappings: bool = False):
+        """
+        Outputs the full metadata for the given collection names.
+
+        Args:
+            with_mappings (bool): Whether to output the mappings for the collections as well as the other metadata.
+
+        Returns:
+            dict: A dictionary of collection names to their metadata.
+                The metadata are of the form:
+                ```python
+                {
+                    collection_name_1: {
+                        # summary statistics of each field in the collection
+                        "fields": dict = {
+                            field_name_1: dict = {
+                                "range": list[float],
+                                "type": str,
+                                "groups": list[str],
+                                "mean": float
+                            },
+                            field_name_2: dict,
+                            ...
+                        },
+
+                        # mapping_1, mapping_2 etc refer to frontend-specific types that the AI has deemed appropriate for this data
+                        # then the dict is to map the frontend fields to the data fields
+                        "mappings": dict = {
+                            mapping_1: dict,
+                            mapping_2: dict,
+                            ...,
+                        },
+
+                        # number of items in collection (float but just for consistency)
+                        "length": float,
+
+                        # AI generated summary of the dataset
+                        "summary": str,
+
+                        # name of collection
+                        "name": str
+
+                    },
+                    ...
+                }
+                ```
+                If `with_mappings` is `False`, then the mappings are not included.
+                Each key in the outer level dictionary is a collection name.
+
+        """
         return self.collection_data.output_full_metadata(
             self.collection_names, with_mappings
         )
 
-    def output_collection_summaries(self):
-        return self.collection_data.output_collection_summaries(self.collection_names)
-
     def output_collection_return_types(self):
+        """
+        Outputs the return types for the collections in the tree data.
+        Essentially, this is a list of the keys that can be used to map the objects to the frontend.
+
+        Returns:
+            dict: A dictionary of collection names to their return types.
+                ```python
+                {
+                    collection_name_1: list[str],
+                    collection_name_2: list[str],
+                    ...,
+                }
+                ```
+                Each of these lists is a list of the keys that can be used to map the objects to the frontend.
+        """
         collection_return_types = self.collection_data.output_mapping_lists()
         return {
             collection_name: collection_return_types[collection_name]
             for collection_name in self.collection_names
-        }
-
-    def full_collection_to_json(self, with_mappings: bool = True):
-        collection_return_types = self.collection_data.output_mapping_lists()
-        return {
-            "collection_information": self.collection_data.output_full_metadata(
-                self.collection_names, with_mappings
-            ),
-            "collection_return_types": {
-                collection_name: collection_return_types[collection_name]
-                for collection_name in self.collection_names
-            },
-        }
-
-    def collection_summaries_to_json(self):
-        collection_return_types = self.collection_data.output_mapping_lists()
-        return {
-            "collection_information": self.collection_data.output_collection_summaries(
-                self.collection_names
-            ),
-            "collection_return_types": {
-                collection_name: collection_return_types[collection_name]
-                for collection_name in self.collection_names
-            },
         }
 
     def to_json(self):
@@ -450,6 +544,5 @@ class TreeData:
             "conversation_history": self.conversation_history,
             "environment": self.environment.to_json(),
             "tasks_completed": self.tasks_completed,
-            "current_message": self.current_message,
             "num_trees_completed": self.num_trees_completed,
         }

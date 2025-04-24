@@ -80,12 +80,14 @@ class ClientManager:
             **kwargs: any other api keys for third party services (formatted as e.g. OPENAI_APIKEY).
 
         Example:
-            client_manager = ClientManager(
-                wcd_url="https://my-weaviate-cluster...",
-                wcd_api_key="my-api-key...",
-                OPENAI_APIKEY="my-openai-api-key...",
-                HUGGINGFACE_APIKEY="my-huggingface-api-key...",
-            )
+        ```python
+        client_manager = ClientManager(
+            wcd_url="https://my-weaviate-cluster...",
+            wcd_api_key="my-api-key...",
+            OPENAI_APIKEY="my-openai-api-key...",
+            HUGGINGFACE_APIKEY="my-huggingface-api-key...",
+        )
+        ```
         """
 
         self.logger = logger
@@ -140,9 +142,6 @@ class ClientManager:
         self.async_init_completed = False
 
     async def set_keys_from_settings(self, settings: Settings):
-        """
-        Update the weaviate cluster url and api key - requires restarting the client.
-        """
         self.wcd_url = settings.WCD_URL
         self.wcd_api_key = settings.WCD_API_KEY
 
@@ -154,9 +153,6 @@ class ClientManager:
         await self.restart_async_client()
 
     async def start_clients(self):
-        """
-        Should always be run after initialising the client manager to initialise the async client, otherwise a deadlock.
-        """
         if self.async_client is None:
             self.async_client = await self.get_async_client()
             self.async_restart_event.set()
@@ -195,11 +191,22 @@ class ClientManager:
 
     @contextmanager
     def connect_to_client(self):
+        """
+        A context manager to connect to the _sync_ client.
+
+        E.g.
+
+        ```python
+        with client_manager.connect_to_client():
+            # do stuff with the weaviate client
+            ...
+        ```
+        """
         self.sync_restart_event.wait()
         with self.sync_lock:
             self.sync_in_use_counter += 1
 
-        if not self.client.is_ready():
+        if not self.client.is_connected():
             self.client.connect()
 
         connection = _ClientConnection(self, self.client)
@@ -208,6 +215,16 @@ class ClientManager:
 
     @asynccontextmanager
     async def connect_to_async_client(self):
+        """
+        A context manager to connect to the _async_ client.
+
+        E.g.
+        ```python
+        async with client_manager.connect_to_async_client():
+            # do stuff with the async weaviate client
+            ...
+        ```
+        """
         if not self.async_init_completed:
             await self.start_clients()
 
@@ -215,7 +232,7 @@ class ClientManager:
         async with self.async_lock:
             self.async_in_use_counter += 1
 
-        if not await self.async_client.is_ready():
+        if not self.async_client.is_connected():
             await self.async_client.connect()
 
         connection = _AsyncClientConnection(self, self.async_client)
@@ -394,6 +411,10 @@ class ClientManager:
                 self.client = self.get_client()
 
     async def close_clients(self):
+        """
+        Close both the async and sync clients.
+        Should not be called inside a Tool or other function inside the decision tree.
+        """
         if hasattr(self, "async_client") and self.async_client is not None:
             await self.async_client.close()
         if hasattr(self, "client") and self.client is not None:

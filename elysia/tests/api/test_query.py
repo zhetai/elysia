@@ -1,6 +1,6 @@
 import unittest
 import asyncio
-from dspy import LM, configure
+from dspy import LM, configure, ChatAdapter
 from dspy.utils import DummyLM
 from dspy.adapters import ChatAdapter
 from pydantic_core import PydanticUndefined
@@ -58,9 +58,6 @@ class DummyAdapter(ChatAdapter):
             demos,
             inputs,
         )
-
-
-configure(adapter=DummyAdapter())
 
 
 def read_response(response: JSONResponse):
@@ -134,4 +131,6 @@ class TestQuery(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    configure(adapter=DummyAdapter())
     unittest.main()
+    configure(adapter=ChatAdapter())

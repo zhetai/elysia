@@ -1,11 +1,28 @@
 # Welcome to Elysia
 
+Welcome to Elysia, the agentic platform for searching and retrieving data in Weaviate. Elysia is also designed to handle any custom tools, and it will be automatically handled by a decision agent.
+
+Unlike other agent-based packages, Elysia is pre-configured to run a wide range of tools and has a lot of capabilities straight away. For example, you could just call Elysia on your Weaviate collections and it will immediately and dynamically search your data, using custom queries with filters or aggregations.
+
+Or you could customise Elysia to your liking, create your own custom tools and add them to the Elysia decision tree.
+
+See the [basic example to get started right away!](basic_example.md)
+
+Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](creating_your_own_tools.md).
 
 ## About
 
+Check out the Github Repositories for the backend and the frontend
 
-## Open Source
+- [elysia](https://github.com/weaviate/elysia) (backend)
 
-## Tools
+- [elysia-frontend](https://github.com/weaviate/elysia-frontend) (frontend)
 
-Built with [mkdocs.org](https://www.mkdocs.org).
+Elysia was developed by Edward Schmuhl (frontend) and Danny Williams (backend). Check out our socials below:
+
+
+- [Edward's Linkedin](https://www.linkedin.com/in/edwardschmuhl/)
+
+- [Danny's Linkedin](https://www.linkedin.com/in/dannyjameswilliams/)
+
+Documentation built with [mkdocs.org](https://www.mkdocs.org).

@@ -51,13 +51,6 @@ class EnvironmentCondenserPrompt(dspy.Signature):
         """.strip()
     )
 
-    current_message: str = dspy.InputField(
-        description="""
-        Partial response being built for the user.
-        Your additions will be appended to this message.
-        """.strip()
-    )
-
     environment: str = dspy.InputField(
         description="""
         [FOR CONDENSING]

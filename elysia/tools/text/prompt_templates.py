@@ -98,22 +98,13 @@ class TextResponsePrompt(dspy.Signature):
         but use judgement to decide which objects are most relevant to the user's query.
         """.strip()
     )
-    current_message = dspy.InputField(
-        description="""
-        The current message you, the assistant, have written to send to the user.
-        This message has not been sent yet, you will add text to it, to be sent to the user later.
-        In essence, the concatenation of this field, current_message, and the response field, will be sent to the user.
-        """.strip(),
-        format=str,
-    )
     response = dspy.OutputField(
         description="""
-        The response to the user's prompt. This is a continuation of the current_message field.
+        The response to the user's prompt.
         If you are explaining how something went wrong, or you could not complete a task, suggest a brief reason why.
         You can suggest alternative questions for the user to ask, alternative ways of phrasing the prompt, or explain your own limitations and how to avoid them.
         E.g., you could ask the user to be more specific, or to provide more information, or explain that you are limited by your data. Be creative and adaptive based on the user's prompt and the type of issue that occurred.
         Use present tense in your text, as if you are currently completing the action.
-        If the current_message field is empty, then this response is the beginning of a new message.
         Use gender neutral language.
         """.strip()
     )

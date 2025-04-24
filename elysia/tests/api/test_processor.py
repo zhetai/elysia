@@ -130,4 +130,5 @@ class TestProcessor(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # unittest.main()
+    TestProcessor().test_process_collection()

@@ -87,7 +87,6 @@ class TextResponse(Tool):
             reference=create_reference(),
             environment=tree_data.environment.to_json(),
             conversation_history=tree_data.conversation_history,
-            current_message=tree_data.current_message,
             lm=base_lm,
         )
 

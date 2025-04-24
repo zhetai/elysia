@@ -16,6 +16,24 @@ class Branch:
 class Tool:
     """
     The generic Tool class, which will be a superclass of any tools used by Elysia.
+
+    Args:
+        name (str): The name of the tool.
+        description (str): A detailed description of the tool to give to the LLM.
+        status (str): A status update message to display while the tool is running.
+        inputs (dict): A dictionary of inputs for the tool, with the following structure:
+            ```python
+            {
+                input_name: {
+                    "description": str,
+                    "type": str,
+                    "default": str,
+                    "required": bool
+                }
+            }
+            ```
+        end (bool): Whether the tool is an end tool.
+        rule (bool): Whether the tool is a rule tool.
     """
 
     def __init__(
@@ -28,14 +46,6 @@ class Tool:
         rule: bool = False,
         **kwargs,
     ):
-        """
-        name: The name of the tool.
-        description: A detailed description of the tool to give to the LLM.
-        status: A status update message to display while the tool is running.
-        inputs: A dictionary of inputs for the tool, {input_name: {description: str, type: str, default: str, required: bool}}.
-        end: Whether the tool is an end tool.
-        rule: Whether the tool is a rule tool.
-        """
         self.name = name
         self.description = description
         self.inputs = inputs
@@ -188,13 +198,27 @@ class Result(Return):
     def __init__(
         self,
         objects: list[dict],
-        type: str,
+        type: str = "default",
         metadata: dict = {},
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
     ):
+        """
+        Args:
+            objects (list[dict]): The objects attached to this result.
+            type: (str): Identifier for the type of result.
+            metadata (dict): The metadata attached to this result,
+                for example, query used, time taken, any other information not directly within the objects
+            name (str): The name of the result, e.g. this could be the name of the collection queried.
+                Used to index the result in the environment.
+            mapping (dict | None): A mapping of the objects to the frontend.
+                Essentially, if the objects are going to be displayed on the frontend, the frontend has specific keys that it wants the objects to have.
+                This is a dictionary that maps from frontend keys to the object keys.
+            llm_message (str | None): A message to be displayed to the LLM to help it parse the result.
+            unmapped_keys (list[str]): A list of keys that are not mapped to the frontend.
+        """
         Return.__init__(self, "result", type)
         self.objects = objects
         self.metadata = metadata
@@ -228,7 +252,9 @@ class Result(Return):
         """
         llm_message is a string that is used to help the LLM parse the output of the tool.
         It is a placeholder for the actual message that will be displayed to the user.
+
         You can use the following placeholders:
+
         - {type}: The type of the object
         - {name}: The name of the object
         - {num_objects}: The number of objects in the object

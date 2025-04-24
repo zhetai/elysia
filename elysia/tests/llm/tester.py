@@ -1,5 +1,6 @@
 import os
 import unittest
+import asyncio
 from copy import deepcopy
 
 from deepeval.test_case import ToolCall
@@ -15,6 +16,15 @@ class TestTree(unittest.TestCase):
         branch_initialisation="one_branch",
         settings=Settings.from_default(),
     )
+
+    def get_event_loop(self):
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop
 
     def get_tools_called(self, tree: Tree, user_prompt: str):
         tools_called = []
@@ -45,7 +55,7 @@ class TestTree(unittest.TestCase):
 
         tree = deepcopy(self.base_tree)
 
-        async for result in tree.process(
+        async for result in tree.async_run(
             user_prompt,
             client_manager=client_manager,
             collection_names=collection_names,

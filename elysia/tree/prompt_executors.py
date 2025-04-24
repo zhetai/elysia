@@ -32,7 +32,6 @@ class DecisionExecutor(dspy.Module):
             collection_information=kwargs.get("collection_information"),
             tree_count=kwargs.get("tree_count"),
             tasks_completed=kwargs.get("tasks_completed"),
-            current_message=kwargs.get("current_message"),
             available_actions=kwargs.get("available_actions"),
             environment=kwargs.get("environment"),
             lm=kwargs.get("lm"),

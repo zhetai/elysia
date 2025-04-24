@@ -29,6 +29,15 @@ from elysia.util.parsing import format_dict_to_serialisable
 
 # TODO: add text
 class TestObjects(unittest.TestCase):
+    def get_event_loop(self):
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop
+
     async def start_client_manager(self):
         client_manager = ClientManager(
             wcd_url=os.getenv("WCD_URL"),
@@ -120,6 +129,7 @@ class TestObjects(unittest.TestCase):
         self.assertIsInstance(frontend_result["payload"], dict)
 
     def test_basic_results(self):
+        loop = self.get_event_loop()
         types = [
             BoringGeneric,
             EpicGeneric,
@@ -139,7 +149,7 @@ class TestObjects(unittest.TestCase):
             "conversation",
         ]
         for object_type, object_name in zip(types, names):
-            asyncio.run(self.do_basic_result(object_type, object_name))
+            loop.run_until_complete(self.do_basic_result(object_type, object_name))
 
     def test_result_with_mapping(self):
         for object_type in [
@@ -150,7 +160,8 @@ class TestObjects(unittest.TestCase):
             Message,
             Conversation,
         ]:
-            asyncio.run(
+            loop = self.get_event_loop()
+            loop.run_until_complete(
                 self.do_result_with_mapping(
                     object_type,
                     [
@@ -171,6 +182,7 @@ class TestObjects(unittest.TestCase):
             )
 
     def test_updates(self):
+        loop = self.get_event_loop()
         types = [
             Status,
             Warning,
@@ -182,7 +194,7 @@ class TestObjects(unittest.TestCase):
             "error",
         ]
         for object_type, object_name in zip(types, names):
-            asyncio.run(self.do_update(object_type, object_name))
+            loop.run_until_complete(self.do_update(object_type, object_name))
 
     async def _retrieve_documents(
         self, collection_name: str, client_manager: ClientManager
@@ -260,18 +272,20 @@ class TestObjects(unittest.TestCase):
             mapping=collection_information["mappings"]["document"],
         )
         await chunked_retrieval.async_init(client_manager)
+        await client_manager.close_clients()
 
         return non_chunked_retrieval, chunked_retrieval
 
     def test_document_retrieval(self):
-        non_chunked_retrieval, chunked_retrieval = asyncio.run(
+        loop = self.get_event_loop()
+        non_chunked_retrieval, chunked_retrieval = loop.run_until_complete(
             self.get_document_retrievals()
         )
 
         non_chunked_json = non_chunked_retrieval.to_json(mapping=True)
         chunked_json = chunked_retrieval.to_json(mapping=False)
 
-        chunked_fe = asyncio.run(
+        chunked_fe = loop.run_until_complete(
             chunked_retrieval.to_frontend("user_id", "conversation_id", "query_id")
         )
 
@@ -301,5 +315,5 @@ class TestObjects(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # unittest.main()
-    TestObjects().test_document_retrieval()
+    unittest.main()
+    # TestObjects().test_document_retrieval()

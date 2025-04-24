@@ -69,7 +69,6 @@ class CondenseEnvironment(Tool):
                 reference=create_reference(),
                 conversation_history=tree_data.conversation_history,
                 tasks_completed=tree_data.tasks_completed,
-                current_message=tree_data.current_message,
                 environment=tree_data.environment.to_json(),
             )
 

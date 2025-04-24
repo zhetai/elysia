@@ -35,7 +35,7 @@ async def process_collection(
     user = await user_manager.get_user_local(data["user_id"])
     config = user["config"]
 
-    preprocessor = CollectionPreprocessor(lm=load_base_lm(config))
+    preprocessor = CollectionPreprocessor(lm=load_base_lm(config), logger=config.logger)
     async for result in preprocessor(
         collection_name=data["collection_name"],
         client_manager=user["client_manager"],

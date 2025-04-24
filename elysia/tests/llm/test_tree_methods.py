@@ -15,10 +15,9 @@ class TestTreeMethods(unittest.TestCase):
     def do_query(self, user_prompt: str):
         elysia.config.settings.default_config()
         tree = Tree(
-            verbosity=0,
             debug=False,
         )
-        tree.process_sync(
+        tree.run(
             user_prompt,
             collection_names=[
                 "Example_verba_github_issues",

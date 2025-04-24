@@ -1,28 +1,24 @@
 import random
-
 import dspy
+from rich.progress import Progress
+from logging import Logger
 
 # Weaviate
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Metrics
 
 from elysia.config import nlp
-
-# Globals
 from elysia.globals import return_types as rt
-
-# Prompt Executors
 from elysia.preprocess.prompt_executors import (
     CollectionSummariserExecutor,
     DataMappingExecutor,
     ReturnTypeExecutor,
 )
-
-# Client manager
 from elysia.util.client import ClientManager
-
-# Util
 from elysia.util.collection_metadata import async_get_collection_data_types
+from elysia.util.run_in_async import asyncio_run
+
+from elysia.config import settings as environment_settings
 
 
 class ProcessUpdate:
@@ -48,6 +44,7 @@ class CollectionPreprocessor:
     from the fields to the frontend-specific fields in Elysia.
 
     In order:
+
     1. Evaluate all the data fields and groups/statistics of the data fields as a whole
     2. Write a summary of the collection via an LLM
     3. Evaluate what return types are available for this collection
@@ -59,6 +56,7 @@ class CollectionPreprocessor:
         self,
         threshold_for_missing_fields: float = 0.6,
         lm: str = dspy.LM(model="claude-3-5-haiku-latest"),
+        logger: Logger = environment_settings.logger,
     ):
         self.collection_summariser_executor = CollectionSummariserExecutor()
         self.data_mapping_executor = DataMappingExecutor()
@@ -72,6 +70,7 @@ class CollectionPreprocessor:
 
         self.threshold_for_missing_fields = threshold_for_missing_fields
         self.lm = lm
+        self.logger = logger
 
     async def _summarise_collection(
         self,
@@ -221,8 +220,8 @@ class CollectionPreprocessor:
         self,
         collection_name: str,
         client_manager: ClientManager,
-        manageable_sample_size: int = 1000,
-        summary_sample_size: int = 200,
+        manageable_sample_size: int = 100,
+        summary_sample_size: int = 50,
         force: bool = False,
     ):
         async with client_manager.connect_to_async_client() as client:
@@ -405,3 +404,71 @@ class CollectionPreprocessor:
                 await metadata_collection.data.insert(out)
 
                 yield await self.process_update(progress=1)
+            else:
+                self.logger.info(f"Collection {collection_name} already exists!")
+
+
+def preprocess(
+    collection_names: list[str],
+    client_manager: ClientManager | None = None,
+    manageable_sample_size: int = 100,
+    summary_sample_size: int = 50,
+    verbose: bool = False,
+    force: bool = False,
+):
+    """
+    Preprocess a collection, obtain a LLM-generated summary of the collection,
+    a set of statistics for each field (such as unique categories), and a set of mappings
+    from the fields to the frontend-specific fields in Elysia.
+
+    In order:
+    1. Evaluate all the data fields and groups/statistics of the data fields as a whole
+    2. Write a summary of the collection via an LLM
+    3. Evaluate what return types are available for this collection
+    4. For each data field in the collection, evaluate what corresponding entry goes to what field in the return type (mapping)
+    5. Save as a ELYSIA_METADATA_{collection_name}__ collection
+
+    Args:
+        collection_name (str): The name of the collection to preprocess.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created using the environment variables.
+        manageable_sample_size (int): The number of objects to sample from the collection to evaluate the statistics.
+        summary_sample_size (int): The number of objects to sample from the collection to write a summary.
+        verbose (bool): Whether to print the progress of the preprocessor.
+        force (bool): Whether to force the preprocessor to run even if the collection already exists.
+    """
+
+    if client_manager is None:
+        client_manager = ClientManager()
+
+    preprocessor = CollectionPreprocessor()
+
+    async def run(collection_name: str):
+        async for result in preprocessor(
+            collection_name,
+            client_manager,
+            manageable_sample_size,
+            summary_sample_size,
+            force,
+        ):
+            pass
+
+    async def run_with_live(collection_name: str):
+        with Progress() as progress:
+            task = progress.add_task(f"Preprocessing {collection_name}", total=1)
+            async for result in preprocessor(
+                collection_name,
+                client_manager,
+                manageable_sample_size,
+                summary_sample_size,
+                force,
+            ):
+                if result is not None and "progress" in result:
+                    progress.update(task, completed=result["progress"])
+
+    if verbose:
+        for collection_name in collection_names:
+            asyncio_run(run_with_live(collection_name))
+    else:
+        for collection_name in collection_names:
+            asyncio_run(run(collection_name))

@@ -73,49 +73,49 @@ def remove_whitespace(text: str) -> str:
     return " ".join(text.split())
 
 
-def update_current_message(current_message: str, new_message: str):
-    """
-    current_message: str - the current message in the conversation history
-    new_message: str - the new message from the LLM
-    The new_message is filtered for the <NEW> tags, and anything enclosed in them is returned as the new sentence.
-    If there are no <NEW> tags, the new message is returned as the new sentence.
-    Returns:
-        [0] - the updated message including the new sentence without any tags
-        [1] - the new sentence
-    """
-    # if this is the first message, remove any tags and return the new message
-    if current_message == "":
-        if "<NEW>" in new_message:
-            new_message = new_message.replace("<NEW>", "")
-        if "</NEW>" in new_message:
-            new_message = new_message.replace("</NEW>", "")
+# def update_current_message(current_message: str, new_message: str):
+#     """
+#     current_message: str - the current message in the conversation history
+#     new_message: str - the new message from the LLM
+#     The new_message is filtered for the <NEW> tags, and anything enclosed in them is returned as the new sentence.
+#     If there are no <NEW> tags, the new message is returned as the new sentence.
+#     Returns:
+#         [0] - the updated message including the new sentence without any tags
+#         [1] - the new sentence
+#     """
+#     # if this is the first message, remove any tags and return the new message
+#     if current_message == "":
+#         if "<NEW>" in new_message:
+#             new_message = new_message.replace("<NEW>", "")
+#         if "</NEW>" in new_message:
+#             new_message = new_message.replace("</NEW>", "")
 
-        return new_message, new_message
+#         return new_message, new_message
 
-    # otherwise, find new sentence
-    if "<NEW>" in new_message and "</NEW>" in new_message:
-        # check if this is empty
-        new_sentence = new_message.split("<NEW>")[1]
-        new_sentence = new_sentence[: new_sentence.find("</NEW>")]
+#     # otherwise, find new sentence
+#     if "<NEW>" in new_message and "</NEW>" in new_message:
+#         # check if this is empty
+#         new_sentence = new_message.split("<NEW>")[1]
+#         new_sentence = new_sentence[: new_sentence.find("</NEW>")]
 
-        if new_sentence == "":
-            new_sentence = new_message.replace("<NEW>", "").replace("</NEW>", "")
-            return current_message, new_sentence.split(". ")[-1]
-        else:
-            return current_message + " " + new_sentence, new_sentence
+#         if new_sentence == "":
+#             new_sentence = new_message.replace("<NEW>", "").replace("</NEW>", "")
+#             return current_message, new_sentence.split(". ")[-1]
+#         else:
+#             return current_message + " " + new_sentence, new_sentence
 
-    else:
-        # backup - in case only one tag gets added
-        if "<NEW>" in new_message and "</NEW>" not in new_message:
-            new_sentence = new_message.split("<NEW>")[1]
-            return current_message + " " + new_sentence, new_sentence
-        elif "<NEW>" not in new_message and "</NEW>" in new_message:
-            new_sentence = new_message.split("</NEW>")[0]
-            return current_message + " " + new_sentence, new_sentence.split(". ")[-1]
+#     else:
+#         # backup - in case only one tag gets added
+#         if "<NEW>" in new_message and "</NEW>" not in new_message:
+#             new_sentence = new_message.split("<NEW>")[1]
+#             return current_message + " " + new_sentence, new_sentence
+#         elif "<NEW>" not in new_message and "</NEW>" in new_message:
+#             new_sentence = new_message.split("</NEW>")[0]
+#             return current_message + " " + new_sentence, new_sentence.split(". ")[-1]
 
-        # if no tags are added, return the last sentence of the new message
-        else:
-            return new_message, new_message.split(". ")[-1]
+#         # if no tags are added, return the last sentence of the new message
+#         else:
+#             return new_message, new_message.split(". ")[-1]
 
 
 def format_aggregation_property(prop):
