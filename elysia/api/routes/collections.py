@@ -23,7 +23,7 @@ from elysia.api.services.user import UserManager
 from elysia.util.parsing import format_dict_to_serialisable
 
 # Util
-from elysia.util.collection_metadata import (
+from elysia.util.collection import (
     retrieve_all_collection_names,
     async_get_collection_data_types,
     paginated_collection,

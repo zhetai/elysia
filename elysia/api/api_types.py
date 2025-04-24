@@ -113,9 +113,13 @@ class ChangeConfigData(BaseModel):
 
 class LoadConfigData(BaseModel):
     user_id: str
-    filepath: str
+    config_id: str
 
 
 class SaveConfigData(BaseModel):
     user_id: str
-    filepath: str
+    config_id: str
+
+
+class ListConfigsData(BaseModel):
+    user_id: str

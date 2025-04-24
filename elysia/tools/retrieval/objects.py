@@ -406,10 +406,10 @@ class Aggregation(Retrieval):
             name = "generic"
 
         # TODO: talk to edward about adding num_items back
-        for obj in objects:
-            for collection_name, collection_data in obj.items():
-                if "num_items" in collection_data.keys():
-                    del collection_data["num_items"]
+        # for obj in objects:
+        #     for collection_name, collection_data in obj.items():
+        #         if "num_items" in collection_data.keys():
+        #             del collection_data["num_items"]
 
         Retrieval.__init__(
             self,
@@ -427,7 +427,7 @@ class Aggregation(Retrieval):
             count = {}
             if len(self.objects) > 0:
                 for metric in self.objects[0][self.metadata["collection_name"]]:
-                    if metric != "num_items":
+                    if metric != "ELYSIA_NUM_ITEMS":
                         num_values = len(
                             self.objects[0][self.metadata["collection_name"]][metric][
                                 "values"

@@ -209,7 +209,7 @@ def format_aggregation_response(response):
     if isinstance(response, AggregateGroupByReturn):
         # this gets excluded from the frontend payload
         if "total_count" in dir(response):
-            out["num_items"] = response.total_count
+            out["ELYSIA_NUM_ITEMS"] = response.total_count
 
         for result in response.groups:
             field = result.grouped_by.prop
@@ -240,7 +240,7 @@ def format_aggregation_response(response):
     elif isinstance(response, AggregateReturn):
         # this gets excluded from the frontend payload
         if "total_count" in dir(response):
-            out["num_items"] = response.total_count
+            out["ELYSIA_NUM_ITEMS"] = response.total_count
 
         for field, field_properties in response.properties.items():
             out[field] = {}

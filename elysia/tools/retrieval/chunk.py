@@ -8,7 +8,7 @@ from weaviate.exceptions import WeaviateInvalidInputError
 from weaviate.util import generate_uuid5
 
 from elysia.util.client import ClientManager
-from elysia.util.collection_metadata import (
+from elysia.util.collection import (
     async_get_collection_weaviate_data_types,
     get_collection_weaviate_data_types,
 )

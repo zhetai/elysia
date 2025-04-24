@@ -15,7 +15,7 @@ from elysia.preprocess.prompt_executors import (
     ReturnTypeExecutor,
 )
 from elysia.util.client import ClientManager
-from elysia.util.collection_metadata import async_get_collection_data_types
+from elysia.util.collection import async_get_collection_data_types
 from elysia.util.run_in_async import asyncio_run
 
 from elysia.config import settings as environment_settings

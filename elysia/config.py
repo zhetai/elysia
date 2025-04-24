@@ -1,18 +1,13 @@
-import json
 import os
 from typing import Callable
 from logging import Logger
 from rich.logging import logging, RichHandler
 
 import spacy
-from dotenv import load_dotenv
-
-import dspy
-from dspy import LM
-from dspy.utils import DummyLM
-from dspy.utils.callback import with_callbacks
-
 import uuid
+
+from dotenv import load_dotenv
+from dspy import LM
 
 load_dotenv()
 
@@ -37,8 +32,6 @@ class Settings:
 
     BASE_MODEL_LM: LM | None = None
     COMPLEX_MODEL_LM: LM | None = None
-
-    VERBOSITY: int = 1
 
     API_KEYS = {}
 
@@ -80,25 +73,10 @@ class Settings:
     def get_api_key(self, api_key_name: str):
         return self.API_KEYS[api_key_name]
 
-    def export_config(self, filepath: str = "elysia_config.json"):
-        with open(filepath, "w") as f:
-            json.dump(
-                {
-                    item: getattr(self, item)
-                    for item in dir(self)
-                    if not item.startswith("_")
-                    and not isinstance(getattr(self, item), Callable)
-                    and item not in ["BASE_MODEL_LM", "COMPLEX_MODEL_LM", "logger"]
-                },
-                f,
-                indent=4,
-            )
-
-    def load_config(self, filepath: str = "elysia_config.json"):
-        with open(filepath, "r") as f:
-            config = json.load(f)
+    def load_config(self, config: dict):
         for item in config:
             setattr(self, item, config[item])
+
         self.load_base_dspy_model()
         self.load_complex_dspy_model()
         self.logger = logging.getLogger("rich")
@@ -170,7 +148,6 @@ class Settings:
         self.LOCAL = os.getenv("LOCAL", "1") == "1"
         self.WCD_URL = os.getenv("WCD_URL")
         self.WCD_API_KEY = os.getenv("WCD_API_KEY")
-        self.VERBOSITY = int(os.getenv("VERBOSITY", "2"))
         self.set_api_keys_from_env()
         self.load_base_dspy_model()
         self.load_complex_dspy_model()
@@ -223,6 +200,7 @@ class Settings:
         kwargs = {kwarg.lower(): kwargs[kwarg] for kwarg in kwargs}
 
         if "local" in kwargs:
+            assert isinstance(kwargs["local"], bool)
             self.LOCAL = kwargs["local"]
             kwargs.pop("local")
 
@@ -330,6 +308,15 @@ class Settings:
             out += "Model API base: not set\n"
         return out
 
+    def to_json(self):
+        return {
+            item: getattr(self, item)
+            for item in dir(self)
+            if not item.startswith("_")
+            and not isinstance(getattr(self, item), Callable)
+            and item not in ["BASE_MODEL_LM", "COMPLEX_MODEL_LM", "logger"]
+        }
+
 
 def check_base_lm_settings(settings: Settings):
     if "BASE_MODEL" not in dir(settings) or settings.BASE_MODEL is None:
@@ -381,28 +368,6 @@ def load_complex_lm(settings: Settings):
         settings.COMPLEX_MODEL,
         settings.MODEL_API_BASE if "MODEL_API_BASE" in dir(settings) else None,
     )
-
-
-class MyDummyLM(LM):
-
-    @with_callbacks
-    def __call__(self, prompt=None, messages=None, **kwargs):
-        user_message = messages[-1]["content"]
-
-        categories = []
-        no_categories = True
-        while no_categories:
-            start_idx = user_message.find("[[ ## ") + len("[[ ## ")
-            end_idx = user_message.find(" ## ]]", start_idx)
-            if start_idx == -1 or end_idx == -1:
-                no_categories = False
-            else:
-                categories.append(user_message[start_idx:end_idx])
-                user_message = user_message[end_idx + len(" ## ]]") :]
-
-        return DummyLM([{cat: "Test!"} for cat in categories])(
-            messages=messages, **kwargs
-        )
 
 
 def load_lm(

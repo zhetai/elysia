@@ -49,7 +49,7 @@ from elysia.util.objects import LMTimer, Timer, TrainingUpdate, TreeUpdate
 
 # Util
 from elysia.util.parsing import remove_whitespace
-from elysia.util.collection_metadata import retrieve_all_collection_names
+from elysia.util.collection import retrieve_all_collection_names
 
 
 class Tree:

@@ -8,7 +8,7 @@ from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.api.utils.websocket import help_websocket
 from elysia.objects import Error
-from elysia.util.collection_metadata import retrieve_all_collection_names
+from elysia.util.collection import retrieve_all_collection_names
 
 router = APIRouter()
 

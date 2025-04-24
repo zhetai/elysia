@@ -68,6 +68,7 @@ class UserManager:
 
             # config starts as empty dict
             self.users[user_id]["config"] = Settings()
+            self.users[user_id]["config"].set_config_from_env()
             self.users[user_id]["config"].setup_app_logger(logger)
 
         # update last request (adds last_request to user)
