@@ -21,92 +21,6 @@ from elysia import Tool
 from elysia.tools import Ecommerce
 
 
-class ShuffleAndDealCards(Tool):
-    def __init__(self, **kwargs):
-        super().__init__(
-            name="deal_cards",
-            description="""
-            This tool should always be run at the start of any interaction with the user.
-            It defines any modifiers that get added to the conversation, from a random pool.
-            It does so by 'dealing cards' to the user as if they were a player of a card game.
-            These then will be displayed.
-            Call this tool when specifically asked for, or at the start of any conversation.
-            """,
-            status="Dealing cards...",
-            inputs={
-                "num_cards": {
-                    "description": "The number of cards to deal",
-                    "type": int,
-                    "default": 3,
-                    "required": False,
-                }
-            },
-            end=False,
-        )
-        self.logger = kwargs.get("logger", None)
-
-    def select_random_cards(self, num_cards=3):
-        possible_cards = [
-            {
-                "title": "The Jumbled",
-                "effect": "Sometimes, the Elysia agent will say words in the wrong order.",
-                "rarity": 3,
-                "image": "https://i.imgur.com/KdGeZTp.png",
-            },
-            {
-                "title": "The Comedian",
-                "effect": "At the end of every sentence, the Elysia agent will tell a joke.",
-                "rarity": 2,
-                "image": "https://i.imgur.com/I8yVXHa.png",
-            },
-            {
-                "title": "The Sarcastic",
-                "effect": "Most interactions end with the Elysia agent making a sarcastic remark.",
-                "rarity": 1,
-                "image": "https://i.imgur.com/oFkwt1M.png",
-            },
-            {
-                "title": "The Bro",
-                "effect": "Elysia must now use the word 'bro' a lot more, and apply similar slang everywhere.",
-                "rarity": 1,
-                "image": "https://i.imgur.com/J6dLbTZ.png",
-            },
-            {
-                "title": "The Philosopher",
-                "effect": "The Elysia agent will now try to philosophise at every opportunity.",
-                "rarity": 3,
-                "image": "https://i.imgur.com/D6VSitF.png",
-            },
-        ]
-        return random.choices(
-            possible_cards, weights=[1 / card["rarity"] for card in possible_cards], k=3
-        )
-
-    async def __call__(self, tree_data, inputs, base_lm, complex_lm, client_manager):
-        self.logger.info(f"Dealing {inputs['num_cards']} cards")
-        cards = self.select_random_cards(inputs["num_cards"])
-
-        yield Ecommerce(
-            objects=cards,
-            mapping={
-                "description": "effect",
-                "name": "title",
-                "price": "rarity",
-                "image": "image",
-            },
-            metadata={
-                "num_cards": inputs["num_cards"],
-            },
-            llm_message="""
-            Cards have been successfully dealt for this prompt! 
-            Dealt {num_cards} out of a possible 5.
-            Look at them in the environment to apply their modifiers to the conversation.
-            Pay attention to what these cards do, and how they affect the conversation.
-            You should apply the modifiers together, in a combination, not only one at a time.
-            """,
-        )
-
-
 class TreeManager:
     """
     Manages trees (different conversations) for a single user.
@@ -144,8 +58,6 @@ class TreeManager:
             )
             self.trees[conversation_id]["event"] = asyncio.Event()
             self.trees[conversation_id]["event"].set()
-
-            self.trees[conversation_id]["tree"].add_tool(ShuffleAndDealCards)
 
             self.update_tree_last_request(conversation_id)
 
