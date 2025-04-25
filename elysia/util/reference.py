@@ -1,5 +1,6 @@
 import datetime
 
+
 def create_reference(date: datetime.datetime = datetime.datetime.now()) -> str:
     return {
         "datetime": date.isoformat(),

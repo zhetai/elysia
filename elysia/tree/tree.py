@@ -35,7 +35,7 @@ from elysia.tools.text.text import FakeTextResponse, Summarizer, TextResponse
 from elysia.util.run_in_async import asyncio_run
 
 # Objects
-from elysia.tree.objects import CollectionData, TreeData
+from elysia.tree.objects import CollectionData, TreeData, Atlas
 
 # Decision Prompt executors
 from elysia.util.client import ClientManager
@@ -58,13 +58,16 @@ class Tree:
     Calling this method will execute the decision tree based on the user's prompt, and available collections and tools.
 
     Args:
+        branch_initialisation (str): The initialisation method for the branches,
+            currently supports some pre-defined initialisations: "multi_branch", "one_branch".
+            Set to "empty" to start with no branches and to add them, and the tools, yourself.
+        style (str): The writing style of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
+        agent_description (str): The description of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
+        end_goal (str): The end goal of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
         user_id (str): The id of the user, e.g. "123-456",
             unneeded outside of user management/hosting Elysia app
         conversation_id (str): The id of the conversation, e.g. "123-456",
             unneeded outside of conversation management/hosting Elysia app
-        branch_initialisation (str): The initialisation method for the branches,
-            currently supports some pre-defined initialisations: "multi_branch", "one_branch".
-            Set to "empty" to start with no branches and to add them, and the tools, yourself.
         dspy_initialisation (str): Ignore
         load_dspy_model (bool): Ignore
         debug (bool): Whether to run the tree in debug mode.
@@ -79,6 +82,9 @@ class Tree:
         branch_initialisation: Literal[
             "default", "one_branch", "multi_branch", "empty"
         ] = "default",
+        style: str | None = None,
+        agent_description: str | None = None,
+        end_goal: str | None = None,
         dspy_initialisation: Literal["mipro"] = "mipro",
         user_id: str | None = None,
         conversation_id: str | None = None,
@@ -120,9 +126,25 @@ class Tree:
         self.base_lm = self.settings.BASE_MODEL_LM
         self.complex_lm = self.settings.COMPLEX_MODEL_LM
 
+        # Define the inputs to prompts
+        self.tree_data = TreeData(
+            collection_data=CollectionData(
+                collection_names=[], logger=self.settings.logger
+            ),
+            atlas=Atlas(
+                style=style,
+                agent_description=agent_description,
+                end_goal=end_goal,
+            ),
+            recursion_limit=5,
+        )
+
+        # Set the initialisations
         self.tools = {}
         self.set_dspy_initialisation(dspy_initialisation)
-        self.set_branch_initialisation(branch_initialisation)
+        self.set_branch_initialisation(
+            branch_initialisation, style, agent_description, end_goal
+        )
 
         self.tools["final_text_response"] = TextResponse()
 
@@ -140,14 +162,6 @@ class Tree:
         self.returner = TreeReturner(
             user_id=self.user_id,
             conversation_id=self.conversation_id,
-        )
-
-        # Define the inputs to prompts
-        self.tree_data = TreeData(
-            collection_data=CollectionData(
-                collection_names=[], logger=self.settings.logger
-            ),
-            recursion_limit=5,
         )
 
         # Print the tree if required
@@ -195,6 +209,15 @@ class Tree:
 
         self.add_tool(branch_id="search", tool=Aggregate)
 
+        self.change_style("Informative, polite, and friendly.")
+        self.change_agent_description(
+            "You are designed to search datasets in Weaviate collections."
+        )
+        self.change_end_goal(
+            "To answer the user's question by retrieving data from the knowledge base. "
+            "Try to find the requested data, but this may not always be possible."
+        )
+
     def one_branch_init(self):
         self.add_branch(
             root=True,
@@ -214,6 +237,15 @@ class Tree:
 
         self.add_tool(branch_id="base", tool=Aggregate)
 
+        self.change_style("Informative, polite, and friendly.")
+        self.change_agent_description(
+            "You are designed to search datasets in Weaviate collections."
+        )
+        self.change_end_goal(
+            "To answer the user's question by retrieving data from the knowledge base. "
+            "Try to find the requested data, but this may not always be possible."
+        )
+
     def empty_init(self):
         self.add_branch(
             root=True,
@@ -231,7 +263,13 @@ class Tree:
     def clear_tree(self):
         self.decision_nodes = {}
 
-    def set_branch_initialisation(self, initialisation: str | None):
+    def set_branch_initialisation(
+        self,
+        initialisation: str | None,
+        style: str | None = None,
+        agent_description: str | None = None,
+        end_goal: str | None = None,
+    ):
         self.clear_tree()
 
         if (
@@ -247,6 +285,16 @@ class Tree:
             self.empty_init()
         else:
             raise ValueError(f"Invalid branch initialisation: {initialisation}")
+
+        # If any of these are provided, override the initialisation
+        if style is not None:
+            self.change_style(style)
+
+        if agent_description is not None:
+            self.change_agent_description(agent_description)
+
+        if end_goal is not None:
+            self.change_end_goal(end_goal)
 
         self.branch_initialisation = initialisation
 
@@ -265,6 +313,15 @@ class Tree:
     def set_debug(self, debug: bool):
         self.debug = debug
         self.settings.LOCAL = debug
+
+    def change_style(self, style: str):
+        self.tree_data.atlas.style = style
+
+    def change_agent_description(self, agent_description: str):
+        self.tree_data.atlas.agent_description = agent_description
+
+    def change_end_goal(self, end_goal: str):
+        self.tree_data.atlas.end_goal = end_goal
 
     def get_lm(self, model_type: str):
         if self.debug:  # if in debug mode, model is already loaded in the settings

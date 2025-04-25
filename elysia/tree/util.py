@@ -175,6 +175,9 @@ class DecisionNode:
             conversation_history=tree_data.conversation_history,
             tasks_completed=tree_data.tasks_completed_string(),
             instruction=self.instruction,
+            style=tree_data.atlas.style,
+            agent_description=tree_data.atlas.agent_description,
+            end_goal=tree_data.atlas.end_goal,
             collection_information=tree_data.output_collection_metadata(
                 with_mappings=False
             ),

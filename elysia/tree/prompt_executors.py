@@ -27,6 +27,9 @@ class DecisionExecutor(dspy.Module):
         decision = self.router(
             user_prompt=kwargs.get("user_prompt"),
             instruction=kwargs.get("instruction"),
+            style=kwargs.get("style"),
+            agent_description=kwargs.get("agent_description"),
+            end_goal=kwargs.get("end_goal"),
             reference=create_reference(),
             conversation_history=kwargs.get("conversation_history"),
             collection_information=kwargs.get("collection_information"),

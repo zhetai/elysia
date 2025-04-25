@@ -18,9 +18,9 @@ class Tool:
     The generic Tool class, which will be a superclass of any tools used by Elysia.
 
     Args:
-        name (str): The name of the tool.
-        description (str): A detailed description of the tool to give to the LLM.
-        status (str): A status update message to display while the tool is running.
+        name (str): The name of the tool. Required.
+        description (str): A detailed description of the tool to give to the LLM. Required.
+        status (str): A status update message to display while the tool is running. Optional, defaults to "Running {name}...".
         inputs (dict): A dictionary of inputs for the tool, with the following structure:
             ```python
             {
@@ -32,8 +32,8 @@ class Tool:
                 }
             }
             ```
-        end (bool): Whether the tool is an end tool.
-        rule (bool): Whether the tool is a rule tool.
+        end (bool): Whether the tool is an end tool. Optional, defaults to False.
+        rule (bool): Whether the tool is a rule tool. Optional, defaults to False.
     """
 
     def __init__(
@@ -325,7 +325,7 @@ class Result(Return):
             return self.format_llm_message()
         else:
             # Default message
-            return f"Displayed: A {self.type} object with {len(self.objects)} objects."
+            return f"Displayed: A {self.payload_type} object with {len(self.objects)} objects."
 
 
 # Retrieval/Aggregation/Anything we used code to get data

@@ -1,6 +1,6 @@
 from typing import Any, List
 from logging import Logger
-from rich import print
+from datetime import datetime
 
 from elysia.objects import Result
 from elysia.util.client import ClientManager
@@ -9,7 +9,6 @@ from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable, remove_whitespace
 
 
-# -- Environment --
 class Environment:
     """
     Store of all objects across different types of queries and responses.
@@ -114,7 +113,8 @@ class Environment:
                 if obj_found:
                     self.environment[function_name][name][-1]["objects"].append(
                         {
-                            "object_info": f"This object is a repeat of {_REF_ID}, so properties are omitted.",
+                            "object_info": f"[repeat]",
+                            "REPEAT_ID": _REF_ID,
                         }
                     )
                 else:
@@ -126,6 +126,13 @@ class Environment:
                         }
                     )
 
+    def find(self, function_name: str, name: str):
+        if function_name not in self.environment:
+            return None
+        if name not in self.environment[function_name]:
+            return None
+        return self.environment[function_name][name]
+
     def to_json(self):
         """
         Converts the environment to a JSON serialisable format.
@@ -134,7 +141,44 @@ class Environment:
         return self.environment
 
 
-# -- Collection Data --
+class Atlas:
+    """
+    Collection of information given to any agents in Elysia, used to modify their goals and behaviour.
+    """
+
+    def __init__(
+        self,
+        style: str = "No style provided.",
+        agent_description: str = "No description provided.",
+        end_goal: str = "No end goal provided.",
+    ):
+        """
+        Args:
+            style (str): The writing style of the agent.
+            agent_description (str): The description of the agent.
+            end_goal (str): The end goal of the agent.
+        """
+        self.style = style
+        self.agent_description = agent_description
+        self.end_goal = end_goal
+
+    def get_reference(self):
+        return {
+            "style": self.style,
+            "agent_description": self.agent_description,
+            "end_goal": self.end_goal,
+        }
+
+    def change_style(self, style: str):
+        self.style = style
+
+    def change_agent_description(self, agent_description: str):
+        self.agent_description = agent_description
+
+    def change_end_goal(self, end_goal: str):
+        self.end_goal = end_goal
+
+
 class CollectionData:
 
     def __init__(self, collection_names: list[str], logger: Logger | None = None):
@@ -255,7 +299,6 @@ class CollectionData:
         }
 
 
-# -- Prompt Input Data Collection Objects --
 class TreeData:
     """
     Store of data across the tree.
@@ -271,6 +314,7 @@ class TreeData:
     def __init__(
         self,
         collection_data: CollectionData,
+        atlas: Atlas,
         user_prompt: str = "",
         conversation_history: list[dict] = [],
         environment: Environment = Environment(),
@@ -281,6 +325,7 @@ class TreeData:
         """
         Args:
             collection_data (CollectionData): The collection data to use for the tree, described in the CollectionData class.
+            atlas (Atlas): The atlas, described in the Atlas class.
             user_prompt (str): The user's prompt.
             conversation_history (list[dict]): The conversation history stored in the current tree, of the form:
                 ```python
@@ -305,6 +350,9 @@ class TreeData:
         self.tasks_completed = tasks_completed
         self.num_trees_completed = num_trees_completed
         self.recursion_limit = recursion_limit
+
+        # -- Atlas --
+        self.atlas = atlas
 
         # -- Collection Data --
         self.collection_data = collection_data

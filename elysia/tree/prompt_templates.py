@@ -38,6 +38,21 @@ def construct_decision_prompt(
         instruction: str = dspy.InputField(
             description="Specific guidance for this decision point that must be followed"
         )
+        style: str = dspy.InputField(
+            description="The writing style you should adhere to. This is pre-defined by the user."
+        )
+        agent_description: str = dspy.InputField(
+            description="""
+            The description of the process you are following. This is pre-defined by the user.
+            This could be anything - this is the theme of the program you are a part of.
+            """.strip()
+        )
+        end_goal: str = dspy.InputField(
+            description="""
+            A short description of your overall goal. Use this to determine if you have completed your task.
+            However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
+            """.strip()
+        )
         reference: dict = dspy.InputField(
             description="Current context information (e.g., date, time) for decision-making"
         )

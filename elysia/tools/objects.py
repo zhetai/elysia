@@ -14,7 +14,7 @@ class BoringGeneric(Result):
     def __init__(
         self,
         objects: list[dict],
-        metadata: dict,
+        metadata: dict = {},
         name: str = "generic",
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
@@ -52,7 +52,7 @@ class EpicGeneric(Result):
     def __init__(
         self,
         objects: list[dict],
-        metadata: dict,
+        metadata: dict = {},
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
@@ -86,7 +86,7 @@ class Document(Result):
     def __init__(
         self,
         objects: list[dict],
-        metadata: dict,
+        metadata: dict = {},
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
@@ -126,7 +126,7 @@ class Ticket(Result):
     def __init__(
         self,
         objects: list[dict],
-        metadata: dict,
+        metadata: dict = {},
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
@@ -170,7 +170,7 @@ class Ecommerce(Result):
     def __init__(
         self,
         objects: list[dict],
-        metadata: dict,
+        metadata: dict = {},
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
@@ -204,7 +204,7 @@ class Message(Result):
     def __init__(
         self,
         objects: list[dict],
-        metadata: dict,
+        metadata: dict = {},
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
@@ -240,7 +240,7 @@ class Conversation(Result):
     def __init__(
         self,
         objects: list[dict],
-        metadata: dict,
+        metadata: dict = {},
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
