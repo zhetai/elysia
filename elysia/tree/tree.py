@@ -494,9 +494,7 @@ class Tree:
         else:
             return {}
 
-    async def _check_rules(
-        self, prev_rules_met: list[str], branch_id: str, client_manager: ClientManager
-    ):
+    async def _check_rules(self, branch_id: str, client_manager: ClientManager):
         base_lm = self.get_lm("base")
         complex_lm = self.get_lm("complex")
 
@@ -510,7 +508,7 @@ class Tree:
                     base_lm=base_lm,
                     complex_lm=complex_lm,
                 )
-                if rule_met and function_name not in prev_rules_met:
+                if rule_met:
                     nodes_with_rules_met.append(function_name)
 
         return nodes_with_rules_met
@@ -921,7 +919,6 @@ class Tree:
 
         # Start the tree at the root node
         current_decision_node: DecisionNode = self.decision_nodes[self.root]
-        rules_met = []
 
         # Loop through the tree until the end is reached
         while True:
@@ -937,7 +934,7 @@ class Tree:
 
             # Evaluate any tools which have hardcoded rules that have been met
             nodes_with_rules_met = await self._check_rules(
-                rules_met, current_decision_node.id, client_manager
+                current_decision_node.id, client_manager
             )
 
             if len(nodes_with_rules_met) > 0:
