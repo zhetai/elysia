@@ -27,10 +27,6 @@ def get_number_local_users(user_manager: UserManager):
     return len(user_manager.users)
 
 
-async def get_number_local_users_db(user_manager: UserManager):
-    return await user_manager.get_number_users_db()
-
-
 async def get_average_user_memory(user_manager: UserManager):
     if len(user_manager.users) == 0:
         return 0, 0
@@ -62,7 +58,7 @@ async def print_resources(
     if user_manager is not None:
         avg_user_memory, avg_tree_memory = await get_average_user_memory(user_manager)
         # avg_user_requests = await get_average_user_requests(user_manager)
-        num_users_db = await get_number_local_users_db(user_manager)
+        # num_users_db = await get_number_local_users_db(user_manager)
 
     print("\n\n\n\n")
     print("-" * 100)
@@ -79,7 +75,7 @@ async def print_resources(
         print(f"USER STATISTICS")
         print("-" * 100)
         print(f"Number of local users: {get_number_local_users(user_manager)}")
-        print(f"Number of unique users in database: {num_users_db}")
+        # print(f"Number of unique users in database: {num_users_db}")
         print(f"Average user memory usage: {avg_user_memory} MB")
         print(f"Average tree memory usage: {avg_tree_memory} MB")
         # print(f"Average user requests: {avg_user_requests}")
@@ -107,7 +103,7 @@ async def print_resources(
                 f.write(
                     f"Number of local users: {get_number_local_users(user_manager)}\n"
                 )
-                f.write(f"Number of unique users in database: {num_users_db}\n")
+                # f.write(f"Number of unique users in database: {num_users_db}\n")
                 f.write(f"Average user memory usage: {avg_user_memory} MB\n")
                 f.write(f"Average tree memory usage: {avg_tree_memory} MB\n")
                 # f.write(f"Average user requests: {avg_user_requests}\n")
