@@ -12,7 +12,7 @@ from elysia.api.api_types import (
     LoadConfigData,
     SaveConfigData,
 )
-from elysia.util.run_in_async import asyncio_run
+from elysia.util.async_util import asyncio_run
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.routes.config import (
     save_config,

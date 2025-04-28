@@ -32,7 +32,7 @@ from elysia.objects import (
 from elysia.tools.retrieval.aggregate import Aggregate
 from elysia.tools.retrieval.query import Query
 from elysia.tools.text.text import FakeTextResponse, Summarizer, TextResponse
-from elysia.util.run_in_async import asyncio_run
+from elysia.util.async_util import asyncio_run
 
 # Objects
 from elysia.tree.objects import CollectionData, TreeData, Atlas
@@ -98,6 +98,10 @@ class Tree:
             self.conversation_id = str(uuid.uuid4())
         else:
             self.conversation_id = conversation_id
+
+        assert isinstance(
+            settings, Settings
+        ), "settings must be an instance of Settings"
         self.settings = settings
 
         # keep track of the number of trees completed
@@ -253,8 +257,6 @@ class Tree:
             """,
             status="Choosing a base-level task...",
         )
-
-        self.add_tool(branch_id="base", tool=FakeTextResponse)
 
     def clear_tree(self):
         self.decision_nodes = {}
@@ -555,15 +557,43 @@ class Tree:
             kwargs (any): Additional keyword arguments to pass to the initialisation of the tool
         """
 
-        # TODO: check if the tool is an async generator, async function, or what
-        # needs to be an async generator
+        if (
+            inspect.getfullargspec(tool.__init__).varkw is None
+            or inspect.getfullargspec(tool.__call__).varkw is None
+        ):
+            raise TypeError("tool __init__ and __call__ must accept **kwargs")
+
+        if not inspect.isasyncgenfunction(tool.__call__):
+            raise TypeError(
+                "__call__ must be an async generator function. "
+                "I.e. it must yield objects."
+            )
+
         tool_instance = tool(
             logger=self.settings.logger,
             **kwargs,
         )
 
         if not isinstance(tool_instance, Tool):
-            raise ValueError("The tool must be an instance of the Tool class")
+            raise TypeError("tool must be an instance of the Tool class")
+
+        if "__call__" not in dir(tool_instance):
+            raise TypeError("tool must be callable (have a __call__ method)")
+
+        if "__init__" not in dir(tool_instance):
+            raise TypeError("tool must have an __init__ method")
+
+        if hasattr(tool_instance, "is_tool_available"):
+            if not inspect.iscoroutinefunction(tool_instance.is_tool_available):
+                raise TypeError(
+                    "is_tool_available must be an async function that returns a single boolean value"
+                )
+
+        if hasattr(tool_instance, "run_if_true"):
+            if not inspect.iscoroutinefunction(tool_instance.run_if_true):
+                raise TypeError(
+                    "run_if_true must be an async function that returns a single boolean value"
+                )
 
         self.tools[tool_instance.name] = tool_instance
 
@@ -831,6 +861,7 @@ class Tree:
         Async version of run() for running Elysia in an async environment.
         See .run() for full documentation.
         """
+        # TODO: error handling here
 
         if client_manager is None:
             client_manager = ClientManager(

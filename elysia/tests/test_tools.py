@@ -6,8 +6,9 @@ from elysia.objects import Result
 from copy import deepcopy
 from elysia import Tool
 from elysia.tree.objects import TreeData
-from elysia.config import Settings
+from elysia.config import Settings, configure
 from elysia.tree.tree import Tree
+from elysia.tools.text.text import TextResponse
 
 try:
     # get_ipython
@@ -16,6 +17,9 @@ except NameError:
     pass
 
 from elysia.util.client import ClientManager
+from elysia.tests.dummy_adapter import dummy_adapter
+
+configure(logging_level="CRITICAL")
 
 
 class RunIfTrueFalseTool(Tool):
@@ -45,6 +49,7 @@ class RunIfTrueFalseTool(Tool):
         base_lm: LM,
         complex_lm: LM,
         client_manager: ClientManager,
+        **kwargs,
     ):
 
         tree_data.environment.add(
@@ -85,6 +90,7 @@ class RunIfTrueTrueTool(Tool):
         base_lm: LM,
         complex_lm: LM,
         client_manager: ClientManager,
+        **kwargs,
     ):
 
         tree_data.environment.add(
@@ -117,6 +123,7 @@ class ToolNotAvailable(Tool):
         base_lm: LM,
         complex_lm: LM,
         client_manager: ClientManager,
+        **kwargs,
     ):
         yield True
 
@@ -140,11 +147,52 @@ class ToolAvailable(Tool):
         base_lm: LM,
         complex_lm: LM,
         client_manager: ClientManager,
+        **kwargs,
     ):
         yield True
 
 
-# TODO: add text
+class IncorrectToolInitialisation_kwargs_init(Tool):
+    def __init__(self):
+        super().__init__(
+            name="incorrect_tool_initialisation",
+            description="This tool should not be initialised",
+        )
+
+
+class IncorrectToolInitialisation_kwargs_call(Tool):
+    def __init__(self):
+        super().__init__(
+            name="incorrect_tool_initialisation",
+            description="This tool should not be initialised",
+        )
+
+    async def __call__(self, tree_data, inputs, base_lm, complex_lm, client_manager):
+        yield True
+
+
+class IncorrectToolInitialisation_call_non_async(Tool):
+    def __init__(self):
+        super().__init__(
+            name="incorrect_tool_initialisation",
+            description="This tool should not be initialised",
+        )
+
+    def __call__(self, tree_data, inputs, base_lm, complex_lm, client_manager):
+        return True
+
+
+class IncorrectToolInitialisation_call_non_async_generator(Tool):
+    def __init__(self):
+        super().__init__(
+            name="incorrect_tool_initialisation",
+            description="This tool should not be initialised",
+        )
+
+    async def __call__(self, tree_data, inputs, base_lm, complex_lm, client_manager):
+        return True
+
+
 class TestTools(unittest.TestCase):
 
     base_tree = Tree(
@@ -171,11 +219,8 @@ class TestTools(unittest.TestCase):
     ):
         tree = deepcopy(self.base_tree)
 
-        if remove_tools:
-            tool_names = list(tree.tools.keys())
-            for tool in tool_names:
-                if tool != "final_text_response":
-                    tree.remove_tool(tool)
+        if not remove_tools:
+            tree.add_tool(TextResponse)
 
         for tool in tools:
             tree.add_tool(tool)
@@ -207,9 +252,10 @@ class TestTools(unittest.TestCase):
 
         loop = self.get_event_loop()
 
-        tree = loop.run_until_complete(self.run_tree("Hello", [], [ToolNotAvailable]))
-
-        self.assertNotIn("always_pick_this_tool", tree.decision_history)
+        with self.assertRaises(RuntimeError):  # should have no tools available
+            loop.run_until_complete(
+                self.run_tree("Hello", [], [ToolNotAvailable], remove_tools=True)
+            )
 
     def test_tool_available(self):
 
@@ -221,8 +267,24 @@ class TestTools(unittest.TestCase):
 
         self.assertIn("always_pick_this_tool", tree.decision_history)
 
+    def test_incorrect_tool_initialisation(self):
+        with self.assertRaises(TypeError):
+            tree = deepcopy(self.base_tree)
+            tree.add_tool(IncorrectToolInitialisation_kwargs_init)
+
+        with self.assertRaises(TypeError):
+            tree = deepcopy(self.base_tree)
+            tree.add_tool(IncorrectToolInitialisation_kwargs_call)
+
+        with self.assertRaises(TypeError):
+            tree = deepcopy(self.base_tree)
+            tree.add_tool(IncorrectToolInitialisation_call_non_async)
+
+        with self.assertRaises(TypeError):
+            tree = deepcopy(self.base_tree)
+            tree.add_tool(IncorrectToolInitialisation_call_non_async_generator)
+
 
 if __name__ == "__main__":
-    # unittest.main()
-    test = TestTools()
-    test.test_tool_not_available()
+    with dummy_adapter():
+        TestTools().test_tool_available()

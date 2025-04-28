@@ -94,6 +94,7 @@ class Aggregate(Tool):
         client_manager: ClientManager,
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
+        **kwargs,
     ):
         # Set up the branch spanning off the node
         Branch(

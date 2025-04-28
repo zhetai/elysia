@@ -1,5 +1,7 @@
 import asyncio
 import nest_asyncio
+import inspect
+import types
 
 
 def _to_task(future, as_task, loop):

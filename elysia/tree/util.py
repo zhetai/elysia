@@ -147,9 +147,14 @@ class DecisionNode:
         # decision_executor = self._load_model(decision_executor)
         decision_executor = dspy.asyncify(decision_executor)
 
-        self.logger.debug(
-            f"Available options: {list(self._options_to_json(available_tools).keys())}"
-        )
+        options = self._options_to_json(available_tools)
+        if len(options) == 0:
+            raise RuntimeError(
+                "No available tools to call! Make sure you have added some tools to the tree. "
+                "Or the .is_tool_available() method is returning True for at least one tool."
+            )
+
+        self.logger.debug(f"Available options: {list(options.keys())}")
 
         output = await decision_executor(
             user_prompt=tree_data.user_prompt,
@@ -163,7 +168,7 @@ class DecisionNode:
                 with_mappings=False
             ),
             tree_count=tree_data.tree_count_string(),
-            available_actions=self._options_to_json(available_tools),
+            available_actions=options,
             environment=tree_data.environment.to_json(),
             lm=lm,
         )
