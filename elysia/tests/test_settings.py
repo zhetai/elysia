@@ -1,15 +1,15 @@
 import os
 import unittest
 from elysia.config import Settings, configure
+
 from elysia.config import settings as global_settings
+from elysia.config import reset_settings
 
 
 class TestConfig(unittest.TestCase):
 
     def reset_global_settings(self):
-        global global_settings
-        global_settings = Settings()
-        global_settings.set_config_from_env()
+        reset_settings()
 
     def test_setup(self):
         """
@@ -18,16 +18,11 @@ class TestConfig(unittest.TestCase):
         settings = Settings()
 
         # LLM should not be set by default
-        with self.assertRaises(AttributeError):
-            settings.BASE_MODEL
-        with self.assertRaises(AttributeError):
-            settings.COMPLEX_MODEL
-        with self.assertRaises(AttributeError):
-            settings.BASE_PROVIDER
-        with self.assertRaises(AttributeError):
-            settings.COMPLEX_PROVIDER
-        with self.assertRaises(AttributeError):
-            settings.MODEL_API_BASE
+        self.assertIsNone(settings.BASE_MODEL)
+        self.assertIsNone(settings.COMPLEX_MODEL)
+        self.assertIsNone(settings.BASE_PROVIDER)
+        self.assertIsNone(settings.COMPLEX_PROVIDER)
+        self.assertIsNone(settings.MODEL_API_BASE)
 
         self.reset_global_settings()
 
@@ -129,4 +124,5 @@ class TestConfig(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # unittest.main()
+    TestConfig().test_setup()

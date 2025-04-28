@@ -67,7 +67,7 @@ def construct_decision_prompt(
         # Collection information for user to ask basic questions about collection
         collection_information: dict = dspy.InputField(
             description="""
-            Metadata about available collections:
+            Metadata about available collections and their schemas:
             { name: { summary, fields: { min, max, type, etc. } }
             Where name is the name of the collection, and summary is a short description of the collection.
             The statistics such as min/max is of the data in the field. If this is numerical, this is the range of values in the data.

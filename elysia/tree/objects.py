@@ -73,6 +73,17 @@ class Environment:
             }
         ]
 
+    def is_empty(self):
+        """
+        Check if the environment is empty.
+        This is different from simply checking the length of the environment,
+        as the environment is initialised with a default "SelfInfo" key.
+        """
+        empty = list(self.environment.keys()) == ["SelfInfo"]
+        empty = empty and len(self.environment["SelfInfo"].keys()) == 1
+        empty = empty and len(self.environment["SelfInfo"]["generic"]) == 1
+        return empty
+
     def add(self, result: Result, function_name: str):
         """
         Adds a result to the environment.

@@ -33,6 +33,10 @@ class Summarizer(Tool):
             end=True,
         )
 
+    async def is_tool_available(self, **kwargs):
+        # when the environment is non empty
+        return not kwargs.get("tree_data").environment.is_empty()
+
     async def __call__(
         self,
         tree_data: TreeData,

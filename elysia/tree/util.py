@@ -117,14 +117,14 @@ class DecisionNode:
         if id in self.options:
             del self.options[id]
 
-    def _options_to_json(self, empty_branches: list[str] = []):
+    def _options_to_json(self, available_tools: list[str]):
         """
         Options that get shown to the LLM.
         Remove any that are empty branches.
         """
         out = {}
         for node in self.options:
-            if node in empty_branches:  # empty branch
+            if node not in available_tools:  # empty branch
                 continue
 
             out[node] = {
@@ -164,11 +164,16 @@ class DecisionNode:
         self,
         tree_data: TreeData,
         lm: dspy.LM = None,
+        available_tools: list[str] = [],
         **kwargs,
     ):
         decision_executor = DecisionExecutor(self._get_options())
         # decision_executor = self._load_model(decision_executor)
         decision_executor = dspy.asyncify(decision_executor)
+
+        self.logger.debug(
+            f"Available options: {list(self._options_to_json(available_tools).keys())}"
+        )
 
         output = await decision_executor(
             user_prompt=tree_data.user_prompt,
@@ -182,12 +187,12 @@ class DecisionNode:
                 with_mappings=False
             ),
             tree_count=tree_data.tree_count_string(),
-            available_actions=self._options_to_json(),
+            available_actions=self._options_to_json(available_tools),
             environment=tree_data.environment.to_json(),
             lm=lm,
         )
 
-        yield Decision(
+        decision = Decision(
             output.function_name,
             output.function_inputs,
             output.reasoning,
@@ -195,23 +200,25 @@ class DecisionNode:
             output.end_actions and self.options[output.function_name]["end"],
         )
 
-        yield TrainingUpdate(
-            model="decision",
-            inputs=tree_data.to_json(),
-            outputs={k: v for k, v in output.__dict__["_store"].items()},
-        )
-
-        yield TreeUpdate(
-            from_node=self.id,
-            to_node=output.function_name,
-            reasoning=output.reasoning,
-            last_in_branch=True,
-        )
-
-        yield Status(self.options[output.function_name]["status"])
+        results = [
+            TrainingUpdate(
+                model="decision",
+                inputs=tree_data.to_json(),
+                outputs={k: v for k, v in output.__dict__["_store"].items()},
+            ),
+            TreeUpdate(
+                from_node=self.id,
+                to_node=output.function_name,
+                reasoning=output.reasoning,
+                last_in_branch=True,
+            ),
+            Status(self.options[output.function_name]["status"]),
+        ]
 
         if output.function_name != "text_response":
-            yield Response(output.message_update)
+            results.append(Response(output.message_update))
+
+        return decision, results
 
     def detailed_memory_usage(self) -> dict:
         """

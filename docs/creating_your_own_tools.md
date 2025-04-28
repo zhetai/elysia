@@ -161,8 +161,28 @@ Elysia sometimes has *branches* in the decision tree, which can be created via `
 .add_tool(TextResponse, branch_id="base")
 ```
 
-# Tool Examples
+## Advanced Tool Methods
 
+### `run_if_true`
+
+You can optionally choose to add another method to your Tool - `run_if_true`. This is a method that returns a boolean value.
+The `run_if_true` method will be checked at the _start_ of every decision tree, for every tool that has this method. If you don't wish to use this method, then simply do not define one.
+If `run_if_true` returns `True`, then the `__call__` method of your tool will be called and carried out regardless of if the LLM wishes to use this tool or not. It is a hardcoded rule to run the tool. Some examples of using this include:
+
+- The `run_if_true` method can count the number of tokens in the environment, and if the environment is getting too large, it runs the tool. Then the `__call__` method will be shrinking the environment in some way (e.g. using an LLM or just taking one particular item from it).
+- If the user is asking about a particular subject, e.g. if the `user_prompt` (inside of `tree_data`) contains a specific word, then you could augment the `tree_data` to include some more specific information.
+
+Like the `__call__` and `is_tool_available` methods, this method has access to [the tree data](Reference/Objects.md##elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
+
+[See the reference for more details.](Reference/Objects.md#elysia.objects.Tool.run_if_true)
+
+### `is_tool_available`
+
+This method should return `True` if the tool is available to be used by the LLM. It should return `False` if the LLM should not have access to it. This can depend on the environment. For example, you can use `tree_data.environment.is_empty()` and the tool is only accessible if the environment is empty. Likewise you can use `not tree_data.environment.is_empty()` for it only to be available if the environment has something in it.
+
+Like the `__call__` and `run_if_true` methods, this method has access to [the tree data](Reference/Objects.md##elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
+
+[See the reference for more details.](Reference/Objects.md#elysia.objects.Tool.is_tool_available)
 
 ## Example: Text Response (basic)
 

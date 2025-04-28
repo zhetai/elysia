@@ -16,24 +16,6 @@ class Branch:
 class Tool:
     """
     The generic Tool class, which will be a superclass of any tools used by Elysia.
-
-    Args:
-        name (str): The name of the tool. Required.
-        description (str): A detailed description of the tool to give to the LLM. Required.
-        status (str): A status update message to display while the tool is running. Optional, defaults to "Running {name}...".
-        inputs (dict): A dictionary of inputs for the tool, with the following structure:
-            ```python
-            {
-                input_name: {
-                    "description": str,
-                    "type": str,
-                    "default": str,
-                    "required": bool
-                }
-            }
-            ```
-        end (bool): Whether the tool is an end tool. Optional, defaults to False.
-        rule (bool): Whether the tool is a rule tool. Optional, defaults to False.
     """
 
     def __init__(
@@ -46,6 +28,25 @@ class Tool:
         rule: bool = False,
         **kwargs,
     ):
+        """
+        Args:
+            name (str): The name of the tool. Required.
+            description (str): A detailed description of the tool to give to the LLM. Required.
+            status (str): A status update message to display while the tool is running. Optional, defaults to "Running {name}...".
+            inputs (dict): A dictionary of inputs for the tool, with the following structure:
+                ```python
+                {
+                    input_name: {
+                        "description": str,
+                        "type": str,
+                        "default": str,
+                        "required": bool
+                    }
+                }
+                ```
+            end (bool): Whether the tool is an end tool. Optional, defaults to False.
+            rule (bool): Whether the tool is a rule tool. Optional, defaults to False.
+        """
         self.name = name
         self.description = description
         self.inputs = inputs
@@ -62,6 +63,80 @@ class Tool:
             key: value["default"] if "default" in value else None
             for key, value in self.inputs.items()
         }
+
+    async def run_if_true(
+        self,
+        tree_data,
+        base_lm,
+        complex_lm,
+        client_manager,
+    ):
+        """
+        This method is called to check if the tool should be run automatically.
+        If this returns `True`, then the tool is immediately called at the start of the tree.
+        Otherwise it does not appear in the decision tree.
+
+        This must be an async function.
+
+        Args:
+            tree_data (TreeData): The tree data object.
+            base_lm (LM): The base language model, a dspy.LM object.
+            complex_lm (LM): The complex language model, a dspy.LM object.
+            client_manager (ClientManager): The client manager, a way of interfacing with a Weaviate client.
+
+        Returns:
+            bool: True if the tool should be run automatically, False otherwise.
+        """
+        return False
+
+    async def is_tool_available(
+        self,
+        tree_data,
+        base_lm,
+        complex_lm,
+        client_manager,
+    ):
+        """
+        This method is called to check if the tool is available.
+        If this returns `True`, then the tool is available to be used by the LLM.
+        Otherwise it does not appear in the decision tree.
+
+        The difference between this and `run_if_true` is that `run_if_true` will _always_ run the __call__ method if it returns `True`,
+        even if the LLM does not choose to use the tool.
+
+        This must be an async function.
+
+        Args:
+            tree_data (TreeData): The tree data object.
+            base_lm (LM): The base language model, a dspy.LM object.
+            complex_lm (LM): The complex language model, a dspy.LM object.
+            client_manager (ClientManager): The client manager, a way of interfacing with a Weaviate client.
+
+        Returns:
+            bool: True if the tool is available, False otherwise.
+        """
+        return True
+
+    async def __call__(
+        self,
+        tree_data,
+        base_lm,
+        complex_lm,
+        client_manager,
+    ):
+        """
+        This method is called to run the tool.
+
+        This must be an async generator, so objects must be yielded and not returned.
+
+        Args:
+            tree_data (TreeData): The data from the decision tree, includes the environment, user prompt, etc.
+                See the `TreeData` class for more details.
+            base_lm (LM): The base language model, a dspy.LM object.
+            complex_lm (LM): The complex language model, a dspy.LM object.
+            client_manager (ClientManager): The client manager, a way of interfacing with a Weaviate client.
+        """
+        pass
 
 
 class Reasoning:

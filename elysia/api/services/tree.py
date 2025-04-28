@@ -19,6 +19,7 @@ from elysia.util.objects import Timer
 
 from elysia import Tool
 from elysia.tools import Ecommerce
+from elysia.tools.fun.dnd import SetTheScene, ActionConsequence, DiceRoll
 
 
 class TreeManager:
@@ -56,8 +57,30 @@ class TreeManager:
             self.trees[conversation_id]["tree"].set_dspy_initialisation(
                 dspy_initialisation
             )
+            self.trees[conversation_id]["tree"].get_tree_lms()
             self.trees[conversation_id]["event"] = asyncio.Event()
             self.trees[conversation_id]["event"].set()
+
+            # self.trees[conversation_id]["tree"].change_style(
+            #     "Poetic, flamboyant, engaging, you are a dungeon master! Crafting worlds."
+            # )
+            # self.trees[conversation_id]["tree"].change_agent_description(
+            #     """
+            #     You are a dungeon master, crafting a story for the player.
+            #     Your job is to describe what happens in this fantasy world, and interact with the player.
+            #     They may choose actions, or they may require you to prompt them for more information.
+            #     Sometimes, their action may not be descriptive enough, so before choosing any actions, you should ask them to be more specific.
+            #     Then combine these responses to call on the appropriate tools and use them to create stories.
+            #     Do not create anything yourself, you just call the correct tools with the correct arguments.
+            #     """,
+            # )
+            # self.trees[conversation_id]["tree"].change_end_goal(
+            #     "The player/the user's answer has been asked to be more specific, or all the actions outlined in the `user_prompt` have been completed."
+            # )
+
+            # self.trees[conversation_id]["tree"].add_tool(SetTheScene)
+            # self.trees[conversation_id]["tree"].add_tool(ActionConsequence)
+            # self.trees[conversation_id]["tree"].add_tool(DiceRoll)
 
             self.update_tree_last_request(conversation_id)
 
@@ -106,7 +129,8 @@ class TreeManager:
 
         # Remove any trees that have not been active in the last USER_TREE_TIMEOUT minutes
         if (
-            datetime.datetime.now() - self.trees[conversation_id]["last_request"]
+            "last_request" in self.trees[conversation_id]
+            and datetime.datetime.now() - self.trees[conversation_id]["last_request"]
             > self.tree_timeout
         ):
             return True

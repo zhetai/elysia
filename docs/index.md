@@ -10,6 +10,18 @@ See the [basic example to get started right away!](basic_example.md)
 
 Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](creating_your_own_tools.md).
 
+## Usage
+
+Elysia is free, open source, and available to anyone.
+
+To use Elysia to search your data, you need a Weaviate cluster (or you can define your own custom tool to search another data source!).
+
+[Sign up to Weaviate! A 14 day sandbox cluster is free.](https://weaviate.io/deployment/serverless)
+
+For more information on signing up to Weaviate, [click here](https://weaviate.io/developers/wcs/platform/create-account). 
+
+From your weaviate cluster, you can upload data via a CSV on the cloud console, or [you can upload via the Weaviate APIs](https://weaviate.io/developers/academy/py/zero_to_mvp/schema_and_imports/import).
+
 ## About
 
 Check out the Github Repositories for the backend and the frontend

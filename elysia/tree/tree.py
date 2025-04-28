@@ -123,8 +123,6 @@ class Tree:
 
         # -- Initialise the tree
         self.set_debug(debug)
-        self.base_lm = self.settings.BASE_MODEL_LM
-        self.complex_lm = self.settings.COMPLEX_MODEL_LM
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
@@ -170,6 +168,10 @@ class Tree:
             self.settings.logger.info(
                 f"  - [magenta]{decision_node.id}[/magenta]: {list(decision_node.options.keys())}"
             )
+
+    def get_tree_lms(self):
+        self.base_lm = self.get_lm("base", True) if self.debug else None
+        self.complex_lm = self.get_lm("complex", True) if self.debug else None
 
     def multi_branch_init(self):
         self.add_branch(
@@ -314,6 +316,9 @@ class Tree:
         self.debug = debug
         self.settings.LOCAL = debug
 
+        self.base_lm = self.get_lm("base", True) if debug else None
+        self.complex_lm = self.get_lm("complex", True) if debug else None
+
     def change_style(self, style: str):
         self.tree_data.atlas.style = style
 
@@ -323,14 +328,10 @@ class Tree:
     def change_end_goal(self, end_goal: str):
         self.tree_data.atlas.end_goal = end_goal
 
-    def get_lm(self, model_type: str):
-        if self.debug:  # if in debug mode, model is already loaded in the settings
-            return (
-                self.settings.BASE_MODEL_LM
-                if model_type == "base"
-                else self.settings.COMPLEX_MODEL_LM
-            )
-        else:  # if not in debug mode, model is hot-loaded
+    def get_lm(self, model_type: str, force_load: bool = False):
+        if self.debug and not force_load:
+            return self.base_lm if model_type == "base" else self.complex_lm
+        else:
             return (
                 load_base_lm(self.settings)
                 if model_type == "base"
@@ -493,26 +494,26 @@ class Tree:
         else:
             return {}
 
-    def _check_rules(
+    async def _check_rules(
         self, prev_rules_met: list[str], branch_id: str, client_manager: ClientManager
     ):
         base_lm = self.get_lm("base")
         complex_lm = self.get_lm("complex")
 
         branch = self.decision_nodes[branch_id]
-        rules_met = []
+        nodes_with_rules_met = []
         for function_name, option in branch.options.items():
-            if option["rule"] and "rule_call" in dir(self.tools[function_name]):
-                rule_met = self.tools[function_name].rule_call(
+            if option["rule"] and "run_if_true" in dir(self.tools[function_name]):
+                rule_met = await self.tools[function_name].run_if_true(
                     tree_data=self.tree_data,
                     client_manager=client_manager,
                     base_lm=base_lm,
                     complex_lm=complex_lm,
                 )
                 if rule_met and function_name not in prev_rules_met:
-                    rules_met.append(function_name)
+                    nodes_with_rules_met.append(function_name)
 
-        return rules_met
+        return nodes_with_rules_met
 
     def set_conversation_id(self, conversation_id: str):
         self.conversation_id = conversation_id
@@ -573,6 +574,9 @@ class Tree:
             tool (Tool): The tool to add
             kwargs (any): Additional keyword arguments to pass to the initialisation of the tool
         """
+
+        # TODO: check if the tool is an async generator, async function, or what
+        # needs to be an async generator
         tool_instance = tool(
             logger=self.settings.logger,
             load_dspy_model=self.load_dspy_model,
@@ -599,7 +603,7 @@ class Tree:
             action=self.tools[tool_instance.name],
             end=tool_instance.end,
             status=tool_instance.status,
-            rule=tool_instance.rule,
+            rule=tool_instance.rule,  # TODO: remove `rule` as the check is just if `run_if_true` exists
         )
 
         # reconstruct tree
@@ -791,12 +795,14 @@ class Tree:
         # TODO: is this the same thing as action_information? but better?
         self._update_actions_called(result, decision)
 
-    async def _evaluate_action(self, result: Return | Decision | TreeUpdate):
-        if isinstance(result, Decision):
-            self.current_decision = result
+    async def _evaluate_result(
+        self,
+        result: Return | Decision | TreeUpdate,
+        decision: Decision,
+    ):
 
         if isinstance(result, Result):
-            self._update_environment(result, self.current_decision)
+            self._update_environment(result, decision)
 
         if isinstance(result, TrainingUpdate):
             self.training_updates.append(result)
@@ -816,8 +822,22 @@ class Tree:
         return await self.returner(
             result,
             self.prompt_to_query_id[self.user_prompt],
-            last_in_tree=self.current_decision.last_in_tree,
+            last_in_tree=decision.last_in_tree,
         )
+
+    async def _get_available_tools(self, client_manager: ClientManager):
+        available_tools = []
+        for tool in self.tools.values():
+            if not "is_tool_available" in dir(tool):
+                available_tools.append(tool.name)
+            elif await tool.is_tool_available(
+                tree_data=self.tree_data,
+                base_lm=self.get_lm("base"),
+                complex_lm=self.get_lm("complex"),
+                client_manager=client_manager,
+            ):
+                available_tools.append(tool.name)
+        return available_tools
 
     async def async_run(
         self,
@@ -905,21 +925,37 @@ class Tree:
 
         # Loop through the tree until the end is reached
         while True:
-            # Evaluate any rules from tools
-            # hardcoded logic that is evalutaed at the start of each branch
-            # actions (call()) are performed if rule_call() returns True
-            rules_met = self._check_rules(
+
+            # TODO: check what tools are available to use here
+            available_tools = await self._get_available_tools(client_manager)
+            if len(available_tools) == 0:
+                self.settings.logger.error("No tools available to use!")
+                raise ValueError(
+                    "No tools available to use! "
+                    "Check the tool definitions and the `is_tool_available` methods."
+                )
+
+            # Evaluate any tools which have hardcoded rules that have been met
+            nodes_with_rules_met = await self._check_rules(
                 rules_met, current_decision_node.id, client_manager
             )
 
-            # TODO: reimplement this, currently doesn't exist
-            # if len(rules_met) > 0:
-            #     async for result in self._evaluate_rules(
-            #         rules_met, current_decision_node.id, client_manager
-            #     ):
-            #         yield result
+            if len(nodes_with_rules_met) > 0:
+                for rule in nodes_with_rules_met:
+                    rule_decision = Decision(rule, {}, "", False, False)
+                    async for result in self.tools[rule](
+                        tree_data=self.tree_data,
+                        inputs={},
+                        base_lm=self.get_lm("base"),
+                        complex_lm=self.get_lm("complex"),
+                        client_manager=client_manager,
+                    ):
+                        action_result = await self._evaluate_result(
+                            result, rule_decision
+                        )
+                        if action_result is not None:
+                            yield action_result
 
-            # else:
             # If training, decide from the training route
             if len(training_route) > 0:
                 self.settings.logger.info(f"Route that will be used: {training_route}")
@@ -935,20 +971,25 @@ class Tree:
             # Under normal circumstances decide from the decision node
             else:
                 t = Timer("base_lm")
+
                 t.start()
-                async for result in current_decision_node(
+                self.current_decision, results = await current_decision_node(
                     tree_data=self.tree_data,
                     lm=base_lm,
-                ):
-                    yield await self._evaluate_action(
-                        result
-                    )  # this assigns self.current_decision
+                    available_tools=available_tools,
+                )
+                for result in results:
+                    action_result = await self._evaluate_result(
+                        result, self.current_decision
+                    )
+                    if action_result is not None:
+                        yield action_result
 
                 t.end()
                 self.base_lm_timer.update_avg_time(t.time_taken)
 
                 # Force text response (later) if model chooses end actions
-                # but no response will be generated from the node
+                # but no response will be generated from the node, set flag now
                 force_text_response = (
                     not current_decision_node.options[
                         self.current_decision.function_name
@@ -1021,7 +1062,9 @@ class Tree:
                     complex_lm=self.get_lm("complex"),
                     client_manager=client_manager,
                 ):
-                    action_result = await self._evaluate_action(result)
+                    action_result = await self._evaluate_result(
+                        result, self.current_decision
+                    )
                     if action_result is not None:
                         yield action_result
 
@@ -1058,7 +1101,9 @@ class Tree:
                     base_lm=self.get_lm("base"),
                     complex_lm=self.get_lm("complex"),
                 ):
-                    action_result = await self._evaluate_action(result)
+                    action_result = await self._evaluate_result(
+                        result, self.current_decision
+                    )
                     if action_result is not None:
                         yield action_result
 

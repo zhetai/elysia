@@ -33,6 +33,8 @@ class Settings:
     BASE_MODEL_LM: LM | None = None
     COMPLEX_MODEL_LM: LM | None = None
 
+    MODEL_API_BASE: str | None = None
+
     API_KEYS = {}
 
     logger = logging.getLogger("rich")
@@ -175,6 +177,9 @@ class Settings:
             self.COMPLEX_MODEL_LM = load_complex_lm(self)
         else:
             self.COMPLEX_MODEL_LM = None
+
+    def reset(self):
+        self = Settings()
 
     def configure(
         self,
@@ -390,6 +395,11 @@ def load_lm(
 # but used when using Elysia as a package
 settings = Settings()
 settings.set_config_from_env()
+
+
+def reset_settings():
+    settings.reset()
+    settings.set_config_from_env()
 
 
 def configure(**kwargs):

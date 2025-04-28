@@ -52,7 +52,7 @@ class UserManager:
         self.date_of_reset = None
         self.users = {}
         # TODO: is this fine to be here? should it be user-specific?
-        self.base_tree = Tree()
+        self.base_tree = Tree(debug=False)
 
     async def get_user_local(self, user_id: str):
         # add user if it doesn't exist
@@ -90,12 +90,14 @@ class UserManager:
     async def check_restart_clients(self):
         # these check within these methods if the client has been used in the last X minutes
         for user_id in self.users:
-            await self.users[user_id]["client_manager"].restart_client()
-            await self.users[user_id]["client_manager"].restart_async_client()
+            if "client_manager" in self.users[user_id]:
+                await self.users[user_id]["client_manager"].restart_client()
+                await self.users[user_id]["client_manager"].restart_async_client()
 
     async def close_all_clients(self):
         for user_id in self.users:
-            await self.users[user_id]["client_manager"].close_clients()
+            if "client_manager" in self.users[user_id]:
+                await self.users[user_id]["client_manager"].close_clients()
 
     async def initialise_tree(
         self, user_id: str, conversation_id: str, debug: bool = False
