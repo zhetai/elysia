@@ -186,9 +186,8 @@ async def follow_up_suggestions(
 
     try:
         # wait for tree event to be completed
-        await user_manager.get_user_local(data.user_id)["tree_manager"].get_event(
-            data.conversation_id
-        ).wait()
+        local_user = await user_manager.get_user_local(data.user_id)
+        local_user["tree_manager"].get_event(data.conversation_id).wait()
 
         config = user_manager.get_user_config(data.user_id)
 
@@ -197,9 +196,9 @@ async def follow_up_suggestions(
 
         # load dspy model for suggestor
         follow_up_suggestor = FollowUpSuggestionsExecutor()
-        follow_up_suggestor.load(
-            "elysia/training/dspy_models/followup_suggestions/fewshot/gemini-2.0-flash-001_gemini-2.0-flash-001.json"
-        )
+        # follow_up_suggestor.load(
+        #     "elysia/training/dspy_models/followup_suggestions/fewshot/gemini-2.0-flash-001_gemini-2.0-flash-001.json"
+        # )
         follow_up_suggestor = dspy.asyncify(follow_up_suggestor)
 
         # get prediction

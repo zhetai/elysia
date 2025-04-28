@@ -86,48 +86,50 @@ class TestQuery(unittest.TestCase):
 
         loop = self.get_event_loop()
 
-        user_id = "test_user"
-        conversation_id = "test_conversation"
-        query_id = "test_query"
+        try:
 
-        out = loop.run_until_complete(
-            default_config(DefaultConfigData(user_id=user_id), get_user_manager())
-        )
+            user_id = "test_user"
+            conversation_id = "test_conversation"
+            query_id = "test_query"
 
-        websocket = fake_websocket()
-
-        out = loop.run_until_complete(
-            process(
-                QueryData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    query="test query!",
-                    query_id=query_id,
-                    collection_names=["test_collection_1", "test_collection_2"],
-                ).model_dump(),
-                websocket,
-                get_user_manager(),
+            out = loop.run_until_complete(
+                default_config(DefaultConfigData(user_id=user_id), get_user_manager())
             )
-        )
 
-        # check all payloads are valid
-        for result in websocket.results:
-            self.assertIsInstance(result, dict)
-            self.assertIn("type", result)
-            self.assertIn("id", result)
-            self.assertIn("conversation_id", result)
-            self.assertIn("query_id", result)
-            self.assertIn("payload", result)
-            self.assertIsInstance(result["payload"], dict)
-            if "objects" in result["payload"]:
-                for obj in result["payload"]["objects"]:
-                    self.assertIsInstance(obj, dict)
-            if "metadata" in result["payload"]:
-                self.assertIsInstance(result["payload"]["metadata"], dict)
-            if "text" in result["payload"]:
-                self.assertIsInstance(result["payload"]["text"], str)
+            websocket = fake_websocket()
 
-        loop.run_until_complete(get_user_manager().close_all_clients())
+            out = loop.run_until_complete(
+                process(
+                    QueryData(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        query="test query!",
+                        query_id=query_id,
+                        collection_names=["test_collection_1", "test_collection_2"],
+                    ).model_dump(),
+                    websocket,
+                    get_user_manager(),
+                )
+            )
+
+            # check all payloads are valid
+            for result in websocket.results:
+                self.assertIsInstance(result, dict)
+                self.assertIn("type", result)
+                self.assertIn("id", result)
+                self.assertIn("conversation_id", result)
+                self.assertIn("query_id", result)
+                self.assertIn("payload", result)
+                self.assertIsInstance(result["payload"], dict)
+                if "objects" in result["payload"]:
+                    for obj in result["payload"]["objects"]:
+                        self.assertIsInstance(obj, dict)
+                if "metadata" in result["payload"]:
+                    self.assertIsInstance(result["payload"]["metadata"], dict)
+                if "text" in result["payload"]:
+                    self.assertIsInstance(result["payload"]["text"], str)
+        finally:
+            loop.run_until_complete(get_user_manager().close_all_clients())
 
 
 if __name__ == "__main__":
