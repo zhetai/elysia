@@ -41,7 +41,6 @@ class TreeManager:
     ):
         self.timer.start()
         branch_initialisation = "one_branch"
-        dspy_initialisation = None
 
         if conversation_id not in self.trees:
             self.trees[conversation_id] = {}
@@ -53,9 +52,6 @@ class TreeManager:
             self.trees[conversation_id]["last_request"] = datetime.datetime.now()
             self.trees[conversation_id]["tree"].set_branch_initialisation(
                 branch_initialisation
-            )
-            self.trees[conversation_id]["tree"].set_dspy_initialisation(
-                dspy_initialisation
             )
             self.trees[conversation_id]["tree"].get_tree_lms()
             self.trees[conversation_id]["event"] = asyncio.Event()

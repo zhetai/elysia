@@ -68,8 +68,6 @@ class Tree:
             unneeded outside of user management/hosting Elysia app
         conversation_id (str): The id of the conversation, e.g. "123-456",
             unneeded outside of conversation management/hosting Elysia app
-        dspy_initialisation (str): Ignore
-        load_dspy_model (bool): Ignore
         debug (bool): Whether to run the tree in debug mode.
             If True, the tree will save the (dspy) models within the tree.
             Set to False for saving memory.
@@ -85,10 +83,8 @@ class Tree:
         style: str | None = None,
         agent_description: str | None = None,
         end_goal: str | None = None,
-        dspy_initialisation: Literal["mipro"] = "mipro",
         user_id: str | None = None,
         conversation_id: str | None = None,
-        load_dspy_model: bool = True,
         debug: bool = False,
         settings: Settings = environment_settings,
     ):
@@ -102,7 +98,6 @@ class Tree:
             self.conversation_id = str(uuid.uuid4())
         else:
             self.conversation_id = conversation_id
-        self.load_dspy_model = load_dspy_model
         self.settings = settings
 
         # keep track of the number of trees completed
@@ -139,7 +134,6 @@ class Tree:
 
         # Set the initialisations
         self.tools = {}
-        self.set_dspy_initialisation(dspy_initialisation)
         self.set_branch_initialisation(
             branch_initialisation, style, agent_description, end_goal
         )
@@ -299,18 +293,6 @@ class Tree:
             self.change_end_goal(end_goal)
 
         self.branch_initialisation = initialisation
-
-    def set_dspy_initialisation(self, initialisation: str | None):
-        if initialisation is not None:
-            mipro_suffix = "light_" if initialisation == "mipro" else ""
-            self.model_filepath = f"elysia/training/dspy_models/decision/{initialisation}/{mipro_suffix}gemini-2.0-flash-001_gemini-2.0-flash-001.json"
-        else:
-            self.model_filepath = None
-
-        for node in self.decision_nodes.values():
-            node.model_filepath = self.model_filepath
-
-        self.dspy_initialisation = initialisation
 
     def set_debug(self, debug: bool):
         self.debug = debug
@@ -553,7 +535,7 @@ class Tree:
             "complex_lm_used": self.settings.COMPLEX_MODEL,
             "time_taken_seconds": time_taken_seconds,
             "training_updates": training_update,
-            "initialisation": f"{self.branch_initialisation}/{self.dspy_initialisation}",
+            "initialisation": f"{self.branch_initialisation}",
         }
         # can remove training updates now
         self.training_updates = []
@@ -577,7 +559,6 @@ class Tree:
         # needs to be an async generator
         tool_instance = tool(
             logger=self.settings.logger,
-            load_dspy_model=self.load_dspy_model,
             **kwargs,
         )
 
@@ -694,8 +675,6 @@ class Tree:
             instruction=instruction,
             options={},
             root=root,
-            load_dspy_model=self.load_dspy_model,
-            model_filepath=self.model_filepath,
             logger=self.settings.logger,
         )
         self.decision_nodes[branch_id] = decision_node

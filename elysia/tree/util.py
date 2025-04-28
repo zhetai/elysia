@@ -50,37 +50,13 @@ class DecisionNode:
         instruction: str,
         options: list[dict[str, str]],
         root: bool = False,
-        model_filepath: str = "",
-        load_dspy_model: bool = True,
         logger: Logger = None,
     ):
         self.id = id
         self.instruction = instruction
         self.options = options
         self.root = root
-        self.load_dspy_model = load_dspy_model
         self.logger = logger
-        self.model_filepath = model_filepath
-
-    def _load_model(self, executor):
-        if (
-            self.load_dspy_model
-            and self.model_filepath is not None
-            and os.path.exists(self.model_filepath)
-        ):
-            try:
-                executor.load(self.model_filepath)
-                if self.logger:
-                    self.logger.info(
-                        f"[green]Loaded Decision model[/green] at [italic magenta]{self.model_filepath}[/italic magenta]"
-                    )
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(
-                        f"Failed to load Decision model at {self.model_filepath}"
-                    )
-
-        return executor
 
     def _get_options(self):
         out = []
@@ -233,8 +209,6 @@ class DecisionNode:
         memory_usage["id"] = asizeof.asizeof(self.id)
         memory_usage["instruction"] = asizeof.asizeof(self.instruction)
         memory_usage["root"] = asizeof.asizeof(self.root)
-        memory_usage["model_filepath"] = asizeof.asizeof(self.model_filepath)
-        memory_usage["load_dspy_model"] = asizeof.asizeof(self.load_dspy_model)
 
         # Decision-related data - break down each option
         memory_usage["options"] = {}
