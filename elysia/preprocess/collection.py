@@ -7,7 +7,9 @@ from logging import Logger
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Metrics
 
-from elysia.config import nlp
+from elysia.config import nlp, Settings, load_base_lm
+from elysia.config import settings as environment_settings
+
 from elysia.globals import return_types as rt
 from elysia.preprocess.prompt_executors import (
     CollectionSummariserExecutor,
@@ -17,8 +19,6 @@ from elysia.preprocess.prompt_executors import (
 from elysia.util.client import ClientManager
 from elysia.util.collection import async_get_collection_data_types
 from elysia.util.async_util import asyncio_run
-
-from elysia.config import settings as environment_settings
 
 
 class ProcessUpdate:
@@ -55,8 +55,7 @@ class CollectionPreprocessor:
     def __init__(
         self,
         threshold_for_missing_fields: float = 0.6,
-        lm: str = dspy.LM(model="claude-3-5-haiku-latest"),
-        logger: Logger = environment_settings.logger,
+        settings: Settings = environment_settings,
     ):
         self.collection_summariser_executor = CollectionSummariserExecutor()
         self.data_mapping_executor = DataMappingExecutor()
@@ -69,29 +68,21 @@ class CollectionPreprocessor:
         self.return_type_executor = dspy.asyncify(self.return_type_executor)
 
         self.threshold_for_missing_fields = threshold_for_missing_fields
-        self.lm = lm
-        self.logger = logger
+        self.lm = load_base_lm(settings)
+        self.logger = settings.logger
 
     async def _summarise_collection(
         self,
-        collection,
         properties: dict,
-        summary_sample_size: int = 200,
-        len_collection: int = 1000,
+        subset_objects: list[dict],
+        len_collection: int,
     ):
-        # Randomly sample sample_size objects for the summary
-        indices = random.sample(range(len_collection), summary_sample_size)
-        subset_objects = []
-
-        counter = 0
-        async for item in collection.iterator():
-            counter += 1
-            if counter in indices:
-                subset_objects.append(item.properties)
-
         # Summarise the collection
         summary = await self.collection_summariser_executor(
-            data=subset_objects, data_fields=list(properties.keys()), lm=self.lm
+            data_sample=subset_objects,
+            data_fields=list(properties.keys()),
+            len_collection=len_collection,
+            lm=self.lm,
         )
         return summary
 
@@ -215,13 +206,13 @@ class CollectionPreprocessor:
 
         return mapping, error_message
 
-    # TODO: this needs to go over to the async client manager
     async def __call__(
         self,
         collection_name: str,
         client_manager: ClientManager,
-        manageable_sample_size: int = 100,
-        summary_sample_size: int = 50,
+        min_sample_size: int = 10,
+        max_sample_size: int = 20,
+        num_sample_tokens: int = 30000,
         force: bool = False,
     ):
         async with client_manager.connect_to_async_client() as client:
@@ -250,12 +241,37 @@ class CollectionPreprocessor:
                 agg = await collection.aggregate.over_all(total_count=True)
                 len_collection = agg.total_count
 
+                # Randomly sample sample_size objects for the summary
+                indices = random.sample(
+                    range(len_collection),
+                    max(min(max_sample_size, len_collection), 1),
+                )
+
+                # Get first object to estimate token count
+                obj = await collection.query.fetch_objects(limit=1, offset=indices[0])
+                token_count_0 = len(nlp(str(obj.objects[0].properties)))
+                subset_objects = [obj.objects[0].properties]
+
+                # Get number of objects to sample to get close to num_sample_tokens
+                num_sample_objects = max(
+                    min_sample_size, num_sample_tokens // token_count_0
+                )
+
+                for index in indices[1:num_sample_objects]:
+                    obj = await collection.query.fetch_objects(limit=1, offset=index)
+                    subset_objects.append(obj.objects[0].properties)
+
+                # Estimate number of tokens
+                self.logger.info(
+                    f"Estimated token count of sample: {token_count_0*len(subset_objects)}"
+                )
+                self.logger.info(f"Number of objects in sample: {len(subset_objects)}")
+
                 # Summarise the collection using LLM
                 try:
                     summary = await self._summarise_collection(
-                        collection,
                         properties,
-                        min(summary_sample_size, len_collection),
+                        subset_objects,
                         len_collection,
                     )
                 except Exception as e:
@@ -266,7 +282,7 @@ class CollectionPreprocessor:
                 yield await self.process_update(progress=1 / float(total))
 
                 # Evaluate if the collection is manageable, if not, we will not fetch all objects
-                collection_is_manageable = len_collection < manageable_sample_size
+                collection_is_manageable = len_collection < max_sample_size
 
                 # If the collection is manageable, fetch all objects
                 if collection_is_manageable:
@@ -408,12 +424,73 @@ class CollectionPreprocessor:
                 self.logger.info(f"Collection {collection_name} already exists!")
 
 
+async def preprocess_async(
+    collection_names: list[str],
+    client_manager: ClientManager | None = None,
+    min_sample_size: int = 10,
+    max_sample_size: int = 20,
+    num_sample_tokens: int = 30000,
+    settings: Settings = environment_settings,
+    force: bool = False,
+):
+    if client_manager is None:
+        client_manager = ClientManager(
+            wcd_url=settings.wcd_url, wcd_api_key=settings.wcd_api_key
+        )
+
+    try:
+        preprocessor = CollectionPreprocessor(settings=settings)
+
+        if settings.LOGGING_LEVEL_INT <= 20:
+            for collection_name in collection_names:
+                async for result in preprocessor(
+                    collection_name=collection_name,
+                    client_manager=client_manager,
+                    min_sample_size=min_sample_size,
+                    max_sample_size=max_sample_size,
+                    num_sample_tokens=num_sample_tokens,
+                    force=force,
+                ):
+                    if (
+                        result is not None
+                        and "error" in result
+                        and result["error"] != ""
+                    ):
+                        raise Exception(result["error"])
+
+        else:
+            for collection_name in collection_names:
+                with Progress() as progress:
+                    task = progress.add_task(
+                        f"Preprocessing {collection_name}", total=1
+                    )
+                    async for result in preprocessor(
+                        collection_name=collection_name,
+                        client_manager=client_manager,
+                        min_sample_size=min_sample_size,
+                        max_sample_size=max_sample_size,
+                        num_sample_tokens=num_sample_tokens,
+                        force=force,
+                    ):
+                        if result is not None and "progress" in result:
+                            progress.update(task, completed=result["progress"])
+                        elif (
+                            result is not None
+                            and "error" in result
+                            and result["error"] != ""
+                        ):
+                            raise Exception(result["error"])
+    finally:
+        await client_manager.close_clients()
+
+
 def preprocess(
     collection_names: list[str],
     client_manager: ClientManager | None = None,
-    manageable_sample_size: int = 100,
-    summary_sample_size: int = 50,
-    verbose: bool = False,
+    min_sample_size: int = 10,
+    max_sample_size: int = 20,
+    num_sample_tokens: int = 30000,
+    settings: Settings = environment_settings,
     force: bool = False,
 ):
     """
@@ -428,47 +505,61 @@ def preprocess(
     4. For each data field in the collection, evaluate what corresponding entry goes to what field in the return type (mapping)
     5. Save as a ELYSIA_METADATA_{collection_name}__ collection
 
+    Depending on the size of objects in the collection, you can choose the minimum and maximum sample size,
+    which will be used to create a sample of objects for the LLM to create a collection summary.
+    If your objects are particularly large, you can set the sample size to be smaller, to use less tokens and speed up the LLM processing.
+    If your objects are small, you can set the sample size to be larger, to get a more accurate summary.
+    This is a trade-off between speed/compute and accuracy.
+
+    But note that the pre-processing step only needs to be done once for each collection.
+    The output of this function is cached, so that if you run it again, it will not re-process the collection (unless the force flag is set to True).
+
+    This function saves the output to a collection called ELYSIA_METADATA_{collection_name}__, which is automatically called by Elysia.
+    This is saved to whatever Weaviate cluster URL/API key you have configured, or in your environment variables.
+    You can change this by setting the `wcd_url` and `wcd_api_key` in the settings, and pass this Settings object to this function.
+
     Args:
-        collection_name (str): The name of the collection to preprocess.
+        collection_names (list[str]): The names of the collections to preprocess.
         client_manager (ClientManager): The client manager to use.
-            If not provided, a new ClientManager will be created using the environment variables.
-        manageable_sample_size (int): The number of objects to sample from the collection to evaluate the statistics.
-        summary_sample_size (int): The number of objects to sample from the collection to write a summary.
-        verbose (bool): Whether to print the progress of the preprocessor.
-        force (bool): Whether to force the preprocessor to run even if the collection already exists.
+            If not provided, a new ClientManager will be created using the environment variables/configured settings.
+        min_sample_size (int): The minimum number of objects to sample from the collection to evaluate the statistics/summary. Optional, defaults to 10.
+        max_sample_size (int): The maximum number of objects to sample from the collection to evaluate the statistics/summary. Optional, defaults to 20.
+        num_sample_tokens (int): The maximum number of tokens in the sample objects used to evaluate the summary. Optional, defaults to 30000.
+        settings (Settings): The settings to use. Optional, defaults to the environment variables/configured settings.
+        force (bool): Whether to force the preprocessor to run even if the collection already exists. Optional, defaults to False.
     """
 
+    asyncio_run(
+        preprocess_async(
+            collection_names,
+            client_manager,
+            min_sample_size,
+            max_sample_size,
+            num_sample_tokens,
+            settings,
+            force,
+        )
+    )
+
+
+def preprocessed_collection_exists(
+    collection_name: str, client_manager: ClientManager | None = None
+) -> bool:
     if client_manager is None:
         client_manager = ClientManager()
 
-    preprocessor = CollectionPreprocessor()
+    with client_manager.connect_to_client() as client:
+        exists = client.collections.exists(
+            f"ELYSIA_METADATA_{collection_name.lower()}__"
+        )
+    return exists
 
-    async def run(collection_name: str):
-        async for result in preprocessor(
-            collection_name,
-            client_manager,
-            manageable_sample_size,
-            summary_sample_size,
-            force,
-        ):
-            pass
 
-    async def run_with_live(collection_name: str):
-        with Progress() as progress:
-            task = progress.add_task(f"Preprocessing {collection_name}", total=1)
-            async for result in preprocessor(
-                collection_name,
-                client_manager,
-                manageable_sample_size,
-                summary_sample_size,
-                force,
-            ):
-                if result is not None and "progress" in result:
-                    progress.update(task, completed=result["progress"])
+def delete_preprocessed_collection(
+    collection_name: str, client_manager: ClientManager | None = None
+):
+    if client_manager is None:
+        client_manager = ClientManager()
 
-    if verbose:
-        for collection_name in collection_names:
-            asyncio_run(run_with_live(collection_name))
-    else:
-        for collection_name in collection_names:
-            asyncio_run(run(collection_name))
+    with client_manager.connect_to_client() as client:
+        client.collections.delete(f"ELYSIA_METADATA_{collection_name.lower()}__")

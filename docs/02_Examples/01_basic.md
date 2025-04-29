@@ -14,6 +14,8 @@ These Weaviate collections are those which we want to search over using Elysia.
 
 You need to specify what models you want to use, as well as any API keys. To set up the models, you can use `configure`. For example, if you want to use the GPT-4o family of models:
 
+### LM Setup
+
 ```python
 from elysia import configure
 configure(
@@ -25,7 +27,9 @@ configure(
 ```
 You need to specify both a `base_model` and a `complex_model`, as well as their providers. This hooks into LiteLLM through DSPy, [so any LiteLLM supported models and providers will work](https://docs.litellm.ai/docs/providers).
 
-To configure your API keys, you can either specify in the `.env` of your root directory, or pass these values into the `configure`. To add API keys into your environment, they need to follow the basic guidelines of how the API keys should be for LiteLLM. E.g., an OpenAI API key should be called `OPENAI_API_KEY`, seen in the [corresponding LiteLLM page](https://docs.litellm.ai/docs/providers/openai).
+### API Key Setup
+
+To configure your API keys, you can either specify in the `.env` of your root directory, or pass these values into the `configure`. To add API keys into your environment, they need to follow the basic guidelines of how the API keys should be for LiteLLM. In this example, an OpenAI API key is required, which should be called `OPENAI_API_KEY`, seen in the [corresponding LiteLLM page](https://docs.litellm.ai/docs/providers/openai).
 
 E.g. your `.env` file looks like:
 ```bash
@@ -38,8 +42,21 @@ configure(
     openai_api_key="sk-..." # add your API key here
 )
 ```
+The same API key format should be followed for any API keys required by your Weaviate cluster, for example, for the vectoriser you want to use.
 
-The same API key format should be followed for any API keys required by your Weaviate cluster, for the vectoriser you want to use.
+If interfacing with your Weaviate collections, then you need to also have your Weaviate cluster URL and API key inside of your environment, respectively named `WCD_URL` and `WCD_API_KEY`, i.e.
+```bash
+WCD_URL=... # replace with your cluster URL
+WCD_API_KEY=... # replace with your API key
+```
+or in the same way, pass these into the `configure` function
+```python
+configure(
+    wcd_url="..." # add your cluster URL
+    wcd_api_key_="..." # add your API key here
+)
+```
+
 
 **TIP:** To use [OpenRouter](https://openrouter.ai/) instead of the generic provider, set the provider to e.g. `openrouter/openai`.
 

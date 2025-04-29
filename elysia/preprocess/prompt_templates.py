@@ -10,9 +10,15 @@ class CollectionSummariserPrompt(dspy.Signature):
     Your task is to provide a summary of the data. This should be concise, one paragraph maximum and no more than 5 sentences.
     Do not calculate any statistics such as length, just describe the data.
     This is to inform the user about the data in the collection.
+    Use markdown formatting (such as headers, bold, italics, lists, etc.) to make the summary more readable.
     """
 
-    data = dspy.InputField(
+    sample_size = dspy.InputField(
+        description="""
+    The number of objects in the data_sample, out of a total number of objects in the collection.
+    """
+    )
+    data_sample = dspy.InputField(
         description="""
     A subset of the data to summarise. This will be a list of JSON objects. Each item is an individual item in the dataset and has the same fields.
     Because this is a subset, do not make definitive statements about _all_ of what the data contains.

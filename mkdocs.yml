@@ -26,6 +26,22 @@ theme:
       primary: teal
       accent: lime
 
+nav:
+  - Getting Started: index.md
+  - Advanced Usage: 02_advanced_usage.md
+  - Tool Construction: 03_creating_your_own_tools.md
+  - Preprocessing: preprocess.md
+  - Examples:
+    - Basic: Examples/01_basic.md
+    # - Intermediate: Examples/02_intermediate.md
+    - Sentiment Analysis: Examples/03_sentiment_analysis.md
+    - Fantasy Adventure: Examples/04_fantasy_adventure.md
+  - Reference:
+    - Preprocessor: Reference/Preprocessor.md
+    - Tree: Reference/Tree.md
+    - ClientManager: Reference/ClientManager.md
+    - Configure: Reference/Configure.md
+    - Tools: Reference/Tools.md
 plugins:
   - social
   - search

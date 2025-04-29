@@ -17,9 +17,21 @@ class CollectionSummariserExecutor(dspy.Module):
             CollectionSummariserPrompt
         )
 
-    def forward(self, data: list[dict], data_fields: list[str], lm: dspy.LM) -> dict:
+    def forward(
+        self,
+        data_sample: list[dict],
+        data_fields: list[str],
+        len_collection: int,
+        lm: dspy.LM,
+    ) -> dict:
         prediction = self.collection_summariser_prompt(
-            data=data, data_fields=data_fields, lm=lm
+            data_sample=data_sample,
+            data_fields=data_fields,
+            sample_size=f"""
+            {len(data_sample)} out of a total of {len_collection}.
+            You are seeing {round(len(data_sample)/len_collection*100, 2)}% of the objects.
+            """,
+            lm=lm,
         )
         summary_concat = ""
         for sentence in [
