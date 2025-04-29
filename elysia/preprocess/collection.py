@@ -545,6 +545,19 @@ def preprocess(
 def preprocessed_collection_exists(
     collection_name: str, client_manager: ClientManager | None = None
 ) -> bool:
+    """
+    Check if the preprocessed collection exists in the Weaviate cluster.
+    This function simply checks if the cached preprocessed metadata exists in the Weaviate cluster.
+    It does so by checking if the collection ELYSIA_METADATA_{collection_name.lower()}__ exists.
+
+    Args:
+        collection_name (str): The name of the collection to check.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created using the environment variables/configured settings.
+
+    Returns:
+        bool: True if the collection exists, False otherwise.
+    """
     if client_manager is None:
         client_manager = ClientManager()
 
@@ -558,8 +571,19 @@ def preprocessed_collection_exists(
 def delete_preprocessed_collection(
     collection_name: str, client_manager: ClientManager | None = None
 ):
+    """
+    Delete the preprocessed collection from the Weaviate cluster.
+    This function simply deletes the cached preprocessed metadata from the Weaviate cluster.
+    It does so by deleting the collection ELYSIA_METADATA_{collection_name.lower()}__.
+
+    Args:
+        collection_name (str): The name of the collection to delete the preprocessed metadata for.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created using the environment variables/configured settings.
+    """
     if client_manager is None:
         client_manager = ClientManager()
 
     with client_manager.connect_to_client() as client:
-        client.collections.delete(f"ELYSIA_METADATA_{collection_name.lower()}__")
+        if client.collections.exists(f"ELYSIA_METADATA_{collection_name.lower()}__"):
+            client.collections.delete(f"ELYSIA_METADATA_{collection_name.lower()}__")

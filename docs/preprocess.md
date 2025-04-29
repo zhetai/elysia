@@ -52,3 +52,7 @@ The `num_sample_tokens` parameter controls how many objects are actually used. P
 Additionally, you have:
 - **`settings`** *(Settings)*: The settings to use.
 - **`force`** *(bool)*: Whether to force the preprocessor to run even if the collection already exists.
+
+## Additional Functions
+
+You can also use `preprocessed_collection_exists`, which returns True/False if the collection has been preprocessed (and it can be accessed within the Weaviate cluster), and `delete_preprocessed_collection`, which will delete the cached preprocessed metadata.
