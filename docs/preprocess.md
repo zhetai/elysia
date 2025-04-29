@@ -36,19 +36,19 @@ When the logging level is `INFO`, the preprocessor will show a progress bar.
 
 You have access to two functions, `preprocess_async`, which must be awaited, and `preprocess`, which is a sync wrapper for its async sister. The basic arguments for either function are:
 
-- `**collection_names**` (*list[str])*: The names of the collections to preprocess.
-- `**client_manager**` *(ClientManager)*: The client manager to use.
+- **`collection_names`** (*list[str])*: The names of the collections to preprocess.
+- **`client_manager`** *(ClientManager)*: The client manager to use.
     The ClientManager class is how Elysia interacts with Weaviate client.
     If you are unsure of this, do not provide this argument, it will default to the Weaviate cluster you selected via the `Settings`, or via `configure`/environment variables.
 
 As well, the LLM requires a number of objects retrieved from the collection, at random, to help provide its summary. Since objects in collections vary greatly in token size (and hence LLM compute time/cost), you can adjust the following parameters to change how many objects are used for this sample.
 
-- `**min_sample_size**` *(int)*: The minimum number of objects in the sample.
-- `**max_sample_size**` *(int)*: The maximum number of objects to sample.
-- `**num_sample_tokens**` *(int)*: The maximum number of tokens in the sample objects used to evaluate the summary.
+- **`min_sample_size`** *(int)*: The minimum number of objects in the sample.
+- **`max_sample_size`** *(int)*: The maximum number of objects to sample.
+- **`num_sample_tokens`** *(int)*: The maximum number of tokens in the sample objects used to evaluate the summary.
 
 The `num_sample_tokens` parameter controls how many objects are actually used. Provided it is between `min_sample_size` and `max_sample_size`, the preprocessor will select the closest number of objects that are estimated to be in total `num_sample_tokens` tokens.
 
 Additionally, you have:
-- `**settings**` *(Settings)*: The settings to use.
-- `**force**` *(bool)*: Whether to force the preprocessor to run even if the collection already exists.
+- **`settings`** *(Settings)*: The settings to use.
+- **`force`** *(bool)*: Whether to force the preprocessor to run even if the collection already exists.
