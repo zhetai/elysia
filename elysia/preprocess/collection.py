@@ -435,7 +435,7 @@ async def preprocess_async(
 ):
     if client_manager is None:
         client_manager = ClientManager(
-            wcd_url=settings.wcd_url, wcd_api_key=settings.wcd_api_key
+            wcd_url=settings.WCD_URL, wcd_api_key=settings.WCD_API_KEY
         )
 
     try:
