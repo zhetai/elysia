@@ -19,7 +19,8 @@ from elysia.util.objects import Timer
 
 from elysia import Tool
 from elysia.tools import Ecommerce
-from elysia.tools.fun.dnd import SetTheScene, ActionConsequence, DiceRoll
+
+# from elysia.tools.fun.dnd import SetTheScene, ActionConsequence, DiceRoll
 
 
 class TreeManager:

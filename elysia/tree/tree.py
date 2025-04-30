@@ -907,7 +907,6 @@ class Tree:
                 async with client_manager.connect_to_async_client() as client:
                     collection_names = await retrieve_all_collection_names(client)
 
-            collection_names = [c.lower() for c in collection_names]
             await self.set_collection_names(
                 collection_names,
                 client_manager,

@@ -216,7 +216,7 @@ class CollectionData:
                 metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
 
                 # check if the collection itself exists
-                if not await client.collections.exists(collection_name.lower()):
+                if not await client.collections.exists(collection_name):
                     self.incorrect_collections.append(collection_name)
 
                 # check if the metadata collection exists

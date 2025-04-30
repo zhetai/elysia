@@ -33,6 +33,11 @@ class Item(BaseModel):
     is_usable: bool
 
 
+class DiceRoll(BaseModel):
+    roll: int
+    success: bool
+
+
 class Descriptor(dspy.Signature):
     """
     You decide the outcome of the user's action in a dungeons and dragons style campaign.
@@ -44,6 +49,17 @@ class Descriptor(dspy.Signature):
     user_prompt = dspy.InputField(
         description="What the user has written as their action."
     )
+    story_plan = dspy.InputField(
+        description="""
+        A story plan for the story, including all the major events and plot points.
+        This is not displayed to the user, but used by you to create the consequences/next events.
+        Do not rush through the story, identify what key events could be relevant to the user's action.
+        Or, completely ignore this! 
+        Remember this is a freeform adventure game, there should be flexibility in how the user will interact with the world.
+        Therefore, do not be afraid to create new events that are not part of the story plan.
+        But very very loosely follow the story plan.
+        """.strip()
+    )
     relevant_context = dspy.InputField(
         description="The current state of the story/world, where the user is, what they are doing, etc."
     )
@@ -53,11 +69,20 @@ class Descriptor(dspy.Signature):
     relevant_items: list[Item] = dspy.InputField(
         description="Any items that have been introduced in the story so far."
     )
+    dice_roll: bool = dspy.InputField(
+        description="The result of any dice rolls that have been made in the story so far."
+    )
     consequences: str = dspy.OutputField(
         description="""
         What the user's action will lead to.
         This is a continuation of the story, so it should be a continuation of the current state of the story.
         Pertain to what the user has written in the `user_prompt` field.
+        But the user cannot say anything they want, they are limited by what is actually physically possible.
+        For any action that required skill, and the `roll_dice` tool has been called for this prompt, 
+        then you should check whether the dice roll yielded a successful or failed action. This should influence the consequences.
+        If the user's action is outside the bounds of a normal action that their character would be able to do,
+        you should instead write that this can't happen, and the action failed (unless an insanely good dice roll has been made).
+        In this case, explain why the action failed, either through limitations of the environment, the character's abilities, or so on.
         Be poetic and stylistic as a dungeon master would.
         """.strip()
     )
@@ -126,10 +151,11 @@ class DiceRoll(Tool):
         value_to_exceed = kwargs.get("value_to_exceed", 10)
         roll = random.randint(1, num_sides) * num_dice
         success_message = (
-            "The roll was a success!"
+            f"The roll was a success! (Rolled {roll} >= {value_to_exceed})"
             if roll >= value_to_exceed
-            else "The roll was a failure!"
+            else f"The roll was a failure! (Rolled {roll} < {value_to_exceed})"
         )
+        yield Status(success_message)
         yield BoringGeneric(
             objects=[
                 {
@@ -145,6 +171,7 @@ class DiceRoll(Tool):
                 "roll": roll,
             },
             llm_message=f"Rolled {num_dice}d{num_sides} for the action {kwargs.get('tree_data').user_prompt} and got {roll}. {success_message}",
+            name="dice_roll",
         )
 
 
@@ -288,12 +315,27 @@ class ActionConsequence(Tool):
                 [c["objects"][0]["text"] for c in current_story2]
             )
 
+        story_plan = environment.find("set_the_scene", "story_plan")
+        if story_plan is not None:
+            story_plan = story_plan[0]["objects"][0]["text"]
+        else:
+            story_plan = ""
+
+        dice_roll = environment.find("roll_dice", "dice_roll")
+        if dice_roll is not None:
+            dice_roll = dice_roll[0]["objects"][0]["success"]
+        else:
+            dice_roll = False
+
         yield Status("Writing what happens next...")
 
         result = await descriptor(
             user_prompt=kwargs.get("tree_data").user_prompt,
             relevant_context=current_story,
             relevant_characters=current_characters,
+            relevant_items=current_items,
+            story_plan=story_plan,
+            dice_roll=dice_roll,
             lm=kwargs.get("complex_lm"),
         )
 
@@ -346,9 +388,21 @@ class SceneSetter(dspy.Signature):
         """.strip()
     )
 
-    story: str = dspy.OutputField(
+    story_plan: str = dspy.OutputField(
         description="""
-        A fantastical introduction to the world and a story.
+        A plan for the story. How the world and story will unfold.
+        This should be a comprehensive plan for the story, including all the major events and plot points.
+        This is not displayed to the user, it will be used as a guide for the storyteller to create the story later.
+        Create key events, character arcs, and other important plot points.
+        But remember this is a freeform adventure game, there should be flexibility in how the user will interact with the world.
+        So make sure to include some flexibility in the plan.
+        But also make the plot points reachable for a wide array of player actions.
+        """.strip()
+    )
+
+    opening_story: str = dspy.OutputField(
+        description="""
+        A fantastical introduction to the world and a story. Introducing the beginning of the story plan.
         """.strip()
     )
     title: str = dspy.OutputField(
@@ -402,13 +456,21 @@ class SetTheScene(Tool):
         )
 
         yield Summary(
-            text=result.story,
+            text=result.opening_story,
             title=result.title,
         )
 
         tree_data.environment.add(
             BoringGeneric(
-                objects=[{"text": result.story}],
+                objects=[{"text": result.story_plan}],
+                name="story_plan",
+            ),
+            "set_the_scene",
+        )
+
+        tree_data.environment.add(
+            BoringGeneric(
+                objects=[{"text": result.opening_story}],
                 name="story",
             ),
             "set_the_scene",
@@ -429,6 +491,63 @@ class SetTheScene(Tool):
             num_trees_completed=tree_data.num_trees_completed,
             parsed_info="The story has been created, the characters introduced, the world made.",
         )
+
+
+class ReduceStory(Tool):
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="reduce_story",
+            description="""
+            Reduce the story to a more concise form.
+            """,
+        )
+        self.logger = kwargs.get("logger")
+        self.num_interactions_to_reduce = 5
+
+    async def is_tool_available(self, **kwargs):
+        return False
+
+    async def run_if_true(self, tree_data, base_lm, complex_lm, client_manager):
+
+        environment = tree_data.environment
+        current_consequences = environment.find("action_consequence", "story")
+
+        if current_consequences is None:
+            return False
+
+        self.logger.info(
+            f"Current number of interactions with consequences: {len(current_consequences)}"
+        )
+
+        return len(current_consequences) > self.num_interactions_to_reduce
+
+    async def __call__(self, **kwargs):
+        environment = kwargs.get("tree_data").environment
+        current_consequences = environment.find("action_consequence", "story")
+
+        environment.environment["action_consequence"] = {
+            "story": [],
+        }
+
+        environment.environment["action_consequence"]["story"].append(
+            {
+                "metadata": {},
+                "objects": [
+                    {
+                        "text": "\n".join(
+                            [
+                                c["objects"][0]["text"]
+                                for c in current_consequences[
+                                    -self.num_interactions_to_reduce :
+                                ]
+                            ]
+                        )
+                    }
+                ],
+            }
+        )
+        self.logger.info(f"Reduced story to a more concise form.")
+        yield Status("Reduced story to a more concise form.")
 
 
 # if __name__ == "__main__":

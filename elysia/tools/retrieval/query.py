@@ -198,7 +198,7 @@ class Query(Tool):
             self.logger.debug(f"Inputs: {inputs}")
 
         # Get the collections
-        collection_names = [c.lower() for c in inputs["collection_names"]]
+        collection_names = inputs["collection_names"]
 
         if self.logger:
             self.logger.debug(f"Collection names received: {collection_names}")
@@ -306,17 +306,6 @@ class Query(Tool):
                 last_in_branch=True,
             )
             return
-
-        # make sure all collection names are lower case
-        for q in query.query_output:
-            q.target_collections = [c.lower() for c in q.target_collections]
-
-        # Create a list of keys to iterate over to avoid changing dict size during iteration
-        keys_to_process = list(query.data_display.keys())
-        for key in keys_to_process:
-            if key != key.lower():
-                query.data_display[key.lower()] = query.data_display[key]
-                del query.data_display[key]
 
         yield TreeUpdate(
             from_node="query",
