@@ -81,7 +81,7 @@ class UserManager:
 
     async def get_tree(self, user_id: str, conversation_id: str):
         local_user = await self.get_user_local(user_id)
-        return local_user["tree_manager"].get_tree(self.base_tree, conversation_id)
+        return local_user["tree_manager"].get_tree(conversation_id)
 
     async def check_all_trees_timeout(self):
         for user_id in self.users:
@@ -107,7 +107,7 @@ class UserManager:
         tree_manager.add_tree(
             self.base_tree, conversation_id, debug, local_user["config"]
         )
-        return tree_manager.get_tree(self.base_tree, conversation_id)
+        return tree_manager.get_tree(conversation_id)
 
     async def update_user_last_request(self, user_id: str):
         self.users[user_id]["last_request"] = datetime.datetime.now()
@@ -151,7 +151,6 @@ class UserManager:
         tree_manager: TreeManager = local_user["tree_manager"]
 
         async for yielded_result in tree_manager.process_tree(
-            self.base_tree,
             conversation_id,
             query,
             query_id,

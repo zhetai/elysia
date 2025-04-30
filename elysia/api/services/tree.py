@@ -39,10 +39,13 @@ class TreeManager:
     def add_tree(
         self, base_tree: Tree, conversation_id: str, debug: bool, config: Settings
     ):
-        self.timer.start()
-        branch_initialisation = "one_branch"
 
-        if conversation_id not in self.trees:
+        if not self.tree_exists(conversation_id):
+
+            self.timer.start()
+            branch_initialisation = "one_branch"
+            # branch_initialisation = "empty"
+
             self.trees[conversation_id] = {}
             self.trees[conversation_id]["tree"] = deepcopy(base_tree)
             self.trees[conversation_id]["tree"].settings = config
@@ -71,7 +74,9 @@ class TreeManager:
             #     """,
             # )
             # self.trees[conversation_id]["tree"].change_end_goal(
-            #     "The player/the user's answer has been asked to be more specific, or all the actions outlined in the `user_prompt` have been completed."
+            #     "The player/the user's answer has been asked to be more specific, "
+            #     "or all the actions outlined in the `user_prompt` have been completed. "
+            #     "Either the scene has been set, or the story has evolved. "
             # )
 
             # self.trees[conversation_id]["tree"].add_tool(SetTheScene)
@@ -82,9 +87,10 @@ class TreeManager:
 
         self.timer.end(print_time=True, print_name="initialise_tree")
 
-    def get_tree(self, base_tree: Tree, conversation_id: str):
-        if conversation_id not in self.trees:
-            self.add_tree(base_tree, conversation_id)
+    def tree_exists(self, conversation_id: str):
+        return conversation_id in self.trees
+
+    def get_tree(self, conversation_id: str):
         return self.trees[conversation_id]["tree"]
 
     def get_event(self, conversation_id: str):
@@ -92,7 +98,6 @@ class TreeManager:
 
     async def process_tree(
         self,
-        base_tree: Tree,
         conversation_id: str,
         query: str,
         query_id: str,
@@ -102,7 +107,7 @@ class TreeManager:
         client_manager: ClientManager,
     ):
         self.update_tree_last_request(conversation_id)
-        tree: Tree = self.get_tree(base_tree, conversation_id)
+        tree: Tree = self.get_tree(conversation_id)
 
         self.trees[conversation_id]["event"].clear()
         async for yielded_result in tree.async_run(
