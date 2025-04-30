@@ -38,7 +38,7 @@ class Settings:
     API_KEYS = {}
 
     logger = logging.getLogger("rich")
-    logger.setLevel(logging.NOTSET)
+    logger.setLevel(logging.INFO)
 
     # Remove any existing handlers before adding a new one
     for handler in logger.handlers[:]:
@@ -46,8 +46,8 @@ class Settings:
     logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
 
     logger.propagate = False
-    LOGGING_LEVEL = "NOTSET"
-    LOGGING_LEVEL_INT = 0
+    LOGGING_LEVEL = "INFO"
+    LOGGING_LEVEL_INT = 20
 
     def setup_app_logger(self, logger: Logger):
         """
