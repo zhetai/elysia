@@ -473,7 +473,7 @@ class Query(Tool):
                 objects = []
                 for obj in response.objects:
                     objects.append({k: v for k, v in obj.properties.items()})
-                    objects[-1]["uuid"] = obj.uuid.hex
+                    objects[-1]["uuid"] = str(obj.uuid)
 
                 # Write various metadata for LLM parsing
                 metadata = {

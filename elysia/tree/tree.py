@@ -485,7 +485,7 @@ class Tree:
         branch = self.decision_nodes[branch_id]
         nodes_with_rules_met = []
         for function_name, option in branch.options.items():
-            if option["rule"] and "run_if_true" in dir(self.tools[function_name]):
+            if "run_if_true" in dir(self.tools[function_name]):
                 rule_met = await self.tools[function_name].run_if_true(
                     tree_data=self.tree_data,
                     client_manager=client_manager,
@@ -612,7 +612,6 @@ class Tree:
             action=self.tools[tool_instance.name],
             end=tool_instance.end,
             status=tool_instance.status,
-            rule=tool_instance.rule,  # TODO: remove `rule` as the check is just if `run_if_true` exists
         )
 
         # reconstruct tree
@@ -873,6 +872,12 @@ class Tree:
 
         # Some initial steps if this is the first run (no recursion yet)
         if _first_run:
+
+            self.settings.logger.info(f"Style: {self.tree_data.atlas.style}")
+            self.settings.logger.info(
+                f"Agent description: {self.tree_data.atlas.agent_description}"
+            )
+            self.settings.logger.info(f"End goal: {self.tree_data.atlas.end_goal}")
 
             # Reset the tree (clear temporary data specific to the last user prompt)
             self.soft_reset()

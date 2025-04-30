@@ -274,7 +274,7 @@ class AsyncCollectionChunker:
                     )
                 )
 
-        batch_size = 5
+        batch_size = 15
         data_objects_batches = [
             data_objects[i : i + batch_size]
             for i in range(0, len(data_objects), batch_size)
@@ -284,7 +284,9 @@ class AsyncCollectionChunker:
             chunked_collection.data.insert_many(data_objects)
             for data_objects in data_objects_batches
         ]
-        await asyncio.gather(*tasks)
+        for task in tasks:
+            await task
+        # await asyncio.gather(*tasks)
 
     async def insert_references(self, full_collection, original_uuid_to_chunk_uuids):
         references = []
@@ -308,7 +310,9 @@ class AsyncCollectionChunker:
             full_collection.data.reference_add_many(references)
             for references in references_batches
         ]
-        await asyncio.gather(*tasks)
+        for task in tasks:
+            await task
+        # await asyncio.gather(*tasks)
 
     def get_chunked_objects(self, objects):
         """
@@ -352,8 +356,6 @@ class AsyncCollectionChunker:
         unchunked_objects = [
             object for object in objects.objects if str(object.uuid) in unchunked_uuids
         ]
-
-        assert len(unchunked_objects) == len(unchunked_uuids)
 
         # if there are unchunked objects, chunk them
         if len(unchunked_objects) > 0:

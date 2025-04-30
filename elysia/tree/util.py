@@ -59,11 +59,7 @@ class DecisionNode:
         self.logger = logger
 
     def _get_options(self):
-        out = []
-        for option in self.options:
-            if not self.options[option]["rule"]:
-                out.append(option)
-        return out
+        return self.options
 
     def add_option(
         self,
@@ -74,7 +70,6 @@ class DecisionNode:
         end: bool = True,
         status: str = "",
         next: str | None = None,
-        rule: bool = False,
     ):
         if status == "":
             status = f"Running {id}..."
@@ -83,10 +78,9 @@ class DecisionNode:
             "description": description,
             "inputs": inputs,
             "action": action,
-            "end": rule or end,
+            "end": end,
             "status": status,
             "next": next,
-            "rule": rule,
         }
 
     def remove_option(self, id: str):
@@ -225,7 +219,6 @@ class DecisionNode:
                 "end": asizeof.asizeof(option["end"]),
                 "status": asizeof.asizeof(option["status"]),
                 "next": asizeof.asizeof(option["next"]),
-                "rule": asizeof.asizeof(option["rule"]),
             }
 
         # Calculate total

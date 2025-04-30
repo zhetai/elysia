@@ -156,7 +156,7 @@ class ConversationRetrieval(Conversation, Retrieval):
         output = []
         for obj in items_in_conversation.objects:
             output.append(obj.properties)
-            output[-1]["uuid"] = obj.uuid.hex
+            output[-1]["uuid"] = str(obj.uuid)
             if output[-1]["message_index"] == message_index:
                 output[-1]["relevant"] = True
             else:
@@ -242,7 +242,8 @@ class DocumentRetrieval(Document, Retrieval):
 
         for obj in objects:
             obj["collection_name"] = metadata["collection_name"]
-            obj["chunk_spans"] = []
+            if "chunk_spans" not in obj:
+                obj["chunk_spans"] = []
 
         # Document.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
@@ -271,7 +272,7 @@ class DocumentRetrieval(Document, Retrieval):
         """
         if self.metadata["chunked"]:
             chunked_collection_name = (
-                f"ELYSIA_CHUNKED_{self.metadata['collection_name']}__"
+                f"ELYSIA_CHUNKED_{self.metadata['collection_name'].lower()}__"
             )
             async with client_manager.connect_to_async_client() as client:
                 if await client.collections.exists(chunked_collection_name):
@@ -299,10 +300,10 @@ class DocumentRetrieval(Document, Retrieval):
                             for full_document in references:
 
                                 # each chunk is attached to a full doc, but can have multiple chunks per full doc
-                                if full_document.uuid.hex not in full_docs:
-                                    full_docs[full_document.uuid.hex] = {
+                                if str(full_document.uuid) not in full_docs:
+                                    full_docs[str(full_document.uuid)] = {
                                         **full_document.properties,
-                                        "uuid": full_document.uuid.hex,
+                                        "uuid": str(full_document.uuid),
                                         "collection_name": self.metadata[
                                             "collection_name"
                                         ],
@@ -310,16 +311,14 @@ class DocumentRetrieval(Document, Retrieval):
                                     }
 
                                 # chunk comes from `object` which is the chunk (outer level loop)
-                                full_docs[full_document.uuid.hex]["chunk_spans"].append(
-                                    [
-                                        {
-                                            "start": object.properties["chunk_spans"][
-                                                0
-                                            ],
-                                            "end": object.properties["chunk_spans"][1],
-                                            "uuid": object.uuid.hex,
-                                        }
-                                    ]
+                                full_docs[str(full_document.uuid)][
+                                    "chunk_spans"
+                                ].append(
+                                    {
+                                        "start": object.properties["chunk_spans"][0],
+                                        "end": object.properties["chunk_spans"][1],
+                                        "uuid": str(object.uuid),
+                                    }
                                 )
 
                     self.full_documents = list(full_docs.values())

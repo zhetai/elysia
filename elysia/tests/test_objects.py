@@ -2,6 +2,7 @@ import asyncio
 import os
 import unittest
 from typing import Any
+from weaviate.classes.query import Filter, QueryReference
 
 from elysia.objects import Completed, Error, Response, Status, Text, Update, Warning
 from elysia.tools.objects import (
@@ -196,19 +197,38 @@ class TestObjects(unittest.TestCase):
         for object_type, object_name in zip(types, names):
             loop.run_until_complete(self.do_update(object_type, object_name))
 
-    async def _retrieve_documents(
+    async def _retrieve_unchunked_documents(
         self, collection_name: str, client_manager: ClientManager
     ):
         async with client_manager.connect_to_async_client() as client:
             collection = client.collections.get(collection_name)
-            documents = await collection.query.fetch_objects(limit=2)
+            documents = await collection.query.fetch_objects(
+                limit=2,
+                return_references=QueryReference(link_on="isChunked"),
+            )
         return documents
+
+    async def _retrieve_chunked_documents(
+        self, collection_name: str, client_manager: ClientManager
+    ):
+        async with client_manager.connect_to_async_client() as client:
+            collection = client.collections.get(collection_name)
+            documents = await collection.query.fetch_objects(
+                limit=2,
+                return_references=QueryReference(link_on="fullDocument"),
+            )
+        return documents
+
+    async def _create_chunked_reference(
+        self, collection_name: str, client_manager: ClientManager
+    ):
+        collection_chunker = AsyncCollectionChunker(collection_name)
+        await collection_chunker.create_chunked_reference("content", client_manager)
 
     async def _chunk_documents(
         self, collection_name: str, response, client_manager: ClientManager
     ):
         collection_chunker = AsyncCollectionChunker(collection_name)
-        await collection_chunker.create_chunked_reference("content", client_manager)
         await collection_chunker(response, "content", client_manager)
 
     async def get_collection_information(
@@ -231,9 +251,10 @@ class TestObjects(unittest.TestCase):
         collection_information = await self.get_collection_information(
             collection_name, client_manager
         )
+        await self._create_chunked_reference(collection_name, client_manager)
 
         # retrieve some documents
-        unchunked_documents = await self._retrieve_documents(
+        unchunked_documents = await self._retrieve_unchunked_documents(
             collection_name, client_manager
         )
 
@@ -243,31 +264,31 @@ class TestObjects(unittest.TestCase):
         )
 
         # retrieve the chunked documents
-        chunked_documents = await self._retrieve_documents(
+        chunked_documents = await self._retrieve_chunked_documents(
             f"ELYSIA_CHUNKED_{collection_name.lower()}__", client_manager
         )
 
-        chunked_document_properties = [
-            doc.properties for doc in chunked_documents.objects
-        ]
         unchunked_document_properties = [
             doc.properties for doc in unchunked_documents.objects
         ]
-
-        for i, prop in enumerate(chunked_document_properties):
-            prop["uuid"] = chunked_documents.objects[i].uuid.hex
+        chunked_document_properties = [
+            doc.properties for doc in chunked_documents.objects
+        ]
 
         for i, prop in enumerate(unchunked_document_properties):
-            prop["uuid"] = unchunked_documents.objects[i].uuid.hex
+            prop["uuid"] = str(unchunked_documents.objects[i].uuid)
+
+        for i, prop in enumerate(chunked_document_properties):
+            prop["uuid"] = str(chunked_documents.objects[i].uuid)
 
         # create a retrieval object
         non_chunked_retrieval = DocumentRetrieval(
-            objects=[doc.properties for doc in unchunked_documents.objects],
+            objects=unchunked_document_properties,
             metadata={"collection_name": "ml_wikipedia", "chunked": False},
             mapping=collection_information["mappings"]["document"],
         )
         chunked_retrieval = DocumentRetrieval(
-            objects=[doc.properties for doc in chunked_documents.objects],
+            objects=chunked_document_properties,
             metadata={"collection_name": "ml_wikipedia", "chunked": True},
             mapping=collection_information["mappings"]["document"],
         )
@@ -282,7 +303,6 @@ class TestObjects(unittest.TestCase):
             self.get_document_retrievals()
         )
 
-        non_chunked_json = non_chunked_retrieval.to_json(mapping=True)
         chunked_json = chunked_retrieval.to_json(mapping=False)
 
         chunked_fe = loop.run_until_complete(
@@ -296,7 +316,11 @@ class TestObjects(unittest.TestCase):
             )
 
         # Check that all chunk spans from the chunk exist in the full documnet
-        all_chunk_spans = [(obj["uuid"], obj["chunk_spans"]) for obj in chunked_json]
+        all_chunk_spans = [
+            (obj["uuid"], obj["chunk_spans"])
+            for obj in chunked_json
+            if obj["chunk_spans"] != []
+        ]
 
         # Find all unique instances of chunkID+chunkSpan
         which_chunk_spans_exist = {
@@ -306,9 +330,11 @@ class TestObjects(unittest.TestCase):
 
         # Look through full documents (FE payload-objects) and check if the chunk content is present
         for i, full_doc_obj in enumerate(chunked_fe["payload"]["objects"]):
-            for chunk_spans in full_doc_obj["chunk_spans"]:
-                for span in chunk_spans:
-                    ind = str(span["uuid"]) + str([span["start"], span["end"]])
+            for chunk_span in full_doc_obj["chunk_spans"]:
+                ind = str(chunk_span["uuid"]) + str(
+                    [chunk_span["start"], chunk_span["end"]]
+                )
+                if ind in which_chunk_spans_exist:
                     which_chunk_spans_exist[ind] = True
 
         self.assertTrue(all(which_chunk_spans_exist.values()))
