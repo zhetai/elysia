@@ -281,16 +281,9 @@ class CollectionPreprocessor:
 
                 yield await self.process_update(progress=1 / float(total))
 
-                # Evaluate if the collection is manageable, if not, we will not fetch all objects
-                collection_is_manageable = len_collection < max_sample_size
-
-                # If the collection is manageable, fetch all objects
-                if collection_is_manageable:
-                    full_response = await collection.query.fetch_objects(
-                        limit=len_collection
-                    )
-                else:
-                    full_response = None
+                full_response = await collection.query.fetch_objects(
+                    limit=min(len_collection, max_sample_size)
+                )
 
                 # Get some example objects
                 example_objects = await collection.query.fetch_objects(limit=3)

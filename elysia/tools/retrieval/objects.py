@@ -242,6 +242,7 @@ class DocumentRetrieval(Document, Retrieval):
 
         for obj in objects:
             obj["collection_name"] = metadata["collection_name"]
+            obj["chunk_spans"] = []
 
         # Document.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
@@ -296,6 +297,7 @@ class DocumentRetrieval(Document, Retrieval):
 
                             # this list is length one (only one full doc per chunk)
                             for full_document in references:
+
                                 # each chunk is attached to a full doc, but can have multiple chunks per full doc
                                 if full_document.uuid.hex not in full_docs:
                                     full_docs[full_document.uuid.hex] = {

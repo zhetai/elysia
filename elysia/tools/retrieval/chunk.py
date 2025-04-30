@@ -14,6 +14,26 @@ from elysia.util.collection import (
 )
 
 
+def chunked_collection_exists(
+    collection_name: str, client_manager: ClientManager | None = None
+):
+    if client_manager is None:
+        client_manager = ClientManager()
+
+    with client_manager.connect_to_client() as client:
+        return client.collections.exists(f"ELYSIA_CHUNKED_{collection_name.lower()}__")
+
+
+def delete_chunked_collection(
+    collection_name: str, client_manager: ClientManager | None = None
+):
+    if client_manager is None:
+        client_manager = ClientManager()
+
+    with client_manager.connect_to_client() as client:
+        client.collections.delete(f"ELYSIA_CHUNKED_{collection_name.lower()}__")
+
+
 class Chunker:
     def __init__(
         self,
@@ -278,7 +298,7 @@ class AsyncCollectionChunker:
                     )
                 )
 
-        batch_size = 5
+        batch_size = 15
         references_batches = [
             references[i : i + batch_size]
             for i in range(0, len(references), batch_size)
