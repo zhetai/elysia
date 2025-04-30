@@ -13,6 +13,7 @@
 Since preprocessing uses LLM created summaries of the collections, you must configure your models in advance. The preprocessor uses the `base_model` for this. The configure can be done via python via
 
 ```python
+from elysia import configure
 configure(
     base_model="gpt-4o-mini",
     base_provider="openai",
@@ -29,6 +30,7 @@ WCD_URL=...
 WCD_API_KEY=...
 LOGGING_LEVEL=DEBUG
 ```
+
 
 When the logging level is `INFO`, the preprocessor will show a progress bar.
 
@@ -56,3 +58,14 @@ Additionally, you have:
 ## Additional Functions
 
 You can also use `preprocessed_collection_exists`, which returns True/False if the collection has been preprocessed (and it can be accessed within the Weaviate cluster), and `delete_preprocessed_collection`, which will delete the cached preprocessed metadata.
+
+Both can be used via
+```python
+from elysia import preprocessed_collection_exists, delete_preprocessed_collection
+
+# returns True/False if the preprocess exists within this Weaviate cluster
+preprocessed_collection_exists(collection_name = ...)
+
+# permanently deletes the collection, will need to rerun preprocess to be used in Elysia again
+delete_preprocessed_collection(collection_name = ...) 
+```

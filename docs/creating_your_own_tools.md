@@ -71,17 +71,17 @@ Within the `__call__` method of the tool, you will want to interact with the dec
 
 Within your tool's call method, you will want to `yield` different objects to bring them back to the tree.
 
-- Any class that inherits from the [`Update` class](Reference/Objects.md#update) will do something similar, but these are mostly just updates to the frontend. 
-- Any class that inherits from the [`Result` class](Reference/Objects.md#result) have their corresponding objects added to the tree's environment, which the decision agent will 'look at', so that it can continue making decisions and respond accordingly to the user.
+- Any class that inherits from the [`Update` class](Reference/Objects.md#elysia.objects.Update) will do something similar, but these are mostly just updates to the frontend. 
+- Any class that inherits from the [`Result` class](Reference/Objects.md#elysia.objects.Result) have their corresponding objects added to the tree's environment, which the decision agent will 'look at', so that it can continue making decisions and respond accordingly to the user.
 
 
 #### Update
 
 Some updates you can yield include:
 
-- **[`Status`](Reference/Objects.md#status)**: provide a single string argument - displays on the frontend or the progress bar a unique message.
-- **[`Warning`](Reference/Objects.md#status)**: provide a single string argument - displays on a connected frontend a warning message.
-- **[`Error`](Reference/Objects.md#status)**: provide a single string argument - displays on a connected frontend an error message. *Note that this does not raise an error, just is a unique identifier to an error object.*
+- **[`Status`](Reference/Objects.md#elysia.objects.Status)**: provide a single string argument - displays on the frontend or the progress bar a unique message.
+- **[`Warning`](Reference/Objects.md#elysia.objects.Warning)**: provide a single string argument - displays on a connected frontend a warning message.
+- **[`Error`](Reference/Objects.md#elysia.objects.Error)**: provide a single string argument - displays on a connected frontend an error message. *Note that this does not raise an error, just is a unique identifier to an error object.*
 
 
 #### Result
@@ -172,7 +172,7 @@ If `run_if_true` returns `True`, then the `__call__` method of your tool will be
 - The `run_if_true` method can count the number of tokens in the environment, and if the environment is getting too large, it runs the tool. Then the `__call__` method will be shrinking the environment in some way (e.g. using an LLM or just taking one particular item from it).
 - If the user is asking about a particular subject, e.g. if the `user_prompt` (inside of `tree_data`) contains a specific word, then you could augment the `tree_data` to include some more specific information.
 
-Like the `__call__` and `is_tool_available` methods, this method has access to [the tree data](Reference/Objects.md##elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
+Like the `__call__` and `is_tool_available` methods, this method has access to [the tree data](Reference/Objects.md#elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
 
 [See the reference for more details.](Reference/Objects.md#elysia.objects.Tool.run_if_true)
 
@@ -180,7 +180,7 @@ Like the `__call__` and `is_tool_available` methods, this method has access to [
 
 This method should return `True` if the tool is available to be used by the LLM. It should return `False` if the LLM should not have access to it. This can depend on the environment. For example, you can use `tree_data.environment.is_empty()` and the tool is only accessible if the environment is empty. Likewise you can use `not tree_data.environment.is_empty()` for it only to be available if the environment has something in it.
 
-Like the `__call__` and `run_if_true` methods, this method has access to [the tree data](Reference/Objects.md##elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
+Like the `__call__` and `run_if_true` methods, this method has access to [the tree data](Reference/Objects.md#elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
 
 [See the reference for more details.](Reference/Objects.md#elysia.objects.Tool.is_tool_available)
 

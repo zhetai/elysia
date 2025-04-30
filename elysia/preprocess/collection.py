@@ -421,7 +421,9 @@ class CollectionPreprocessor:
 
                 yield await self.process_update(progress=1)
             else:
-                self.logger.info(f"Collection {collection_name} already exists!")
+                self.logger.info(
+                    f"Preprocessed collection for    {collection_name} already exists!"
+                )
 
 
 async def preprocess_async(

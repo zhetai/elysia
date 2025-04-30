@@ -18,4 +18,9 @@ from elysia.objects import (
     Retrieval,
 )
 from elysia.config import Settings, settings, configure
-from elysia.preprocess.collection import preprocess
+from elysia.preprocess.collection import (
+    preprocess,
+    preprocessed_collection_exists,
+    delete_preprocessed_collection,
+)
+from elysia.util.client import ClientManager

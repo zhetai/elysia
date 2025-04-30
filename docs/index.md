@@ -6,9 +6,9 @@ Unlike other agent-based packages, Elysia is pre-configured to run a wide range 
 
 Or you could customise Elysia to your liking, create your own custom tools and add them to the Elysia decision tree.
 
-See the [basic example to get started right away!](basic_example.md)
+See the [basic example to get started right away!](basic.md)
 
-Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](05_creating_your_own_tools.md).
+Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](creating_your_own_tools.md).
 
 ## Usage
 
