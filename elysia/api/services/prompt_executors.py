@@ -8,9 +8,6 @@ from elysia.api.services.prompt_templates import (
     TitleCreatorPrompt,
 )
 
-# dspy
-from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
-
 
 class TitleCreatorExecutor(dspy.Module):
     def __init__(self):
@@ -22,7 +19,7 @@ class TitleCreatorExecutor(dspy.Module):
 
 class ObjectRelevanceExecutor(dspy.Module):
     def __init__(self):
-        self.object_relevance_prompt = EnvironmentOfThought(ObjectRelevancePrompt)
+        self.object_relevance_prompt = dspy.ChainOfThought(ObjectRelevancePrompt)
 
     def __call__(self, user_prompt: str, objects: list[dict], lm: dspy.LM) -> bool:
         return self.object_relevance_prompt(

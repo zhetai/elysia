@@ -1,7 +1,7 @@
 from typing import Any, List
 from logging import Logger
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from elysia.objects import Result
 from elysia.util.client import ClientManager
@@ -151,42 +151,37 @@ class Environment:
         return self.environment
 
 
-class Atlas:
-    """
-    Collection of information given to any agents in Elysia, used to modify their goals and behaviour.
-    """
+def datetime_reference():
+    date: datetime = datetime.now()
+    return {
+        "datetime": date.isoformat(),
+        "day_of_week": date.strftime("%A"),
+        "time_of_day": date.strftime("%I:%M %p"),
+    }
 
-    def __init__(
-        self,
-        style: str = "No style provided.",
-        agent_description: str = "No description provided.",
-        end_goal: str = "No end goal provided.",
-    ):
-        """
-        Args:
-            style (str): The writing style of the agent.
-            agent_description (str): The description of the agent.
-            end_goal (str): The end goal of the agent.
-        """
-        self.style = style
-        self.agent_description = agent_description
-        self.end_goal = end_goal
 
-    def get_reference(self):
-        return {
-            "style": self.style,
-            "agent_description": self.agent_description,
-            "end_goal": self.end_goal,
-        }
-
-    def change_style(self, style: str):
-        self.style = style
-
-    def change_agent_description(self, agent_description: str):
-        self.agent_description = agent_description
-
-    def change_end_goal(self, end_goal: str):
-        self.end_goal = end_goal
+class Atlas(BaseModel):
+    style: str = Field(
+        default="No style provided.",
+        description="The writing style of the agent. "
+        "This is the way the agent writes, and the tone of the language it uses.",
+    )
+    agent_description: str = Field(
+        default="No description provided.",
+        description="The description of the process you are following. This is pre-defined by the user. "
+        "This could be anything - this is the theme of the program you are a part of.",
+    )
+    end_goal: str = Field(
+        default="No end goal provided.",
+        description="A short description of your overall goal. "
+        "Use this to determine if you have completed your task. "
+        "However, you can still choose to end actions early, "
+        "if you believe the task is not possible to be completed with what you have available.",
+    )
+    datetime_reference: dict = Field(
+        default=datetime_reference(),
+        description="Current context information (e.g., date, time) for decision-making",
+    )
 
 
 class CollectionData:
@@ -520,7 +515,9 @@ class TreeData:
             out += " (recursion limit reached, write your full chat response accordingly - the decision process has been cut short, and it is likely the user's question has not been fully answered and you either haven't been able to do it or it was impossible)"
         return out
 
-    def output_collection_metadata(self, with_mappings: bool = False):
+    def output_collection_metadata(
+        self, collection_names: list[str] | None = None, with_mappings: bool = False
+    ):
         """
         Outputs the full metadata for the given collection names.
 
@@ -570,8 +567,12 @@ class TreeData:
                 Each key in the outer level dictionary is a collection name.
 
         """
+
+        if collection_names is None:
+            collection_names = self.collection_names
+
         return self.collection_data.output_full_metadata(
-            self.collection_names, with_mappings
+            collection_names, with_mappings
         )
 
     def output_collection_return_types(self):

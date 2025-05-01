@@ -18,9 +18,20 @@ class DummyAdapter(ChatAdapter):
         categories = []
         defaults = {}
 
-        #
+        # for decision node
         if "available_actions" in inputs:
             defaults["function_name"] = list(inputs["available_actions"].keys())[0]
+
+        # for preprocessing return type assignment
+        if "possible_return_types" in inputs:
+            defaults["return_types"] = [list(inputs["possible_return_types"].keys())[0]]
+
+        # for field mapping
+        if "input_data_fields" in inputs and "output_data_fields" in inputs:
+            defaults["field_mapping"] = {
+                in_field: inputs["output_data_fields"][0]
+                for in_field in inputs["input_data_fields"]
+            }
 
         for field_name, field in signature.model_fields.items():
             if field.json_schema_extra.get("__dspy_field_type") == "output":
@@ -32,7 +43,7 @@ class DummyAdapter(ChatAdapter):
                         defaults[field_name] = field.default
                     else:
                         try:
-                            defaults[field_name] = list(field.annotation.__args__)[0]
+                            defaults[field_name] = field.annotation()
                         except Exception as e:
                             try:
                                 defaults[field_name] = field.annotation()

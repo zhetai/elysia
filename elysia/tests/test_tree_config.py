@@ -1,12 +1,10 @@
-import os
-import unittest
-
 import dspy
+import pytest
 from elysia.config import Settings, configure, reset_settings
 from elysia.tree.tree import Tree
 
 
-class TestTreeConfig(unittest.TestCase):
+class TestTreeConfig:
 
     def reset_global_settings(self):
         reset_settings()
@@ -21,9 +19,9 @@ class TestTreeConfig(unittest.TestCase):
 
         # should raise an error, no models set
         # TODO: settings from test_settings is overriding this, so error not being raised????
-        # with self.assertRaises(ValueError):
-        #     tree.get_lm("base")
-        #     tree.get_lm("complex")
+        with pytest.raises(ValueError):
+            tree.get_lm("base")
+            tree.get_lm("complex")
 
         # change the base model
         configure(base_model="gpt-4o-mini", base_provider="openai")
@@ -31,11 +29,11 @@ class TestTreeConfig(unittest.TestCase):
         # should now be changed (no error)
         base_lm_loaded_in_tree = tree.get_lm("base")  # should be a dspy.LM
 
-        self.assertIsInstance(base_lm_loaded_in_tree, dspy.LM)
-        self.assertEqual(base_lm_loaded_in_tree.model, "openai/gpt-4o-mini")
-        self.assertEqual(tree.settings.BASE_MODEL, "gpt-4o-mini")
-        self.assertEqual(tree.settings.BASE_PROVIDER, "openai")
-        self.assertIsNone(tree.settings.BASE_MODEL_LM)
+        assert isinstance(base_lm_loaded_in_tree, dspy.LM)
+        assert base_lm_loaded_in_tree.model == "openai/gpt-4o-mini"
+        assert tree.settings.BASE_MODEL == "gpt-4o-mini"
+        assert tree.settings.BASE_PROVIDER == "openai"
+        assert tree.settings.BASE_MODEL_LM is None
 
         # change the complex model
         configure(complex_model="gpt-4o", complex_provider="openai")
@@ -43,11 +41,11 @@ class TestTreeConfig(unittest.TestCase):
         # should now be changed (no error)
         complex_lm_loaded_in_tree = tree.get_lm("complex")
 
-        self.assertIsInstance(complex_lm_loaded_in_tree, dspy.LM)
-        self.assertEqual(complex_lm_loaded_in_tree.model, "openai/gpt-4o")
-        self.assertEqual(tree.settings.COMPLEX_MODEL, "gpt-4o")
-        self.assertEqual(tree.settings.COMPLEX_PROVIDER, "openai")
-        self.assertIsNone(tree.settings.COMPLEX_MODEL_LM)
+        assert isinstance(complex_lm_loaded_in_tree, dspy.LM)
+        assert complex_lm_loaded_in_tree.model == "openai/gpt-4o"
+        assert tree.settings.COMPLEX_MODEL == "gpt-4o"
+        assert tree.settings.COMPLEX_PROVIDER == "openai"
+        assert tree.settings.COMPLEX_MODEL_LM is None
 
         self.reset_global_settings()
 
@@ -61,7 +59,7 @@ class TestTreeConfig(unittest.TestCase):
         tree = Tree(settings=settings)
 
         # should raise an error, no models set
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             tree.get_lm("base")
             tree.get_lm("complex")
 
@@ -74,7 +72,7 @@ class TestTreeConfig(unittest.TestCase):
         )
 
         # should still error
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             tree.get_lm("base")
             tree.get_lm("complex")
 
@@ -88,18 +86,18 @@ class TestTreeConfig(unittest.TestCase):
 
         # should now be no errors
         base_lm_loaded_in_tree = tree.get_lm("base")
-        self.assertIsInstance(base_lm_loaded_in_tree, dspy.LM)
-        self.assertEqual(base_lm_loaded_in_tree.model, "openai/gpt-4o-mini")
-        self.assertEqual(tree.settings.BASE_MODEL, "gpt-4o-mini")
-        self.assertEqual(tree.settings.BASE_PROVIDER, "openai")
-        self.assertIsNone(tree.settings.BASE_MODEL_LM)
+        assert isinstance(base_lm_loaded_in_tree, dspy.LM)
+        assert base_lm_loaded_in_tree.model == "openai/gpt-4o-mini"
+        assert tree.settings.BASE_MODEL == "gpt-4o-mini"
+        assert tree.settings.BASE_PROVIDER == "openai"
+        assert tree.settings.BASE_MODEL_LM is None
 
         complex_lm_loaded_in_tree = tree.get_lm("complex")
-        self.assertIsInstance(complex_lm_loaded_in_tree, dspy.LM)
-        self.assertEqual(complex_lm_loaded_in_tree.model, "openai/gpt-4o")
-        self.assertEqual(tree.settings.COMPLEX_MODEL, "gpt-4o")
-        self.assertEqual(tree.settings.COMPLEX_PROVIDER, "openai")
-        self.assertIsNone(tree.settings.COMPLEX_MODEL_LM)
+        assert isinstance(complex_lm_loaded_in_tree, dspy.LM)
+        assert complex_lm_loaded_in_tree.model == "openai/gpt-4o"
+        assert tree.settings.COMPLEX_MODEL == "gpt-4o"
+        assert tree.settings.COMPLEX_PROVIDER == "openai"
+        assert tree.settings.COMPLEX_MODEL_LM is None
 
         self.reset_global_settings()
 
@@ -110,7 +108,7 @@ class TestTreeConfig(unittest.TestCase):
         settings = Settings()
 
         # create a Tree with local settings obj, should error as cant load models
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             tree = Tree(settings=settings, debug=True)
 
         # change the models by global configure
@@ -126,25 +124,20 @@ class TestTreeConfig(unittest.TestCase):
         tree = Tree(settings=settings, debug=True)
 
         base_lm_loaded_in_tree = tree.get_lm("base")
-        self.assertIsInstance(base_lm_loaded_in_tree, dspy.LM)
-        self.assertEqual(base_lm_loaded_in_tree.model, "openai/gpt-4o-mini")
-        self.assertEqual(tree.settings.BASE_MODEL, "gpt-4o-mini")
-        self.assertEqual(tree.settings.BASE_PROVIDER, "openai")
+        assert isinstance(base_lm_loaded_in_tree, dspy.LM)
+        assert base_lm_loaded_in_tree.model == "openai/gpt-4o-mini"
+        assert tree.settings.BASE_MODEL == "gpt-4o-mini"
+        assert tree.settings.BASE_PROVIDER == "openai"
 
         complex_lm_loaded_in_tree = tree.get_lm("complex")
-        self.assertIsInstance(complex_lm_loaded_in_tree, dspy.LM)
-        self.assertEqual(complex_lm_loaded_in_tree.model, "openai/gpt-4o")
-        self.assertEqual(tree.settings.COMPLEX_MODEL, "gpt-4o")
-        self.assertEqual(tree.settings.COMPLEX_PROVIDER, "openai")
+        assert isinstance(complex_lm_loaded_in_tree, dspy.LM)
+        assert complex_lm_loaded_in_tree.model == "openai/gpt-4o"
+        assert tree.settings.COMPLEX_MODEL == "gpt-4o"
+        assert tree.settings.COMPLEX_PROVIDER == "openai"
 
-        self.assertIn("BASE_MODEL_LM", dir(tree.settings))
-        self.assertIsInstance(tree.settings.BASE_MODEL_LM, dspy.LM)
-        self.assertIn("COMPLEX_MODEL_LM", dir(tree.settings))
-        self.assertIsInstance(tree.settings.COMPLEX_MODEL_LM, dspy.LM)
+        assert "BASE_MODEL_LM" in dir(tree.settings)
+        assert isinstance(tree.settings.BASE_MODEL_LM, dspy.LM)
+        assert "COMPLEX_MODEL_LM" in dir(tree.settings)
+        assert isinstance(tree.settings.COMPLEX_MODEL_LM, dspy.LM)
 
         self.reset_global_settings()
-
-
-# if __name__ == "__main__":
-#     unittest.main()
-# TestTreeConfig().test_change_llm_in_tree_global()

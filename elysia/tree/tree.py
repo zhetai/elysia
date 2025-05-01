@@ -80,9 +80,9 @@ class Tree:
         branch_initialisation: Literal[
             "default", "one_branch", "multi_branch", "empty"
         ] = "default",
-        style: str | None = None,
-        agent_description: str | None = None,
-        end_goal: str | None = None,
+        style: str = "No style provided.",
+        agent_description: str = "No description provided.",
+        end_goal: str = "No end goal provided.",
         user_id: str | None = None,
         conversation_id: str | None = None,
         debug: bool = False,
@@ -937,7 +937,6 @@ class Tree:
         # Loop through the tree until the end is reached
         while True:
 
-            # TODO: check what tools are available to use here
             available_tools = await self._get_available_tools(client_manager)
             if len(available_tools) == 0:
                 self.settings.logger.error("No tools available to use!")
@@ -1018,6 +1017,7 @@ class Tree:
             completed = (
                 self.current_decision.function_name == "text_response"
                 or self.current_decision.end_actions
+                or self.current_decision.impossible
             )
 
             # additional end criteria, recursion limit reached
@@ -1030,10 +1030,6 @@ class Tree:
                     query_id=self.prompt_to_query_id[user_prompt],
                 )
                 completed = True
-
-            # If the task is impossible, break the loop
-            if self.current_decision.impossible:
-                break
 
             # assign action function
             action_fn = current_decision_node.options[

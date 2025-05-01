@@ -3,7 +3,7 @@
 import dspy
 import dspy.predict
 
-from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
+from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
 
 # LLM
@@ -46,17 +46,15 @@ class Summarizer(Tool):
         client_manager: ClientManager | None = None,
         **kwargs
     ):
-        summarizer = EnvironmentOfThought(SummarizingPrompt, message_update=False)
-        summarizer = dspy.asyncify(summarizer)
+        summarizer = ElysiaChainOfThought(
+            SummarizingPrompt,
+            tree_data=tree_data,
+            environment=True,
+            tasks_completed=True,
+            message_update=False,
+        )
 
-        summary = await summarizer(
-            user_prompt=tree_data.user_prompt,
-            reference=create_reference(),
-            style=tree_data.atlas.style,
-            agent_description=tree_data.atlas.agent_description,
-            end_goal=tree_data.atlas.end_goal,
-            environment=tree_data.environment.to_json(),
-            conversation_history=tree_data.conversation_history,
+        summary = await summarizer.aforward(
             lm=base_lm,
         )
 
@@ -66,12 +64,8 @@ class Summarizer(Tool):
 class TextResponse(Tool):
     def __init__(self, **kwargs):
         super().__init__(
-            name="text_response",
-            description="""
-            One way to end the conversation.
-            Can use when no other tools are suitable.
-            This should be used when the user has finished their query, or you have nothing more to do except reply.
-            """,
+            name="final_text_response",
+            description="",
             status="Writing response...",
             inputs={},
             end=True,
@@ -86,17 +80,15 @@ class TextResponse(Tool):
         client_manager: ClientManager | None = None,
         **kwargs
     ):
-        text_response = dspy.Predict(TextResponsePrompt)
-        text_response = dspy.asyncify(text_response)
+        text_response = ElysiaChainOfThought(
+            TextResponsePrompt,
+            tree_data=tree_data,
+            environment=True,
+            tasks_completed=True,
+            message_update=False,
+        )
 
-        output = await text_response(
-            user_prompt=tree_data.user_prompt,
-            reference=create_reference(),
-            style=tree_data.atlas.style,
-            agent_description=tree_data.atlas.agent_description,
-            end_goal=tree_data.atlas.end_goal,
-            environment=tree_data.environment.to_json(),
-            conversation_history=tree_data.conversation_history,
+        output = await text_response.aforward(
             lm=base_lm,
         )
 

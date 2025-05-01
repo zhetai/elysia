@@ -187,8 +187,8 @@ async def follow_up_suggestions(
     try:
         # wait for tree event to be completed
         local_user = await user_manager.get_user_local(data.user_id)
-        local_user["tree_manager"].get_event(data.conversation_id).wait()
-
+        event = local_user["tree_manager"].get_event(data.conversation_id)
+        await event.wait()
         config = user_manager.get_user_config(data.user_id)
 
         # get tree from user_id, conversation_id

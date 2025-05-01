@@ -7,7 +7,7 @@ from rich.panel import Panel
 
 import dspy
 
-from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
+from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
 from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
@@ -168,6 +168,21 @@ class Query(Tool):
             f"Oops! Something went wrong when executing the query. Continuing..."
         )
 
+    def _fix_collection_names(self, collection_names: list[str], schemas: dict):
+        return [
+            correct_collection_name
+            for correct_collection_name in list(schemas.keys())
+            if correct_collection_name.lower()
+            in [collection_name.lower() for collection_name in collection_names]
+        ]
+
+    def _fix_collection_names_in_dict(
+        self, collection_dict: dict, schemas: dict
+    ) -> dict:
+        true_collection_names = list(schemas.keys())
+        truth_map = {k.lower(): k for k in true_collection_names}
+        return {truth_map.get(k.lower(), k): v for k, v in collection_dict.items()}
+
     async def __call__(
         self,
         tree_data: TreeData,
@@ -210,15 +225,35 @@ class Query(Tool):
             self.logger.debug("Query Tool called!")
             self.logger.debug(f"Inputs: {inputs}")
 
-        # Get the collections
-        collection_names = inputs["collection_names"]
+        # Get the collection schemas (truth)
+        schemas = tree_data.output_collection_metadata(with_mappings=True)
 
+        # Find matching collection names (to match case sensitivity)
+        if inputs["collection_names"] == [] or inputs["collection_names"] is None:
+            collection_names = list(schemas.keys())
+        else:
+            collection_names = self._fix_collection_names(
+                inputs["collection_names"], schemas
+            )
+
+        # Subset the schemas to just the collection names
+        schemas = {
+            collection_name: schemas[collection_name]
+            for collection_name in collection_names
+        }
         if self.logger:
             self.logger.debug(f"Collection names received: {collection_names}")
 
         # Set up the dspy model
-        query_generator = EnvironmentOfThought(QueryCreatorPrompt)
-        query_generator = dspy.asyncify(query_generator)
+        query_generator = ElysiaChainOfThought(
+            QueryCreatorPrompt,
+            tree_data=tree_data,
+            environment=True,
+            collection_schemas=True,
+            tasks_completed=True,
+            message_update=True,
+            collection_names=collection_names,
+        )
 
         # Get some metadata about the collection
         previous_queries = self._find_previous_queries(
@@ -229,21 +264,6 @@ class Query(Tool):
         if self.logger:
             self.logger.debug(f"Previous queries: {previous_queries}")
 
-        # Get schemas for these collections
-        schemas = tree_data.output_collection_metadata(with_mappings=True)
-        schemas = {
-            collection_name: schemas[collection_name]
-            for collection_name in collection_names
-        }  # subset to just our collection names
-
-        schemas_without_mappings = tree_data.output_collection_metadata(
-            with_mappings=False
-        )
-        schemas_without_mappings = {
-            collection_name: schemas_without_mappings[collection_name]
-            for collection_name in collection_names
-        }  # subset to just our collection names
-
         # get display types
         display_types = tree_data.output_collection_return_types()
         display_types = {
@@ -253,47 +273,12 @@ class Query(Tool):
 
         # Generate query with LLM
         try:
-            query = await query_generator(
-                user_prompt=tree_data.user_prompt,
-                reference=create_reference(),
-                style=tree_data.atlas.style,
-                agent_description=tree_data.atlas.agent_description,
-                end_goal=tree_data.atlas.end_goal,
-                conversation_history=tree_data.conversation_history,
-                environment=tree_data.environment.to_json(),
+            query = await query_generator.aforward(
                 available_collections=collection_names,
-                collection_schemas=schemas_without_mappings,
-                tasks_completed=tree_data.tasks_completed_string(),
                 previous_queries=previous_queries,
                 collection_display_types=display_types,
                 lm=complex_lm,
             )
-
-            # extract and error handle the query output
-            for current_query_output in query.query_output:
-                for collection_name in current_query_output.target_collections:
-                    if collection_name not in collection_names:
-                        async for yield_object in self._handle_generic_error(
-                            ValueError(
-                                f"Collection {collection_name} not found in target_collections field. Make sure you are using the correct collection names."
-                            ),
-                            collection_name,
-                            tree_data.user_prompt,
-                        ):
-                            yield yield_object
-                        return
-
-            for collection_name in query.data_display:
-                if collection_name not in collection_names:
-                    async for yield_object in self._handle_generic_error(
-                        ValueError(
-                            f"Collection {collection_name} not found in target_collections field. Make sure you are using the correct collection names."
-                        ),
-                        collection_name,
-                        tree_data.user_prompt,
-                    ):
-                        yield yield_object
-                    return
 
         except Exception as e:
             for collection_name in collection_names:
@@ -312,6 +297,25 @@ class Query(Tool):
             outputs=query.__dict__["_store"],
         )
 
+        yield TreeUpdate(
+            from_node="query",
+            to_node="query_executor",
+            reasoning=query.reasoning,
+            last_in_branch=(
+                query.impossible
+                or query.query_output is None
+                or not any(
+                    self._evaluate_needs_chunking(
+                        query.data_display[collection_name].display_type,
+                        current_query_output.search_type,
+                        schemas[collection_name],
+                    )
+                    for current_query_output in query.query_output.query_outputs
+                    for collection_name in current_query_output.target_collections
+                )
+            ),
+        )
+
         # Return if model deems query impossible
         if query.impossible or query.query_output is None:
 
@@ -321,7 +325,7 @@ class Query(Tool):
                     "impossible": tree_data.user_prompt,
                     "impossible_reasoning": query.reasoning,
                     "query_output": (
-                        query.query_output.model_dump()
+                        query.query_output.query_outputs.model_dump()
                         if query.query_output is not None
                         else None
                     ),
@@ -341,26 +345,50 @@ class Query(Tool):
             )
             return
 
-        yield TreeUpdate(
-            from_node="query",
-            to_node="query_executor",
-            reasoning=query.reasoning,
-            last_in_branch=not any(
-                self._evaluate_needs_chunking(
-                    query.data_display[collection_name].display_type,
-                    current_query_output.search_type,
-                    schemas[collection_name],
-                )
-                for current_query_output in query.query_output
-                for collection_name in current_query_output.target_collections
-            ),
+        # extract and error handle the query output
+        # TODO: replace with assertions when they're released
+        for current_query_output in query.query_output.query_outputs:
+
+            current_query_output.target_collections = self._fix_collection_names(
+                current_query_output.target_collections, schemas
+            )
+
+            for collection_name in current_query_output.target_collections:
+                if collection_name not in collection_names:
+                    async for yield_object in self._handle_generic_error(
+                        ValueError(
+                            f"Collection {collection_name} not found in target_collections field. "
+                            "Make sure you are using the correct collection names."
+                        ),
+                        collection_name,
+                        tree_data.user_prompt,
+                    ):
+                        yield yield_object
+                    return
+
+        query.data_display = self._fix_collection_names_in_dict(
+            query.data_display, schemas
         )
+
+        for collection_name in query.data_display:
+
+            if collection_name not in collection_names:
+                async for yield_object in self._handle_generic_error(
+                    ValueError(
+                        f"Collection {collection_name} not found in target_collections field. "
+                        "Make sure you are using the correct collection names."
+                    ),
+                    collection_name,
+                    tree_data.user_prompt,
+                ):
+                    yield yield_object
+                return
 
         chunking_status_sent = False
         summarise_status_sent = False
 
         # Go through outputs for each unique query
-        for i, query_output in enumerate(query.query_output):
+        for i, query_output in enumerate(query.query_output.query_outputs):
             collection_names = query_output.target_collections.copy()
 
             for collection_name in collection_names:

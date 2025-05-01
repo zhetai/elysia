@@ -1,6 +1,5 @@
-import unittest
 import asyncio
-
+import pytest
 from fastapi.responses import JSONResponse
 
 import json
@@ -27,66 +26,51 @@ class fake_websocket:
         self.results.append(data)
 
 
-with dummy_adapter():
+class TestQuery:
 
-    class TestQuery(unittest.TestCase):
+    @pytest.mark.asyncio
+    async def test_query(self):
 
-        def get_event_loop(self):
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+        try:
 
-            return loop
+            user_id = "test_user"
+            conversation_id = "test_conversation"
+            query_id = "test_query"
 
-        def test_query(self):
+            out = await default_config(
+                DefaultConfigData(user_id=user_id), get_user_manager()
+            )
 
-            loop = self.get_event_loop()
+            websocket = fake_websocket()
 
-            try:
-
-                user_id = "test_user"
-                conversation_id = "test_conversation"
-                query_id = "test_query"
-
-                out = loop.run_until_complete(
-                    default_config(
-                        DefaultConfigData(user_id=user_id), get_user_manager()
-                    )
+            with dummy_adapter():
+                out = await process(
+                    QueryData(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        query="test query!",
+                        query_id=query_id,
+                        collection_names=["test_collection_1", "test_collection_2"],
+                    ).model_dump(),
+                    websocket,
+                    get_user_manager(),
                 )
 
-                websocket = fake_websocket()
-
-                out = loop.run_until_complete(
-                    process(
-                        QueryData(
-                            user_id=user_id,
-                            conversation_id=conversation_id,
-                            query="test query!",
-                            query_id=query_id,
-                            collection_names=["test_collection_1", "test_collection_2"],
-                        ).model_dump(),
-                        websocket,
-                        get_user_manager(),
-                    )
-                )
-
-                # check all payloads are valid
-                for result in websocket.results:
-                    self.assertIsInstance(result, dict)
-                    self.assertIn("type", result)
-                    self.assertIn("id", result)
-                    self.assertIn("conversation_id", result)
-                    self.assertIn("query_id", result)
-                    self.assertIn("payload", result)
-                    self.assertIsInstance(result["payload"], dict)
-                    if "objects" in result["payload"]:
-                        for obj in result["payload"]["objects"]:
-                            self.assertIsInstance(obj, dict)
-                    if "metadata" in result["payload"]:
-                        self.assertIsInstance(result["payload"]["metadata"], dict)
-                    if "text" in result["payload"]:
-                        self.assertIsInstance(result["payload"]["text"], str)
-            finally:
-                loop.run_until_complete(get_user_manager().close_all_clients())
+            # check all payloads are valid
+            for result in websocket.results:
+                assert isinstance(result, dict)
+                assert "type" in result
+                assert "id" in result
+                assert "conversation_id" in result
+                assert "query_id" in result
+                assert "payload" in result
+                assert isinstance(result["payload"], dict)
+                if "objects" in result["payload"]:
+                    for obj in result["payload"]["objects"]:
+                        assert isinstance(obj, dict)
+                if "metadata" in result["payload"]:
+                    assert isinstance(result["payload"]["metadata"], dict)
+                if "text" in result["payload"]:
+                    assert isinstance(result["payload"]["text"], str)
+        finally:
+            await get_user_manager().close_all_clients()

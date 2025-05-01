@@ -4,30 +4,59 @@ E.g. aggregation _and_ query.
 Focusing only on whether the correct tools are called, not the accuracy of the results.
 """
 
-import asyncio
-import json
-import os
-import unittest
-
+import pytest
+from copy import deepcopy
 from deepeval import evaluate, metrics
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams, ToolCall
 
-from elysia.tests.llm.deepeval_setup import CustomLlama
-from elysia.tests.llm.tester import TestTree
+from elysia import Tree, Settings, ClientManager
 from elysia import configure
 
 configure(logging_level="DEBUG")
 
 
-class TestComplexPrompts(TestTree):
-    def test_aggregation_and_query(self):
+class TestComplexPrompts:
+    base_tree = Tree(
+        debug=True,
+        branch_initialisation="one_branch",
+        settings=Settings.from_default(),
+    )
+
+    def get_tools_called(self, tree: Tree, user_prompt: str):
+        tools_called = []
+        if user_prompt in tree.actions_called:
+            for action in tree.actions_called[user_prompt]:
+                if action["name"] in tree.tools:
+                    tools_called.append(
+                        ToolCall(
+                            name=action["name"],
+                            description=tree.tools[action["name"]].description,
+                            input_parameters=action["inputs"],
+                            output=action["output"] if "output" in action else [],
+                        )
+                    )
+        return tools_called
+
+    async def run_tree(self, user_prompt: str, collection_names: list[str]):
+
+        tree = deepcopy(self.base_tree)
+
+        async for result in tree.async_run(
+            user_prompt,
+            collection_names=collection_names,
+        ):
+            pass
+        return tree
+
+    @pytest.mark.asyncio
+    async def test_aggregation_and_query(self):
         """
         Test that the correct tools are called for a prompt that requires both aggregation and query.
         """
         user_prompt = "What was the maximum weather in 2015? Then, what was the weather like in the surrounding week of that maximum?"
-        tree = asyncio.run(self.run_tree(user_prompt, ["Weather"]))
-        self.assertIn("aggregate", tree.decision_history)
-        self.assertIn("query", tree.decision_history)
+        tree = await self.run_tree(user_prompt, ["Weather"])
+        assert "aggregate" in tree.decision_history
+        assert "query" in tree.decision_history
 
         # -- DeepEval tests --
         deepeval_metric = metrics.TaskCompletionMetric(
@@ -44,18 +73,19 @@ class TestComplexPrompts(TestTree):
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
-    def test_query_with_chunking(self):
+    @pytest.mark.asyncio
+    async def test_query_with_chunking(self):
         """
         Test that the correct tools are called for a prompt that requires both aggregation and query.
         """
         user_prompt = "What is HNSW?"
-        tree = asyncio.run(
-            self.run_tree(user_prompt, ["Weaviate_documentation", "Weaviate_blogs"])
+        tree = await self.run_tree(
+            user_prompt, ["Weaviate_documentation", "Weaviate_blogs"]
         )
-        self.assertIn("query", tree.decision_history)
-        self.assertIn("query", tree.tree_data.environment.environment)
+        assert "query" in tree.decision_history
+        assert "query" in tree.tree_data.environment.environment
 
         collections_queried = list(
             tree.tree_data.environment.environment["query"].keys()
@@ -65,7 +95,7 @@ class TestComplexPrompts(TestTree):
             for item in tree.tree_data.environment.environment["query"][collection][0][
                 "objects"
             ]:
-                self.assertTrue("chunk_spans" in item and item["chunk_spans"] is not [])
+                assert "chunk_spans" in item and item["chunk_spans"] is not []
 
         # -- DeepEval tests --
         deepeval_metric = metrics.TaskCompletionMetric(
@@ -82,14 +112,15 @@ class TestComplexPrompts(TestTree):
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
-    def test_impossible_query(self):
+    @pytest.mark.asyncio
+    async def test_impossible_query(self):
         """
         Test that when given a task that is not possible, the model does not attempt it (too many times).
         """
         user_prompt = "What is the weather in January 2025?"
-        tree = asyncio.run(self.run_tree(user_prompt, ["Weather"]))
+        tree = await self.run_tree(user_prompt, ["Weather"])
 
         metric = metrics.GEval(
             name="Judge of agent knowledge lacking awareness",
@@ -117,10 +148,11 @@ class TestComplexPrompts(TestTree):
 
         res = evaluate(test_cases=[test_case], metrics=[metric])
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
 
 if __name__ == "__main__":
-    # unittest.main()
     test = TestComplexPrompts()
-    test.test_query_with_chunking()
+    import asyncio
+
+    asyncio.run(test.test_aggregation_and_query())

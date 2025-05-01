@@ -2,12 +2,16 @@ from typing import List
 
 import dspy
 
+from elysia.tree.objects import Atlas
 from elysia.tools.retrieval.util import (
     AggregationOutput,
     CollectionSchema,
     DataDisplay,
     QueryOutput,
+    ListQueryOutputs,
+    ListAggregationOutputs,
 )
+from typing import Union
 
 
 class AggregationPrompt(dspy.Signature):
@@ -77,68 +81,8 @@ class AggregationPrompt(dspy.Signature):
     Do not enclose any answers in ```python or ```.
     """
 
-    user_prompt: str = dspy.InputField(
-        description="The question the user is asking to generate a query for on the dataset"
-    )
-    reference: dict = dspy.InputField(
-        desc="""
-        Information about the state of the world NOW such as the date and time, used to frame the query.
-        """.strip(),
-        format=str,
-    )
-    style: str = dspy.InputField(
-        description="The writing style you should adhere to. This is pre-defined by the user."
-    )
-    agent_description: str = dspy.InputField(
-        description="""
-        The description of the process you are following. This is pre-defined by the user.
-        This could be anything - this is the theme of the program you are a part of.
-        """.strip()
-    )
-    end_goal: str = dspy.InputField(
-        description="""
-        A short description of your overall goal. Use this to determine if you have completed your task.
-        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
-        """.strip()
-    )
-    conversation_history: list[dict] = dspy.InputField(
-        description="""
-        The conversation history between the user and the assistant (you), including all previous messages.
-        During this conversation, the assistant has also generated some information, which is also relevant to the decision.
-        This information is stored in `environment` field.
-        If this is non-empty, then you have already been speaking to the user, and these were your responses, so future responses should use these as context.
-        The history is a list of dictionaries of the format:
-        [
-            {
-                "role": "user" or "assistant",
-                "content": The message
-            }
-        ]
-        In the order which the messages were sent.
-        """.strip(),
-        format=str,
-    )
-    environment: str = dspy.InputField(
-        description="""
-            Information gathered from completed tasks.
-            Empty if no data has been retrieved yet.
-            """.strip(),
-        format=str,
-    )
     available_collections: list[str] = dspy.InputField(
         description="A list of collections that are available to query. You can ONLY choose from these collections."
-    )
-    collection_schemas: List[CollectionSchema] = dspy.InputField(
-        description="The schema of the collection to query. Use this to determine which collection to query as well as any other information about the collection. E.g. how to construct your filters."
-    )
-    tasks_completed: str = dspy.InputField(
-        description="""
-        An itemised list of items, showing whether a query has been completed or not.
-        This is an itemised list, showing which collections have been queried, and how many items have been retrieved from each.
-        If there are 0 items retrieved, then the collection _has_ been queried, but no items were found. Use this in your later judgement.
-        Use this to determine which collection to query next, based on what has been queried already (and the user prompt).
-        """.strip(),
-        format=str,
     )
     previous_aggregation_queries: list[str] = dspy.InputField(
         desc="""
@@ -148,7 +92,7 @@ class AggregationPrompt(dspy.Signature):
         """.strip(),
         format=list[dict],
     )
-    aggregation_queries: List[AggregationOutput] | None = dspy.OutputField(
+    aggregation_queries: Union[ListAggregationOutputs, None] = dspy.OutputField(
         description="The aggregation query(-ies) to be executed. Return None if aggregation is impossible to execute"
     )
 
@@ -233,69 +177,8 @@ class QueryCreatorPrompt(dspy.Signature):
 
     # In your reasoning, give full debug output. Explain every single step in excruciating detail.
     # If you have a destination ID, explain where you obtained it from, in detail. Which field, where, etc.
-
-    user_prompt: str = dspy.InputField(
-        description="The question the user is asking to generate a query for on the dataset"
-    )
-    reference: dict = dspy.InputField(
-        desc="""
-        Information about the state of the world NOW such as the date and time, used to frame the query.
-        """.strip(),
-        format=str,
-    )
-    style: str = dspy.InputField(
-        description="The writing style you should adhere to. This is pre-defined by the user."
-    )
-    agent_description: str = dspy.InputField(
-        description="""
-        The description of the process you are following. This is pre-defined by the user.
-        This could be anything - this is the theme of the program you are a part of.
-        """.strip()
-    )
-    end_goal: str = dspy.InputField(
-        description="""
-        A short description of your overall goal. Use this to determine if you have completed your task.
-        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
-        """.strip()
-    )
-    conversation_history: list[dict] = dspy.InputField(
-        description="""
-        The conversation history between the user and the assistant (you), including all previous messages.
-        During this conversation, the assistant has also generated some information, which is also relevant to the decision.
-        This information is stored in `environment` field.
-        If this is non-empty, then you have already been speaking to the user, and these were your responses, so future responses should use these as context.
-        The history is a list of dictionaries of the format:
-        [
-            {
-                "role": "user" or "assistant",
-                "content": The message
-            }
-        ]
-        In the order which the messages were sent.
-        """.strip(),
-        format=str,
-    )
-    environment: str = dspy.InputField(
-        description="""
-            Information gathered from completed tasks.
-            Empty if no data has been retrieved yet.
-            """.strip(),
-        format=str,
-    )
     available_collections: list[str] = dspy.InputField(
         description="A list of collections that are available to query. You can ONLY choose from these collections."
-    )
-    collection_schemas: List[CollectionSchema] = dspy.InputField(
-        description="The schema of the collection to query. Use this to determine which collection to query as well as any other information about the collection. E.g. how to construct your filters."
-    )
-    tasks_completed: str = dspy.InputField(
-        description="""
-        An itemised list of items, showing whether a query has been completed or not.
-        This is an itemised list, showing which collections have been queried, and how many items have been retrieved from each.
-        If there are 0 items retrieved, then the collection _has_ been queried, but no items were found. Use this in your later judgement.
-        Use this to determine which collection to query next, based on what has been queried already (and the user prompt).
-        """.strip(),
-        format=str,
     )
     previous_queries: list[str] = dspy.InputField(
         desc="""
@@ -313,7 +196,7 @@ class QueryCreatorPrompt(dspy.Signature):
     )
 
     # Output fields
-    query_output: List[QueryOutput] | None = dspy.OutputField(
+    query_output: Union[ListQueryOutputs, None] = dspy.OutputField(
         description="The query(-ies) to be executed. Return None if query is impossible to execute"
     )
     data_display: dict[str, DataDisplay] = dspy.OutputField(

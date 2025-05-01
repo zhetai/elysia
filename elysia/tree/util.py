@@ -18,7 +18,7 @@ from elysia.objects import (
 # Objects
 from elysia.tree.objects import TreeData
 from elysia.util.objects import TrainingUpdate, TreeUpdate
-from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
+from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
 from elysia.tree.prompt_templates import construct_decision_prompt
 
@@ -149,29 +149,23 @@ class DecisionNode:
             if options[option]["inputs"] == {}:
                 options[option]["inputs"] = "No inputs are needed for this function."
 
-        decision_executor = EnvironmentOfThought(
-            construct_decision_prompt(self._get_options())
+        decision_executor = ElysiaChainOfThought(
+            construct_decision_prompt(self._get_options()),
+            tree_data=tree_data,
+            environment=True,
+            collection_schemas=True,
+            tasks_completed=True,
+            message_update=True,
         )
         # decision_executor = self._load_model(decision_executor)
-        decision_executor = dspy.asyncify(decision_executor)
+        # decision_executor = dspy.asyncify(decision_executor)
 
         self.logger.debug(f"Available options: {list(options.keys())}")
 
-        output = await decision_executor(
-            user_prompt=tree_data.user_prompt,
-            conversation_history=tree_data.conversation_history,
-            tasks_completed=tree_data.tasks_completed_string(),
+        output = await decision_executor.aforward(
             instruction=self.instruction,
-            reference=create_reference(),
-            style=tree_data.atlas.style,
-            agent_description=tree_data.atlas.agent_description,
-            end_goal=tree_data.atlas.end_goal,
-            collection_information=tree_data.output_collection_metadata(
-                with_mappings=False
-            ),
             tree_count=tree_data.tree_count_string(),
             available_actions=options,
-            environment=tree_data.environment.to_json(),
             lm=lm,
         )
 

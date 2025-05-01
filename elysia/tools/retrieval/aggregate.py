@@ -6,7 +6,7 @@ from rich.panel import Panel
 
 import dspy
 
-from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
+from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
 from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning
 from elysia.tools.retrieval.objects import Aggregation
@@ -118,6 +118,17 @@ class Aggregate(Tool):
             f"Oops! Something went wrong when executing the aggregation. Continuing..."
         )
 
+    def _fix_collection_names(self, collection_names: list[str], schemas: dict):
+        return [
+            collection_name
+            for collection_name in list(schemas.keys())
+            if collection_name.lower()
+            in [
+                schema_collection_name.lower()
+                for schema_collection_name in collection_names
+            ]
+        ]
+
     async def __call__(
         self,
         tree_data: TreeData,
@@ -140,12 +151,25 @@ class Aggregate(Tool):
             self.logger.debug("Arguments received:")
             self.logger.debug(f"{inputs}")
 
-        # Set up the dspy model
-        aggregate_generator = EnvironmentOfThought(AggregationPrompt)
-        aggregate_generator = dspy.asyncify(aggregate_generator)
+        # Find matching collection names (to match case sensitivity)
+        schemas = tree_data.output_collection_metadata(with_mappings=True)
+        if inputs["collection_names"] == [] or inputs["collection_names"] is None:
+            collection_names = list(schemas.keys())
+        else:
+            collection_names = self._fix_collection_names(
+                inputs["collection_names"], schemas
+            )
 
-        # Get the collections from the inputs
-        collection_names = inputs["collection_names"]
+        # Set up the dspy model
+        aggregate_generator = ElysiaChainOfThought(
+            AggregationPrompt,
+            tree_data=tree_data,
+            environment=True,
+            collection_schemas=True,
+            tasks_completed=True,
+            message_update=True,
+            collection_names=inputs["collection_names"],
+        )
 
         if self.logger:
             self.logger.info(f"Collection names received: {collection_names}")
@@ -155,26 +179,10 @@ class Aggregate(Tool):
             tree_data.environment.environment, collection_names
         )
 
-        # Get schemas for these collections
-        schemas = tree_data.output_collection_metadata(with_mappings=False)
-        schemas = {
-            collection_name: schemas[collection_name]
-            for collection_name in collection_names
-        }
-
         # Generate query with LLM
         try:
-            aggregation = await aggregate_generator(
-                user_prompt=tree_data.user_prompt,
-                reference=create_reference(),
-                style=tree_data.atlas.style,
-                agent_description=tree_data.atlas.agent_description,
-                end_goal=tree_data.atlas.end_goal,
-                conversation_history=tree_data.conversation_history,
-                environment=tree_data.environment.to_json(),
+            aggregation = await aggregate_generator.aforward(
                 available_collections=collection_names,
-                collection_schemas=schemas,
-                tasks_completed=tree_data.tasks_completed_string(),
                 previous_aggregation_queries=previous_aggregations,
                 lm=complex_lm,
             )
@@ -186,6 +194,7 @@ class Aggregate(Tool):
                     tree_data.user_prompt,
                 ):
                     yield yield_object
+            return
 
         # Yield results to front end
         yield Response(text=aggregation.message_update)
@@ -208,7 +217,7 @@ class Aggregate(Tool):
                     "impossible": tree_data.user_prompt,
                     "impossible_reasoning": aggregation.reasoning,
                     "aggregation_output": (
-                        aggregation.aggregation_queries.model_dump()
+                        aggregation.aggregation_queries.aggregation_outputs.model_dump()
                         if aggregation.aggregation_queries is not None
                         else None
                     ),
@@ -224,7 +233,14 @@ class Aggregate(Tool):
             return
 
         # Go through each response
-        for i, aggregation_output in enumerate(aggregation.aggregation_queries):
+        for i, aggregation_output in enumerate(
+            aggregation.aggregation_queries.aggregation_outputs
+        ):
+
+            aggregation_output.target_collections = self._fix_collection_names(
+                aggregation_output.target_collections,
+                schemas,
+            )
 
             # Execute query within Weaviate
             async with client_manager.connect_to_async_client() as client:
@@ -233,7 +249,7 @@ class Aggregate(Tool):
                         client, aggregation_output
                     )
                 except Exception as e:
-                    for collection_name in collection_names:
+                    for collection_name in aggregation_output.target_collections:
                         async for yield_object in self._handle_aggregation_error(
                             e,
                             collection_name,

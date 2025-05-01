@@ -4,41 +4,74 @@ Such as whether a prompt that requires searching actually does call 'query'.
 Same for aggregate, text_response, summarise, itemised_summaries.
 """
 
-import asyncio
 import json
-import unittest
-
+import pytest
+from copy import deepcopy
 from deepeval import evaluate, metrics
-from deepeval.test_case import LLMTestCase
+from deepeval.test_case import LLMTestCase, ToolCall
 
-from elysia.tests.llm.tester import TestTree
+from elysia import Tree, Settings
+from elysia import configure
+
+configure(logging_level="DEBUG")
 
 
-class TestGenericPrompts(TestTree):
-    def test_query(self):
+class TestGenericPrompts:
+    base_tree = Tree(
+        debug=True,
+        branch_initialisation="one_branch",
+        settings=Settings.from_default(),
+    )
+
+    def get_tools_called(self, tree: Tree, user_prompt: str):
+        tools_called = []
+        if user_prompt in tree.actions_called:
+            for action in tree.actions_called[user_prompt]:
+                if action["name"] in tree.tools:
+                    tools_called.append(
+                        ToolCall(
+                            name=action["name"],
+                            description=tree.tools[action["name"]].description,
+                            input_parameters=action["inputs"],
+                            output=action["output"] if "output" in action else [],
+                        )
+                    )
+        return tools_called
+
+    async def run_tree(self, user_prompt: str, collection_names: list[str]):
+
+        tree = deepcopy(self.base_tree)
+
+        async for result in tree.async_run(
+            user_prompt,
+            collection_names=collection_names,
+        ):
+            pass
+        return tree
+
+    @pytest.mark.asyncio
+    async def test_query(self):
         """
         Test the query tool is called for a generic prompt requiring it.
         """
         user_prompt = "What github issues discuss the 'PDF upload' issue?"
-        tree = asyncio.run(
-            self.run_tree(
-                user_prompt,
-                [],
-            )
+        tree = await self.run_tree(
+            user_prompt,
+            [],
         )
 
         collection_names_to_test = [c.lower() for c in tree.tree_data.collection_names]
 
         # passing empty collection list should mean all collections are searched
-        self.assertIn("example_verba_github_issues", collection_names_to_test)
-        self.assertIn("example_verba_email_chains", collection_names_to_test)
-        self.assertIn("example_verba_slack_conversations", collection_names_to_test)
-        self.assertIn("weather", collection_names_to_test)
-        self.assertIn("ml_wikipedia", collection_names_to_test)
-        self.assertIn("weaviate_blogs", collection_names_to_test)
-        self.assertIn("weaviate_documentation", collection_names_to_test)
+        assert "example_verba_github_issues" in collection_names_to_test
+        assert "example_verba_email_chains" in collection_names_to_test
+        assert "example_verba_slack_conversations" in collection_names_to_test
+        assert "weather" in collection_names_to_test
+        assert "ml_wikipedia" in collection_names_to_test
+        assert "weaviate_blogs" in collection_names_to_test
+        assert "weaviate_documentation" in collection_names_to_test
 
-        self.assertIn("query", tree.decision_history)
+        assert "query" in tree.decision_history
 
         deepeval_metric = metrics.TaskCompletionMetric(
             threshold=0.5, model="gpt-4o-mini", include_reason=True
@@ -54,32 +87,31 @@ class TestGenericPrompts(TestTree):
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
-    def test_aggregate(self):
+    @pytest.mark.asyncio
+    async def test_aggregate(self):
         """
         Test the aggregate tool is called for a generic prompt requiring it.
         """
         user_prompt = (
             "What is the average price of trousers in the ecommerce collection?"
         )
-        tree = asyncio.run(
-            self.run_tree(
-                user_prompt,
-                [
-                    "ecommerce",
-                    "example_verba_email_chains",
-                    "example_verba_github_issues",
-                    "example_verba_slack_conversations",
-                    "weather",
-                    "ML_Wikipedia",
-                    "weaviate_blogs",
-                    "weaviate_documentation",
-                ],
-            )
+        tree = await self.run_tree(
+            user_prompt,
+            [
+                "ecommerce",
+                "example_verba_email_chains",
+                "example_verba_github_issues",
+                "example_verba_slack_conversations",
+                "weather",
+                "ML_Wikipedia",
+                "weaviate_blogs",
+                "weaviate_documentation",
+            ],
         )
 
-        self.assertIn("aggregate", tree.decision_history)
+        assert "aggregate" in tree.decision_history
 
         # Test with deepeval
         deepeval_metric = metrics.TaskCompletionMetric(
@@ -96,30 +128,29 @@ class TestGenericPrompts(TestTree):
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
-    def test_text_response(self):
+    @pytest.mark.asyncio
+    async def test_text_response(self):
         """
         Test the text_response tool is called for a generic conversational prompt.
         """
         user_prompt = "Hey Elly what's up? What can you do?"
-        tree = asyncio.run(
-            self.run_tree(
-                user_prompt,
-                [
-                    "Ecommerce",
-                    "Example_verba_email_chains",
-                    "Example_verba_github_issues",
-                    "Example_verba_slack_conversations",
-                    "Weather",
-                    "ML_Wikipedia",
-                    "Weaviate_blogs",
-                    "Weaviate_documentation",
-                ],
-            )
+        tree = await self.run_tree(
+            user_prompt,
+            [
+                "Ecommerce",
+                "Example_verba_email_chains",
+                "Example_verba_github_issues",
+                "Example_verba_slack_conversations",
+                "Weather",
+                "ML_Wikipedia",
+                "Weaviate_blogs",
+                "Weaviate_documentation",
+            ],
         )
 
-        self.assertIn("text_response", tree.decision_history)
+        assert "text_response" in tree.decision_history
 
         # Test with deepeval
         deepeval_metric = metrics.TaskCompletionMetric(
@@ -136,30 +167,29 @@ class TestGenericPrompts(TestTree):
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
-    def test_summarising_output(self):
+    @pytest.mark.asyncio
+    async def test_summarising_output(self):
         """
         Test the summarise tool is called for a generic prompt requiring it.
         """
         user_prompt = (
             "Summarise the 10 most recent issues in the github issues collection"
         )
-        tree = asyncio.run(
-            self.run_tree(
-                user_prompt,
-                [
-                    "Example_verba_github_issues",
-                ],
-            )
+        tree = await self.run_tree(
+            user_prompt,
+            [
+                "Example_verba_github_issues",
+            ],
         )
 
-        self.assertIn("query", tree.decision_history)
-        self.assertIn(
-            "Example_verba_github_issues",
-            tree.tree_data.environment.environment["query"],
+        assert "query" in tree.decision_history
+        assert (
+            "Example_verba_github_issues"
+            in tree.tree_data.environment.environment["query"]
         )
-        self.assertTrue(
+        assert (
             "summarize" in tree.decision_history
             or tree.decision_history[-1] == "text_response"
         )
@@ -178,7 +208,7 @@ class TestGenericPrompts(TestTree):
 
         res = evaluate(test_cases=[task_test_case], metrics=[task_metric])
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
         environment = [
             json.dumps(obj)
@@ -200,40 +230,31 @@ class TestGenericPrompts(TestTree):
             test_cases=[summarisation_test_case], metrics=[summarisation_metric]
         )
         for test_case in res.test_results:
-            self.assertTrue(test_case.success)
+            assert test_case.success
 
-    def test_itemised_summaries(self):
+    @pytest.mark.asyncio
+    async def test_itemised_summaries(self):
         """
         Test the itemised_summaries tool is called when specifically asked for it.
         """
         user_prompt = (
             "Write itemised summaries for each of the 5 most recent message in slack"
         )
-        tree = asyncio.run(
-            self.run_tree(
-                user_prompt,
-                [
-                    "Example_verba_slack_conversations",
-                    "Example_verba_email_chains",
-                    "Example_verba_github_issues",
-                ],
-            )
+        tree = await self.run_tree(
+            user_prompt,
+            [
+                "Example_verba_slack_conversations",
+                "Example_verba_email_chains",
+                "Example_verba_github_issues",
+            ],
         )
-        self.assertIn("query", tree.decision_history)
-        self.assertIn(
-            "Example_verba_slack_conversations",
-            tree.tree_data.environment.environment["query"],
+
+        assert "query" in tree.decision_history
+        assert (
+            "Example_verba_slack_conversations"
+            in tree.tree_data.environment.environment["query"]
         )
         for item in tree.tree_data.environment.environment["query"][
             "Example_verba_slack_conversations"
         ][0]["objects"]:
-            self.assertTrue(
-                "ELYSIA_SUMMARY" in item.keys() and len(item["ELYSIA_SUMMARY"]) > 0
-            )
-
-
-if __name__ == "__main__":
-    # unittest.main()
-
-    test = TestGenericPrompts()
-    test.test_itemised_summaries()
+            assert "ELYSIA_SUMMARY" in item.keys() and len(item["ELYSIA_SUMMARY"]) > 0

@@ -1,13 +1,12 @@
 import dspy
 
-from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
 from elysia.tools.other.prompt_templates import EnvironmentCondenserPrompt
 
 
 class CondenseEnvironmentExecutor(dspy.Module):
     def __init__(self):
         super().__init__()
-        self.condense_environment_prompt = EnvironmentOfThought(
+        self.condense_environment_prompt = dspy.ChainOfThought(
             EnvironmentCondenserPrompt
         )
 

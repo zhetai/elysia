@@ -1,4 +1,4 @@
-import unittest
+import pytest
 
 from fastapi.responses import JSONResponse
 
@@ -66,32 +66,19 @@ def create_collection(client_manager: ClientManager):
     return collection_name
 
 
-with dummy_adapter():
+class TestProcessor:
 
-    class TestProcessor(unittest.TestCase):
+    async def run_processor(self, data: ProcessCollectionData):
+        websocket = fake_websocket()
+        await process_collection(data.model_dump(), websocket, user_manager)
+        return websocket.results
 
-        def get_event_loop(self):
+    @pytest.mark.asyncio
+    async def test_process_collection(self):
+
+        with dummy_adapter():
             try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            return loop
-
-        async def run_processor(self, data: ProcessCollectionData):
-            websocket = fake_websocket()
-            await process_collection(data.model_dump(), websocket, user_manager)
-            return websocket.results
-
-        def test_process_collection(self):
-
-            loop = self.get_event_loop()
-
-            try:
-                local_user = loop.run_until_complete(
-                    user_manager.get_user_local("test_user")
-                )
+                local_user = await user_manager.get_user_local("test_user")
                 client_manager = local_user["client_manager"]
                 local_user["config"].default_config()
                 local_user["config"].configure(
@@ -100,22 +87,20 @@ with dummy_adapter():
 
                 collection_name = create_collection(client_manager)
 
-                response = loop.run_until_complete(
-                    self.run_processor(
-                        ProcessCollectionData(
-                            user_id="test_user", collection_name=collection_name
-                        ),
-                    )
+                response = await self.run_processor(
+                    ProcessCollectionData(
+                        user_id="test_user", collection_name=collection_name
+                    ),
                 )
                 for result in response:
-                    self.assertTrue(result["error"] == "")
+                    assert result["error"] == ""
 
                 for result in response[:-1]:
-                    self.assertTrue(result["type"] == "update")
-                    self.assertTrue(result["progress"] < 1)
+                    assert result["type"] == "update"
+                    assert result["progress"] < 1
 
-                self.assertTrue(response[-1]["type"] == "completed")
-                self.assertTrue(response[-1]["progress"] == 1)
+                assert response[-1]["type"] == "completed"
+                assert response[-1]["progress"] == 1
 
             finally:
 
@@ -128,4 +113,8 @@ with dummy_adapter():
                     print(f"Can't delete collection: {e}")
                     pass
 
-                loop.run_until_complete(user_manager.close_all_clients())
+                await user_manager.close_all_clients()
+
+
+if __name__ == "__main__":
+    asyncio.run(TestProcessor().test_process_collection())

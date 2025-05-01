@@ -1,9 +1,10 @@
 from datetime import timezone
-from typing import Any, ForwardRef, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
+from typing_extensions import TypeAlias
 
 import weaviate
 from dateutil import parser
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from weaviate.classes.query import Filter, Metrics, QueryReference, Sort
 
 
@@ -56,25 +57,21 @@ class DateAggregation(BaseModel):
     metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE"]]
 
 
-# define the FilterBucket
-FilterBucketRef = ForwardRef("FilterBucket")
-
-
+# == Define FilterBucket type recursively
 class FilterBucket(BaseModel):
     filters: List[
         Union[
+            "FilterBucket",
             NumberPropertyFilter,
             TextPropertyFilter,
             BooleanPropertyFilter,
             DatePropertyFilter,
-            FilterBucketRef,
         ]
     ]
     operator: Literal["AND", "OR"]
 
 
-FilterBucketRef.__forward_value__ = FilterBucket
-FilterBucket.model_rebuild()
+FilterBucketType: TypeAlias = FilterBucket
 
 
 # == Sorting for fetch objects
@@ -87,24 +84,39 @@ class SortBy(BaseModel):
 class QueryOutput(BaseModel):
     target_collections: List[str]
     search_type: Literal["hybrid", "keyword", "vector", "filter_only"]
-    search_query: Optional[str | None] = None
-    sort_by: Optional[SortBy | None] = None
-    filter_buckets: Optional[List[FilterBucket] | None] = None
+    search_query: Optional[str] = None
+    sort_by: Optional[SortBy] = None
+    filter_buckets: Optional[List[FilterBucket]] = None
     limit: Optional[int] = 5
+
+
+class ListQueryOutputs(BaseModel):
+    query_outputs: List[QueryOutput] | None = None
+
+
+# QueryOutputType: TypeAlias = ListQueryOutputs | None
 
 
 # == Full Aggregation Definition
 class AggregationOutput(BaseModel):
     target_collections: List[str]
-    search_query: Optional[str] = None
-    search_type: Optional[Literal["hybrid", "keyword", "vector"]] = None
-    filter_buckets: Optional[List[FilterBucket]] = None
-    groupby_property: Optional[str] = None
-    number_property_aggregations: Optional[List[NumberAggregation]] = None
-    text_property_aggregations: Optional[List[TextAggregation]] = None
-    boolean_property_aggregations: Optional[List[BooleanAggregation]] = None
-    date_property_aggregations: Optional[List[DateAggregation]] = None
+    search_query: Optional[str] = Field(default=None)
+    search_type: Optional[Literal["hybrid", "keyword", "vector"]] = Field(default=None)
+    filter_buckets: Optional[List[FilterBucket]] = Field(default=None)
+    groupby_property: Optional[str] = Field(default=None)
+    number_property_aggregations: Optional[List[NumberAggregation]] = Field(
+        default=None
+    )
+    text_property_aggregations: Optional[List[TextAggregation]] = Field(default=None)
+    boolean_property_aggregations: Optional[List[BooleanAggregation]] = Field(
+        default=None
+    )
+    date_property_aggregations: Optional[List[DateAggregation]] = Field(default=None)
     limit: Optional[int] = 5
+
+
+class ListAggregationOutputs(BaseModel):
+    aggregation_outputs: List[AggregationOutput] | None = None
 
 
 # == Schema for collections/data

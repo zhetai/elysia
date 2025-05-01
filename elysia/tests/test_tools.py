@@ -1,5 +1,5 @@
 import os
-import unittest
+import pytest
 import asyncio
 from dspy import LM
 from elysia.objects import Result
@@ -193,22 +193,13 @@ class IncorrectToolInitialisation_call_non_async_generator(Tool):
         return True
 
 
-class TestTools(unittest.TestCase):
+class TestTools:
 
     base_tree = Tree(
         debug=True,
         branch_initialisation="empty",
         settings=Settings.from_default(),
     )
-
-    def get_event_loop(self):
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop
 
     async def run_tree(
         self,
@@ -232,59 +223,50 @@ class TestTools(unittest.TestCase):
             pass
         return tree
 
-    def test_run_if_true_false_tool(self):
+    @pytest.mark.asyncio
+    async def test_run_if_true_false_tool(self):
 
-        loop = self.get_event_loop()
+        with dummy_adapter():
+            tree = await self.run_tree("Hello", [], [RunIfTrueFalseTool])
 
-        tree = loop.run_until_complete(self.run_tree("Hello", [], [RunIfTrueFalseTool]))
+        assert "rule_tool" not in tree.tree_data.environment.environment
 
-        self.assertNotIn("rule_tool", tree.tree_data.environment.environment)
+    @pytest.mark.asyncio
+    async def test_run_if_true_true_tool(self):
 
-    def test_run_if_true_true_tool(self):
+        with dummy_adapter():
+            tree = await self.run_tree("Hello", [], [RunIfTrueTrueTool])
 
-        loop = self.get_event_loop()
+        assert "rule_tool" in tree.tree_data.environment.environment
 
-        tree = loop.run_until_complete(self.run_tree("Hello", [], [RunIfTrueTrueTool]))
+    @pytest.mark.asyncio
+    async def test_tool_not_available(self):
 
-        self.assertIn("rule_tool", tree.tree_data.environment.environment)
+        with dummy_adapter():
+            with pytest.raises(RuntimeError):  # should have no tools available
+                await self.run_tree("Hello", [], [ToolNotAvailable], remove_tools=True)
 
-    def test_tool_not_available(self):
+    @pytest.mark.asyncio
+    async def test_tool_available(self):
 
-        loop = self.get_event_loop()
+        with dummy_adapter():
+            tree = await self.run_tree("Hello", [], [ToolAvailable], remove_tools=True)
 
-        with self.assertRaises(RuntimeError):  # should have no tools available
-            loop.run_until_complete(
-                self.run_tree("Hello", [], [ToolNotAvailable], remove_tools=True)
-            )
-
-    def test_tool_available(self):
-
-        loop = self.get_event_loop()
-
-        tree = loop.run_until_complete(
-            self.run_tree("Hello", [], [ToolAvailable], remove_tools=True)
-        )
-
-        self.assertIn("always_pick_this_tool", tree.decision_history)
+        assert "always_pick_this_tool" in tree.decision_history
 
     def test_incorrect_tool_initialisation(self):
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             tree = deepcopy(self.base_tree)
             tree.add_tool(IncorrectToolInitialisation_kwargs_init)
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             tree = deepcopy(self.base_tree)
             tree.add_tool(IncorrectToolInitialisation_kwargs_call)
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             tree = deepcopy(self.base_tree)
             tree.add_tool(IncorrectToolInitialisation_call_non_async)
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             tree = deepcopy(self.base_tree)
             tree.add_tool(IncorrectToolInitialisation_call_non_async_generator)
-
-
-if __name__ == "__main__":
-    with dummy_adapter():
-        TestTools().test_tool_available()

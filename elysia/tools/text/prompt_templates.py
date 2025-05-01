@@ -11,52 +11,6 @@ class SummarizingPrompt(dspy.Signature):
     Do not list any of the retrieved objects in your response. Do not give an itemised list of the objects, since they will be displayed to the user anyway.
     """
 
-    user_prompt = dspy.InputField(description="The user's original query")
-    reference = dspy.InputField(
-        description="Information about the state of the world NOW such as the date and time, used to frame the summarization.",
-        format=str,
-    )
-    style: str = dspy.InputField(
-        description="The writing style you should adhere to. This is pre-defined by the user."
-    )
-    agent_description: str = dspy.InputField(
-        description="""
-        The description of the process you are following. This is pre-defined by the user.
-        This could be anything - this is the theme of the program you are a part of.
-        """.strip()
-    )
-    end_goal: str = dspy.InputField(
-        description="""
-        A short description of your overall goal. Use this to determine if you have completed your task.
-        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
-        """.strip()
-    )
-    conversation_history = dspy.InputField(
-        description="""
-        The conversation history between the user and the assistant (you), including all previous messages.
-        During this conversation, the assistant has also generated some information, which is also relevant to the decision.
-        This information is stored in `environment` field.
-        If this is non-empty, then you have already been speaking to the user, and these were your responses, so future responses should use these as context.
-        The history is a list of dictionaries of the format:
-        [
-            {
-                "role": "user" or "assistant",
-                "content": The message
-            }
-        ]
-        In the order which the messages were sent.
-        """.strip(),
-        format=str,
-    )
-    environment = dspy.InputField(
-        description="""
-        The retrieved objects from the knowledge base.
-        This will be in the form of a list of dictionaries, where each dictionary contains the metadata and object fields.
-        You should use all of the information available to you to answer the user's prompt,
-        but use judgement to decide which objects are most relevant to the user's query.
-        This has already been displayed to the user, so do not repeat the same information.
-        """.strip()
-    )
     subtitle = dspy.OutputField(description="A subtitle for the summary")
     summary = dspy.OutputField(
         description="""
@@ -82,51 +36,6 @@ class TextResponsePrompt(dspy.Signature):
     Do not list any of the retrieved objects in your response. Do not give an itemised list of the objects, since they will be displayed to the user anyway.
     """
 
-    user_prompt = dspy.InputField(description="The user's original query")
-    reference = dspy.InputField(
-        description="Information about the state of the world NOW such as the date and time, used to frame the response.",
-        format=str,
-    )
-    style: str = dspy.InputField(
-        description="The writing style you should adhere to. This is pre-defined by the user."
-    )
-    agent_description: str = dspy.InputField(
-        description="""
-        The description of the process you are following. This is pre-defined by the user.
-        This could be anything - this is the theme of the program you are a part of.
-        """.strip()
-    )
-    end_goal: str = dspy.InputField(
-        description="""
-        A short description of your overall goal. Use this to determine if you have completed your task.
-        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
-        """.strip()
-    )
-    conversation_history = dspy.InputField(
-        description="""
-        The conversation history between the user and the assistant (you), including all previous messages.
-        During this conversation, the assistant has also generated some information, which is also relevant to the decision.
-        This information is stored in `environment` field.
-        If this is non-empty, then you have already been speaking to the user, and these were your responses, so future responses should use these as context.
-        The history is a list of dictionaries of the format:
-        [
-            {
-                "role": "user" or "assistant",
-                "content": The message
-            }
-        ]
-        In the order which the messages were sent.
-        """.strip(),
-        format=str,
-    )
-    environment = dspy.InputField(
-        description="""
-        The retrieved objects from the knowledge base.
-        This will be in the form of a list of dictionaries, where each dictionary contains the metadata and object fields.
-        You should use all of the information available to you to answer the user's prompt,
-        but use judgement to decide which objects are most relevant to the user's query.
-        """.strip()
-    )
     response = dspy.OutputField(
         description="""
         The response to the user's prompt.

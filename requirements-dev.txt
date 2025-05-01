@@ -3,6 +3,7 @@ accelerate==1.5.2
 # Testing
 deepeval==2.5.7
 pytest==7.4.4
+pytest-asyncio==0.21.2
 
 # setuptools
 setuptools==78.1.0

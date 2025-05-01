@@ -2,6 +2,8 @@ from typing import Literal
 
 import dspy
 
+from elysia.tree.objects import Atlas
+
 
 def construct_decision_prompt(
     available_tasks: list[str] | None = None,
@@ -38,23 +40,8 @@ def construct_decision_prompt(
         instruction: str = dspy.InputField(
             description="Specific guidance for this decision point that must be followed"
         )
-        style: str = dspy.InputField(
-            description="The writing style you should adhere to. This is pre-defined by the user."
-        )
-        agent_description: str = dspy.InputField(
-            description="""
-            The description of the process you are following. This is pre-defined by the user.
-            This could be anything - this is the theme of the program you are a part of.
-            """.strip()
-        )
-        end_goal: str = dspy.InputField(
-            description="""
-            A short description of your overall goal. Use this to determine if you have completed your task.
-            However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
-            """.strip()
-        )
-        reference: dict = dspy.InputField(
-            description="Current context information (e.g., date, time) for decision-making"
+        atlas: Atlas = dspy.InputField(
+            description="Your guide to how you should proceed as an agent in this task."
         )
         conversation_history: list[dict] = dspy.InputField(
             description="""
@@ -65,7 +52,7 @@ def construct_decision_prompt(
         )
 
         # Collection information for user to ask basic questions about collection
-        collection_information: dict = dspy.InputField(
+        collection_schemas: dict = dspy.InputField(
             description="""
             Metadata about available collections and their schemas:
             { name: { summary, fields: { min, max, type, etc. } }
@@ -121,17 +108,6 @@ def construct_decision_prompt(
             format=str,
         )
 
-        # Output fields
-        # evaluation: str = dspy.OutputField(
-        #     description="""
-        #     Write out your evaluation of the current state of the decision process.
-        #     Re-write what tasks have been completed so far, and what they have accomplished. If you are uncertain, state that.
-        #     Evaluate what tasks have been repeated, to avoid getting stuck in a loop.
-        #     Evaluate what the last task that was completed was, and what the next task should be.
-        #     For the next task, write out each task possible and whether each should be picked and why.
-        #     """.strip()
-        # )
-
         function_name: ActionLiteral = dspy.OutputField(
             description="""
             Select exactly one function name from available_actions that best advances toward answering the user's input prompt.
@@ -152,21 +128,13 @@ def construct_decision_prompt(
             format=dict,
         )
 
-        # end_actions_reasoning: str = dspy.OutputField(
-        #     description="""
-        #     Write out your reasoning for whether to end your actions after completing the task you have selected.
-        #     Take into account the completed tasks so far, the available information, and the user's input prompt, and use your observations and context to inform your reasoning.
-        #     You should be explaining why you will be choosing either True or False for the field `end_actions`.
-        #     """.strip(),
-        #     format = str
-        # )
-
         end_actions: bool = dspy.OutputField(
             description="""
             Indicates whether to cease actions after completing the selected task.
             Determine this based on the completion of all possible actions for the prompt.
             Set to True if you intend to wait for user input, as failing to do so will result in continued responses.
             Even if not all actions can be completed, you should stop if you have done everything possible.
+            You should follow the `end_goal` for this decision.
             """.strip()
         )
 

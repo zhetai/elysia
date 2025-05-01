@@ -1,4 +1,4 @@
-import unittest
+import pytest
 
 from fastapi.responses import JSONResponse
 
@@ -28,175 +28,150 @@ def read_response(response: JSONResponse):
     return json.loads(response.body)
 
 
-class TestEndpoints(unittest.TestCase):
+class TestEndpoints:
 
-    def get_event_loop(self):
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+    @pytest.mark.asyncio
+    async def test_collections(self):
 
-        return loop
-
-    def test_collections(self):
-
-        loop = self.get_event_loop()
         try:
             user_manager = get_user_manager()
-            basic = loop.run_until_complete(
-                collections(UserCollectionsData(user_id="test_user"), user_manager)
+            basic = await collections(
+                UserCollectionsData(user_id="test_user"), user_manager
             )
             basic = read_response(basic)
-            self.assertTrue(basic["error"] == "")
+            assert basic["error"] == ""
         finally:
-            loop.run_until_complete(user_manager.close_all_clients())
+            await user_manager.close_all_clients()
 
-    def test_collection_metadata(self):
-        loop = self.get_event_loop()
+    @pytest.mark.asyncio
+    async def test_collection_metadata(self):
         try:
             user_manager = get_user_manager()
-            basic = loop.run_until_complete(
-                collection_metadata(
-                    CollectionMetadataData(
-                        user_id="test_user",
-                        collection_name="example_verba_github_issues",
-                    ),
-                    user_manager,
-                )
+            basic = await collection_metadata(
+                CollectionMetadataData(
+                    user_id="test_user",
+                    collection_name="example_verba_github_issues",
+                ),
+                user_manager,
             )
             basic = read_response(basic)
-            self.assertTrue(basic["error"] == "")
+            assert basic["error"] == ""
         finally:
-            loop.run_until_complete(user_manager.close_all_clients())
+            await user_manager.close_all_clients()
 
-    def test_get_object(self):
-        loop = self.get_event_loop()
+    @pytest.mark.asyncio
+    async def test_get_object(self):
         try:
             user_manager = get_user_manager()
 
             # first manually get a UUID
-            user_local = loop.run_until_complete(
-                user_manager.get_user_local("test_user")
-            )
+            user_local = await user_manager.get_user_local("test_user")
             client_manager = user_local["client_manager"]
-            with client_manager.connect_to_client() as client:
+            async with client_manager.connect_to_async_client() as client:
                 collection = client.collections.get("example_verba_github_issues")
-                uuid = str(collection.query.fetch_objects(limit=1).objects[0].uuid)
+                response = await collection.query.fetch_objects(limit=1)
+                uuid = str(response.objects[0].uuid)
 
             # test with valid UUID
-            basic = loop.run_until_complete(
-                get_object(
-                    GetObjectData(
-                        user_id="test_user",
-                        collection_name="example_verba_github_issues",
-                        uuid=uuid,
-                    ),
-                    user_manager,
-                )
+            basic = await get_object(
+                GetObjectData(
+                    user_id="test_user",
+                    collection_name="example_verba_github_issues",
+                    uuid=uuid,
+                ),
+                user_manager,
             )
+
             basic = read_response(basic)
-            self.assertTrue(basic["error"] == "")
+            assert basic["error"] == ""
 
             # test with invalid UUID
-            invalid = loop.run_until_complete(
-                get_object(
-                    GetObjectData(
-                        user_id="test_user",
-                        collection_name="example_verba_github_issues",
-                        uuid="invalid",
-                    ),
-                    user_manager,
-                )
+            invalid = await get_object(
+                GetObjectData(
+                    user_id="test_user",
+                    collection_name="example_verba_github_issues",
+                    uuid="invalid",
+                ),
+                user_manager,
             )
+
             invalid = read_response(invalid)
-            self.assertTrue(invalid["error"] != "")
+            assert invalid["error"] != ""
 
         finally:
-            loop.run_until_complete(user_manager.close_all_clients())
+            await user_manager.close_all_clients()
 
-    def test_view_paginated_collection(self):
-        loop = self.get_event_loop()
+    @pytest.mark.asyncio
+    async def test_view_paginated_collection(self):
         try:
 
             user_manager = get_user_manager()
 
-            basic = loop.run_until_complete(
-                view_paginated_collection(
-                    ViewPaginatedCollectionData(
-                        user_id="test_user",
-                        collection_name="example_verba_github_issues",
-                        page_size=50,
-                        page_number=1,
-                        sort_on="issue_created_at",
-                        ascending=True,
-                        filter_config={},
-                    ),
-                    user_manager,
-                )
+            basic = await view_paginated_collection(
+                ViewPaginatedCollectionData(
+                    user_id="test_user",
+                    collection_name="example_verba_github_issues",
+                    page_size=50,
+                    page_number=1,
+                    sort_on="issue_created_at",
+                    ascending=True,
+                    filter_config={},
+                ),
+                user_manager,
             )
             basic = read_response(basic)
-            self.assertTrue(basic["error"] == "")
+            assert basic["error"] == ""
 
             # test with filter
-            filter = loop.run_until_complete(
-                view_paginated_collection(
-                    ViewPaginatedCollectionData(
-                        user_id="test_user",
-                        collection_name="example_verba_github_issues",
-                        page_size=50,
-                        page_number=1,
-                        sort_on="issue_created_at",
-                        ascending=True,
-                        filter_config={
-                            "type": "all",
-                            "filters": [
-                                {
-                                    "field": "issue_state",
-                                    "operator": "equal",
-                                    "value": "open",
-                                }
-                            ],
-                        },
-                    ),
-                    user_manager,
-                )
+            filter = await view_paginated_collection(
+                ViewPaginatedCollectionData(
+                    user_id="test_user",
+                    collection_name="example_verba_github_issues",
+                    page_size=50,
+                    page_number=1,
+                    sort_on="issue_created_at",
+                    ascending=True,
+                    filter_config={
+                        "type": "all",
+                        "filters": [
+                            {
+                                "field": "issue_state",
+                                "operator": "equal",
+                                "value": "open",
+                            }
+                        ],
+                    },
+                ),
+                user_manager,
             )
             filter = read_response(filter)
-            self.assertTrue(filter["error"] == "")
+            assert filter["error"] == ""
 
             # test with out of bounds page number, should return empty list
-            out_of_bounds = loop.run_until_complete(
-                view_paginated_collection(
-                    ViewPaginatedCollectionData(
-                        user_id="test_user",
-                        collection_name="example_verba_github_issues",
-                        page_size=50,
-                        page_number=100,
-                        sort_on="issue_created_at",
-                        ascending=True,
-                        filter_config={
-                            "type": "all",
-                            "filters": [
-                                {
-                                    "field": "issue_state",
-                                    "operator": "equal",
-                                    "value": "open",
-                                }
-                            ],
-                        },
-                    ),
-                    user_manager,
-                )
+            out_of_bounds = await view_paginated_collection(
+                ViewPaginatedCollectionData(
+                    user_id="test_user",
+                    collection_name="example_verba_github_issues",
+                    page_size=50,
+                    page_number=100,
+                    sort_on="issue_created_at",
+                    ascending=True,
+                    filter_config={
+                        "type": "all",
+                        "filters": [
+                            {
+                                "field": "issue_state",
+                                "operator": "equal",
+                                "value": "open",
+                            }
+                        ],
+                    },
+                ),
+                user_manager,
             )
             out_of_bounds = read_response(out_of_bounds)
-            self.assertTrue(out_of_bounds["error"] == "")
-            self.assertTrue(len(out_of_bounds["items"]) == 0)
+            assert out_of_bounds["error"] == ""
+            assert len(out_of_bounds["items"]) == 0
 
         finally:
-            loop.run_until_complete(user_manager.close_all_clients())
-
-
-if __name__ == "__main__":
-    unittest.main()
-    # TestEndpoints().test_collections()
+            await user_manager.close_all_clients()
