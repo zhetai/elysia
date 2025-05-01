@@ -69,7 +69,30 @@ class Aggregate(Tool):
 
         return previous_aggregations
 
-    def _handle_assertion_error(
+    async def _handle_generic_error(
+        self,
+        e: Exception,
+        collection_name: str,
+        user_prompt: str,
+    ):
+        metadata = {
+            "collection_name": collection_name,
+            "error_message": str(e),
+            "impossible": user_prompt,
+        }
+
+        if self.logger:
+            self.logger.warning(
+                f"Oops! Something went wrong during the LLM aggregation. Continuing..."
+            )
+            self.logger.debug(f"The error was: {str(e)}")
+
+        yield Aggregation([], metadata)
+        yield Warning(
+            f"Oops! Something went wrong during the LLM aggregation. Continuing..."
+        )
+
+    async def _handle_aggregation_error(
         self,
         e: Exception,
         collection_name: str,
@@ -81,11 +104,19 @@ class Aggregate(Tool):
             "assertion_error_message": str(e),
             "impossible": user_prompt,
         }
-
         if aggregation_output is not None:
             metadata["aggregation_output"] = aggregation_output
 
-        return Aggregation([], metadata)
+        if self.logger:
+            self.logger.warning(
+                f"Oops! Something went wrong when executing the aggregation. Continuing..."
+            )
+            self.logger.debug(f"The error was: {str(e)}")
+
+        yield Aggregation([], metadata)
+        yield Warning(
+            f"Oops! Something went wrong when executing the aggregation. Continuing..."
+        )
 
     async def __call__(
         self,
@@ -136,8 +167,12 @@ class Aggregate(Tool):
             aggregation = await aggregate_generator(
                 user_prompt=tree_data.user_prompt,
                 reference=create_reference(),
+                style=tree_data.atlas.style,
+                agent_description=tree_data.atlas.agent_description,
+                end_goal=tree_data.atlas.end_goal,
                 conversation_history=tree_data.conversation_history,
                 environment=tree_data.environment.to_json(),
+                available_collections=collection_names,
                 collection_schemas=schemas,
                 tasks_completed=tree_data.tasks_completed_string(),
                 previous_aggregation_queries=previous_aggregations,
@@ -145,24 +180,12 @@ class Aggregate(Tool):
             )
         except Exception as e:
             for collection_name in collection_names:
-                yield self._handle_assertion_error(
+                async for yield_object in self._handle_generic_error(
                     e,
                     collection_name,
                     tree_data.user_prompt,
-                )
-
-            if self.logger:
-                self.logger.warning(
-                    f"Something went wrong when creating the query. Continuing..."
-                )
-                self.logger.debug(
-                    f"The error was during the generation of the aggregation: {str(e)}"
-                )
-
-            yield Warning(
-                f"Oops! Something went wrong when creating the query. Continuing..."
-            )
-            return
+                ):
+                    yield yield_object
 
         # Yield results to front end
         yield Response(text=aggregation.message_update)
@@ -211,23 +234,14 @@ class Aggregate(Tool):
                     )
                 except Exception as e:
                     for collection_name in collection_names:
-                        yield self._handle_assertion_error(
+                        async for yield_object in self._handle_aggregation_error(
                             e,
                             collection_name,
                             tree_data.user_prompt,
                             aggregation_output.model_dump(),
-                        )
-                    if self.logger:
-                        self.logger.warning(
-                            f"Something went wrong with the LLM creating the query! Continuing..."
-                        )
-                        self.logger.debug(
-                            f"The error was during the execution of the aggregation in Weaviate: {str(e)}"
-                        )
-                    yield Warning(
-                        f"Something went wrong with the LLM creating the query! Continuing..."
-                    )
-                    continue
+                        ):
+                            yield yield_object
+                    continue  # continue to next aggregation output
 
             yield Status(
                 f"Aggregated over {', '.join(aggregation_output.target_collections)}"

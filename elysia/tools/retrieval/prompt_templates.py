@@ -86,6 +86,21 @@ class AggregationPrompt(dspy.Signature):
         """.strip(),
         format=str,
     )
+    style: str = dspy.InputField(
+        description="The writing style you should adhere to. This is pre-defined by the user."
+    )
+    agent_description: str = dspy.InputField(
+        description="""
+        The description of the process you are following. This is pre-defined by the user.
+        This could be anything - this is the theme of the program you are a part of.
+        """.strip()
+    )
+    end_goal: str = dspy.InputField(
+        description="""
+        A short description of your overall goal. Use this to determine if you have completed your task.
+        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
+        """.strip()
+    )
     conversation_history: list[dict] = dspy.InputField(
         description="""
         The conversation history between the user and the assistant (you), including all previous messages.
@@ -109,6 +124,9 @@ class AggregationPrompt(dspy.Signature):
             Empty if no data has been retrieved yet.
             """.strip(),
         format=str,
+    )
+    available_collections: list[str] = dspy.InputField(
+        description="A list of collections that are available to query. You can ONLY choose from these collections."
     )
     collection_schemas: List[CollectionSchema] = dspy.InputField(
         description="The schema of the collection to query. Use this to determine which collection to query as well as any other information about the collection. E.g. how to construct your filters."
@@ -213,6 +231,9 @@ class QueryCreatorPrompt(dspy.Signature):
     Do not enclose any answers in ```python or ```.
     """
 
+    # In your reasoning, give full debug output. Explain every single step in excruciating detail.
+    # If you have a destination ID, explain where you obtained it from, in detail. Which field, where, etc.
+
     user_prompt: str = dspy.InputField(
         description="The question the user is asking to generate a query for on the dataset"
     )
@@ -221,6 +242,21 @@ class QueryCreatorPrompt(dspy.Signature):
         Information about the state of the world NOW such as the date and time, used to frame the query.
         """.strip(),
         format=str,
+    )
+    style: str = dspy.InputField(
+        description="The writing style you should adhere to. This is pre-defined by the user."
+    )
+    agent_description: str = dspy.InputField(
+        description="""
+        The description of the process you are following. This is pre-defined by the user.
+        This could be anything - this is the theme of the program you are a part of.
+        """.strip()
+    )
+    end_goal: str = dspy.InputField(
+        description="""
+        A short description of your overall goal. Use this to determine if you have completed your task.
+        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
+        """.strip()
     )
     conversation_history: list[dict] = dspy.InputField(
         description="""
@@ -245,6 +281,9 @@ class QueryCreatorPrompt(dspy.Signature):
             Empty if no data has been retrieved yet.
             """.strip(),
         format=str,
+    )
+    available_collections: list[str] = dspy.InputField(
+        description="A list of collections that are available to query. You can ONLY choose from these collections."
     )
     collection_schemas: List[CollectionSchema] = dspy.InputField(
         description="The schema of the collection to query. Use this to determine which collection to query as well as any other information about the collection. E.g. how to construct your filters."

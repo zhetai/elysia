@@ -83,6 +83,17 @@ class TreeManager:
             # self.trees[conversation_id]["tree"].add_tool(SetTheScene)
             # self.trees[conversation_id]["tree"].add_tool(ActionConsequence)
             # self.trees[conversation_id]["tree"].add_tool(DiceRoll)
+            self.trees[conversation_id]["tree"].change_agent_description(
+                "You are a travel agent. You are given a user prompt and you need to help the user plan their trip. "
+                "You should always start by finding the destination before doing anything else. "
+                "Once you have the destination, you can find the best hotels and attractions for the user. "
+                "When searching for hotels or attractions, you should always use the `destination_id` which matches the original destination you retrieved, "
+                "instead of the location itself."
+            )
+            self.trees[conversation_id]["tree"].change_end_goal(
+                "You have a complete set of hotels and attractions for the user's destination. "
+                "You should finish the conversation with a full summary and itenary of the trip. "
+            )
 
             self.update_tree_last_request(conversation_id)
 

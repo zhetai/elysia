@@ -52,6 +52,9 @@ class Summarizer(Tool):
         summary = await summarizer(
             user_prompt=tree_data.user_prompt,
             reference=create_reference(),
+            style=tree_data.atlas.style,
+            agent_description=tree_data.atlas.agent_description,
+            end_goal=tree_data.atlas.end_goal,
             environment=tree_data.environment.to_json(),
             conversation_history=tree_data.conversation_history,
             lm=base_lm,
@@ -89,6 +92,9 @@ class TextResponse(Tool):
         output = await text_response(
             user_prompt=tree_data.user_prompt,
             reference=create_reference(),
+            style=tree_data.atlas.style,
+            agent_description=tree_data.atlas.agent_description,
+            end_goal=tree_data.atlas.end_goal,
             environment=tree_data.environment.to_json(),
             conversation_history=tree_data.conversation_history,
             lm=base_lm,

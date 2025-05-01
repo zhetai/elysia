@@ -12,11 +12,11 @@ import unittest
 from deepeval import evaluate, metrics
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams, ToolCall
 
-from elysia.objects import Tool
 from elysia.tests.llm.deepeval_setup import CustomLlama
 from elysia.tests.llm.tester import TestTree
-from elysia.tree.tree import Tree
-from elysia.util.client import ClientManager
+from elysia import configure
+
+configure(logging_level="DEBUG")
 
 
 class TestComplexPrompts(TestTree):
@@ -25,7 +25,7 @@ class TestComplexPrompts(TestTree):
         Test that the correct tools are called for a prompt that requires both aggregation and query.
         """
         user_prompt = "What was the maximum weather in 2015? Then, what was the weather like in the surrounding week of that maximum?"
-        tree = asyncio.run(self.run_tree(user_prompt, ["weather"]))
+        tree = asyncio.run(self.run_tree(user_prompt, ["Weather"]))
         self.assertIn("aggregate", tree.decision_history)
         self.assertIn("query", tree.decision_history)
 
@@ -52,7 +52,7 @@ class TestComplexPrompts(TestTree):
         """
         user_prompt = "What is HNSW?"
         tree = asyncio.run(
-            self.run_tree(user_prompt, ["weaviate_documentation", "weaviate_blogs"])
+            self.run_tree(user_prompt, ["Weaviate_documentation", "Weaviate_blogs"])
         )
         self.assertIn("query", tree.decision_history)
         self.assertIn("query", tree.tree_data.environment.environment)
@@ -89,7 +89,7 @@ class TestComplexPrompts(TestTree):
         Test that when given a task that is not possible, the model does not attempt it (too many times).
         """
         user_prompt = "What is the weather in January 2025?"
-        tree = asyncio.run(self.run_tree(user_prompt, ["weather"]))
+        tree = asyncio.run(self.run_tree(user_prompt, ["Weather"]))
 
         metric = metrics.GEval(
             name="Judge of agent knowledge lacking awareness",
@@ -121,6 +121,6 @@ class TestComplexPrompts(TestTree):
 
 
 if __name__ == "__main__":
-    unittest.main()
-    # test = TestComplexPrompts()
-    # test.test_impossible_query()
+    # unittest.main()
+    test = TestComplexPrompts()
+    test.test_query_with_chunking()

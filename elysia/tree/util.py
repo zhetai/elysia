@@ -17,8 +17,10 @@ from elysia.objects import (
 
 # Objects
 from elysia.tree.objects import TreeData
-from elysia.tree.prompt_executors import DecisionExecutor
 from elysia.util.objects import TrainingUpdate, TreeUpdate
+from elysia.dspy_additions.environment_of_thought import EnvironmentOfThought
+from elysia.util.reference import create_reference
+from elysia.tree.prompt_templates import construct_decision_prompt
 
 
 class RecursionLimitException(Exception):
@@ -137,16 +139,21 @@ class DecisionNode:
         available_tools: list[str] = [],
         **kwargs,
     ):
-        decision_executor = DecisionExecutor(self._get_options())
-        # decision_executor = self._load_model(decision_executor)
-        decision_executor = dspy.asyncify(decision_executor)
-
         options = self._options_to_json(available_tools)
         if len(options) == 0:
             raise RuntimeError(
                 "No available tools to call! Make sure you have added some tools to the tree. "
                 "Or the .is_tool_available() method is returning True for at least one tool."
             )
+        for option in options:
+            if options[option]["inputs"] == {}:
+                options[option]["inputs"] = "No inputs are needed for this function."
+
+        decision_executor = EnvironmentOfThought(
+            construct_decision_prompt(self._get_options())
+        )
+        # decision_executor = self._load_model(decision_executor)
+        decision_executor = dspy.asyncify(decision_executor)
 
         self.logger.debug(f"Available options: {list(options.keys())}")
 
@@ -155,6 +162,7 @@ class DecisionNode:
             conversation_history=tree_data.conversation_history,
             tasks_completed=tree_data.tasks_completed_string(),
             instruction=self.instruction,
+            reference=create_reference(),
             style=tree_data.atlas.style,
             agent_description=tree_data.atlas.agent_description,
             end_goal=tree_data.atlas.end_goal,

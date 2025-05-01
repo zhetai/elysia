@@ -120,9 +120,15 @@ class CollectionPreprocessor:
 
             if full_response is not None:
                 # For text, we want to evaluate the length of the text in tokens (use spacy)
-                lengths = [
-                    len(nlp(obj.properties[property])) for obj in full_response.objects
-                ]
+                lengths = []
+                for obj in full_response.objects:
+                    if property in obj.properties and isinstance(
+                        obj.properties[property], str
+                    ):
+                        lengths.append(len(nlp(obj.properties[property])))
+                # lengths = [
+                #     len(nlp(obj.properties[property])) for obj in full_response.objects
+                # ]
 
                 out["range"] = [min(lengths), max(lengths)]
                 out["mean"] = sum(lengths) / len(lengths)
@@ -228,14 +234,14 @@ class CollectionPreprocessor:
                 progress = 0.0
                 error = ""
                 # Get the collection and its properties
-                try:
-                    collection = client.collections.get(collection_name)
-                    properties = await async_get_collection_data_types(
-                        client, collection_name
-                    )
-                except Exception as e:
-                    yield await self.process_update(progress=0, error=str(e))
-                    return
+                # try:
+                collection = client.collections.get(collection_name)
+                properties = await async_get_collection_data_types(
+                    client, collection_name
+                )
+                # except Exception as e:
+                #     yield await self.process_update(progress=0, error=str(e))
+                #     return
 
                 # get number of items in collection
                 agg = await collection.aggregate.over_all(total_count=True)
@@ -262,22 +268,22 @@ class CollectionPreprocessor:
                     subset_objects.append(obj.objects[0].properties)
 
                 # Estimate number of tokens
-                self.logger.info(
+                self.logger.debug(
                     f"Estimated token count of sample: {token_count_0*len(subset_objects)}"
                 )
-                self.logger.info(f"Number of objects in sample: {len(subset_objects)}")
+                self.logger.debug(f"Number of objects in sample: {len(subset_objects)}")
 
                 # Summarise the collection using LLM
-                try:
-                    summary = await self._summarise_collection(
-                        properties,
-                        subset_objects,
-                        len_collection,
-                    )
-                except Exception as e:
-                    error = str(e)
-                    yield await self.process_update(progress=0, error=error)
-                    return
+                # try:
+                summary = await self._summarise_collection(
+                    properties,
+                    subset_objects,
+                    len_collection,
+                )
+                # except Exception as e:
+                #     error = str(e)
+                #     yield await self.process_update(progress=0, error=error)
+                #     return
 
                 yield await self.process_update(progress=1 / float(total))
 
@@ -298,17 +304,17 @@ class CollectionPreprocessor:
                     "mappings": {},
                 }
 
-                try:
-                    # Evaluate the summary statistics of each field
-                    for property in properties:
-                        out["fields"][property] = await self._evaluate_field_statistics(
-                            collection, properties, property, full_response
-                        )
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=1 / float(total), error=str(e)
+                # try:
+                # Evaluate the summary statistics of each field
+                for property in properties:
+                    out["fields"][property] = await self._evaluate_field_statistics(
+                        collection, properties, property, full_response
                     )
-                    return
+                # except Exception as e:
+                #     yield await self.process_update(
+                #         progress=1 / float(total), error=str(e)
+                #     )
+                #     return
 
                 # Evaluate the return types
                 return_types = await self._evaluate_return_types(
@@ -415,7 +421,7 @@ class CollectionPreprocessor:
                 yield await self.process_update(progress=1)
             else:
                 self.logger.info(
-                    f"Preprocessed collection for    {collection_name} already exists!"
+                    f"Preprocessed collection for {collection_name} already exists!"
                 )
 
 
@@ -436,7 +442,7 @@ async def preprocess_async(
     try:
         preprocessor = CollectionPreprocessor(settings=settings)
 
-        if settings.LOGGING_LEVEL_INT <= 20:
+        if settings.LOGGING_LEVEL_INT > 20:
             for collection_name in collection_names:
                 async for result in preprocessor(
                     collection_name=collection_name,

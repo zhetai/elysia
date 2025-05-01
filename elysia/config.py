@@ -9,7 +9,7 @@ import uuid
 from dotenv import load_dotenv
 from dspy import LM
 
-load_dotenv()
+load_dotenv(override=True)
 
 try:
     nlp = spacy.load("en_core_web_sm")
@@ -269,11 +269,18 @@ class Settings:
             self.WCD_API_KEY = kwargs["wcd_api_key"]
             kwargs.pop("wcd_api_key")
 
-        if "logging_level" in kwargs:
-            self.LOGGING_LEVEL = kwargs["logging_level"]
+        if "logging_level" in kwargs or "logger_level" in kwargs:
+            self.LOGGING_LEVEL = (
+                kwargs["logging_level"]
+                if "logging_level" in kwargs
+                else kwargs["logger_level"]
+            )
             self.LOGGING_LEVEL_INT = logging.getLevelNamesMapping()[self.LOGGING_LEVEL]
             self.logger.setLevel(self.LOGGING_LEVEL)
-            kwargs.pop("logging_level")
+            if "logging_level" in kwargs:
+                kwargs.pop("logging_level")
+            if "logger_level" in kwargs:
+                kwargs.pop("logger_level")
 
         # remainder of kwargs are API keys or saved there
         removed_kwargs = []

@@ -16,7 +16,21 @@ class SummarizingPrompt(dspy.Signature):
         description="Information about the state of the world NOW such as the date and time, used to frame the summarization.",
         format=str,
     )
-
+    style: str = dspy.InputField(
+        description="The writing style you should adhere to. This is pre-defined by the user."
+    )
+    agent_description: str = dspy.InputField(
+        description="""
+        The description of the process you are following. This is pre-defined by the user.
+        This could be anything - this is the theme of the program you are a part of.
+        """.strip()
+    )
+    end_goal: str = dspy.InputField(
+        description="""
+        A short description of your overall goal. Use this to determine if you have completed your task.
+        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
+        """.strip()
+    )
     conversation_history = dspy.InputField(
         description="""
         The conversation history between the user and the assistant (you), including all previous messages.
@@ -72,6 +86,21 @@ class TextResponsePrompt(dspy.Signature):
     reference = dspy.InputField(
         description="Information about the state of the world NOW such as the date and time, used to frame the response.",
         format=str,
+    )
+    style: str = dspy.InputField(
+        description="The writing style you should adhere to. This is pre-defined by the user."
+    )
+    agent_description: str = dspy.InputField(
+        description="""
+        The description of the process you are following. This is pre-defined by the user.
+        This could be anything - this is the theme of the program you are a part of.
+        """.strip()
+    )
+    end_goal: str = dspy.InputField(
+        description="""
+        A short description of your overall goal. Use this to determine if you have completed your task.
+        However, you can still choose to end actions early if you believe the task is not possible to be completed with what you have available.
+        """.strip()
     )
     conversation_history = dspy.InputField(
         description="""

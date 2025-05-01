@@ -27,16 +27,16 @@ class TestGenericPrompts(TestTree):
             )
         )
 
+        collection_names_to_test = [c.lower() for c in tree.tree_data.collection_names]
+
         # passing empty collection list should mean all collections are searched
-        self.assertIn("example_verba_github_issues", tree.tree_data.collection_names)
-        self.assertIn("example_verba_email_chains", tree.tree_data.collection_names)
-        self.assertIn(
-            "example_verba_slack_conversations", tree.tree_data.collection_names
-        )
-        self.assertIn("weather", tree.tree_data.collection_names)
-        self.assertIn("ml_wikipedia", tree.tree_data.collection_names)
-        self.assertIn("weaviate_blogs", tree.tree_data.collection_names)
-        self.assertIn("weaviate_documentation", tree.tree_data.collection_names)
+        self.assertIn("example_verba_github_issues", collection_names_to_test)
+        self.assertIn("example_verba_email_chains", collection_names_to_test)
+        self.assertIn("example_verba_slack_conversations", collection_names_to_test)
+        self.assertIn("weather", collection_names_to_test)
+        self.assertIn("ml_wikipedia", collection_names_to_test)
+        self.assertIn("weaviate_blogs", collection_names_to_test)
+        self.assertIn("weaviate_documentation", collection_names_to_test)
 
         self.assertIn("query", tree.decision_history)
 
@@ -107,14 +107,14 @@ class TestGenericPrompts(TestTree):
             self.run_tree(
                 user_prompt,
                 [
-                    "ecommerce",
-                    "example_verba_email_chains",
-                    "example_verba_github_issues",
-                    "example_verba_slack_conversations",
-                    "weather",
+                    "Ecommerce",
+                    "Example_verba_email_chains",
+                    "Example_verba_github_issues",
+                    "Example_verba_slack_conversations",
+                    "Weather",
                     "ML_Wikipedia",
-                    "weaviate_blogs",
-                    "weaviate_documentation",
+                    "Weaviate_blogs",
+                    "Weaviate_documentation",
                 ],
             )
         )
@@ -149,14 +149,14 @@ class TestGenericPrompts(TestTree):
             self.run_tree(
                 user_prompt,
                 [
-                    "example_verba_github_issues",
+                    "Example_verba_github_issues",
                 ],
             )
         )
 
         self.assertIn("query", tree.decision_history)
         self.assertIn(
-            "example_verba_github_issues",
+            "Example_verba_github_issues",
             tree.tree_data.environment.environment["query"],
         )
         self.assertTrue(
@@ -183,7 +183,7 @@ class TestGenericPrompts(TestTree):
         environment = [
             json.dumps(obj)
             for obj in tree.tree_data.environment.environment["query"][
-                "example_verba_github_issues"
+                "Example_verba_github_issues"
             ][0]["objects"]
         ]
 
@@ -213,19 +213,19 @@ class TestGenericPrompts(TestTree):
             self.run_tree(
                 user_prompt,
                 [
-                    "example_verba_slack_conversations",
-                    "example_verba_email_chains",
-                    "example_verba_github_issues",
+                    "Example_verba_slack_conversations",
+                    "Example_verba_email_chains",
+                    "Example_verba_github_issues",
                 ],
             )
         )
         self.assertIn("query", tree.decision_history)
         self.assertIn(
-            "example_verba_slack_conversations",
+            "Example_verba_slack_conversations",
             tree.tree_data.environment.environment["query"],
         )
         for item in tree.tree_data.environment.environment["query"][
-            "example_verba_slack_conversations"
+            "Example_verba_slack_conversations"
         ][0]["objects"]:
             self.assertTrue(
                 "ELYSIA_SUMMARY" in item.keys() and len(item["ELYSIA_SUMMARY"]) > 0
@@ -233,7 +233,7 @@ class TestGenericPrompts(TestTree):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # unittest.main()
 
-    # test = TestGenericPrompts()
-    # test.test_itemised_summaries()
+    test = TestGenericPrompts()
+    test.test_itemised_summaries()

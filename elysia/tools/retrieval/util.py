@@ -352,24 +352,24 @@ async def execute_weaviate_aggregation(
         ]
 
     if predicted_query.number_property_aggregations:
-        tool_args[
-            "number_property_aggregations"
-        ] = predicted_query.number_property_aggregations
+        tool_args["number_property_aggregations"] = (
+            predicted_query.number_property_aggregations
+        )
 
     if predicted_query.text_property_aggregations:
-        tool_args[
-            "text_property_aggregations"
-        ] = predicted_query.text_property_aggregations
+        tool_args["text_property_aggregations"] = (
+            predicted_query.text_property_aggregations
+        )
 
     if predicted_query.boolean_property_aggregations:
-        tool_args[
-            "boolean_property_aggregations"
-        ] = predicted_query.boolean_property_aggregations
+        tool_args["boolean_property_aggregations"] = (
+            predicted_query.boolean_property_aggregations
+        )
 
     if predicted_query.date_property_aggregations:
-        tool_args[
-            "date_property_aggregations"
-        ] = predicted_query.date_property_aggregations
+        tool_args["date_property_aggregations"] = (
+            predicted_query.date_property_aggregations
+        )
 
     if predicted_query.limit:
         tool_args["limit"] = predicted_query.limit

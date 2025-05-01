@@ -52,6 +52,7 @@ class Query(Tool):
         )
 
         self.logger = logger
+        # print("LOGGER LEVEL: ", self.logger.level)
         self.retrieval_map = {
             "conversation": ConversationRetrieval,
             "message": MessageRetrieval,
@@ -120,12 +121,11 @@ class Query(Tool):
             == "document"  # for the moment, the only type we chunk is document
         )
 
-    def _handle_generic_error(
+    async def _handle_generic_error(
         self,
         e: Exception,
         collection_name: str,
         user_prompt: str,
-        query_output: dict | List[dict] | None = None,
     ):
         metadata = {
             "collection_name": collection_name,
@@ -133,12 +133,16 @@ class Query(Tool):
             "impossible": user_prompt,
         }
 
-        if query_output is not None:
-            metadata["query_output"] = query_output
+        if self.logger:
+            self.logger.warning(
+                f"Oops! Something went wrong during the LLM query. Continuing..."
+            )
+            self.logger.debug(f"The error was: {str(e)}")
 
-        return BoringGenericRetrieval([], metadata)
+        yield BoringGenericRetrieval([], metadata)
+        yield Warning(f"Oops! Something went wrong during the LLM query. Continuing...")
 
-    def _handle_assertion_error(
+    async def _handle_query_error(
         self,
         e: Exception,
         collection_name: str,
@@ -153,7 +157,16 @@ class Query(Tool):
         if query_output is not None:
             metadata["query_output"] = query_output
 
-        return BoringGenericRetrieval([], metadata)
+        if self.logger:
+            self.logger.warning(
+                f"Oops! Something went wrong when executing the query. Continuing..."
+            )
+            self.logger.debug(f"The error was: {str(e)}")
+
+        yield BoringGenericRetrieval([], metadata)
+        yield Warning(
+            f"Oops! Something went wrong when executing the query. Continuing..."
+        )
 
     async def __call__(
         self,
@@ -221,7 +234,7 @@ class Query(Tool):
         schemas = {
             collection_name: schemas[collection_name]
             for collection_name in collection_names
-        }
+        }  # subset to just our collection names
 
         schemas_without_mappings = tree_data.output_collection_metadata(
             with_mappings=False
@@ -229,45 +242,66 @@ class Query(Tool):
         schemas_without_mappings = {
             collection_name: schemas_without_mappings[collection_name]
             for collection_name in collection_names
-        }
+        }  # subset to just our collection names
 
         # get display types
         display_types = tree_data.output_collection_return_types()
         display_types = {
             collection_name: display_types[collection_name]
             for collection_name in collection_names
-        }
+        }  # subset to just our collection names
 
         # Generate query with LLM
         try:
             query = await query_generator(
                 user_prompt=tree_data.user_prompt,
                 reference=create_reference(),
+                style=tree_data.atlas.style,
+                agent_description=tree_data.atlas.agent_description,
+                end_goal=tree_data.atlas.end_goal,
                 conversation_history=tree_data.conversation_history,
                 environment=tree_data.environment.to_json(),
+                available_collections=collection_names,
                 collection_schemas=schemas_without_mappings,
                 tasks_completed=tree_data.tasks_completed_string(),
                 previous_queries=previous_queries,
                 collection_display_types=display_types,
                 lm=complex_lm,
             )
+
+            # extract and error handle the query output
+            for current_query_output in query.query_output:
+                for collection_name in current_query_output.target_collections:
+                    if collection_name not in collection_names:
+                        async for yield_object in self._handle_generic_error(
+                            ValueError(
+                                f"Collection {collection_name} not found in target_collections field. Make sure you are using the correct collection names."
+                            ),
+                            collection_name,
+                            tree_data.user_prompt,
+                        ):
+                            yield yield_object
+                        return
+
+            for collection_name in query.data_display:
+                if collection_name not in collection_names:
+                    async for yield_object in self._handle_generic_error(
+                        ValueError(
+                            f"Collection {collection_name} not found in target_collections field. Make sure you are using the correct collection names."
+                        ),
+                        collection_name,
+                        tree_data.user_prompt,
+                    ):
+                        yield yield_object
+                    return
+
         except Exception as e:
             for collection_name in collection_names:
-                yield self._handle_generic_error(
+                async for yield_object in self._handle_generic_error(
                     e, collection_name, tree_data.user_prompt
-                )
-
-            if self.logger:
-                self.logger.warning(
-                    f"Oops! Something went wrong when creating the query. Continuing..."
-                )
-                self.logger.debug(
-                    f"The error was during the generation of the query: {str(e)}"
-                )
-            yield Warning(
-                f"Oops! Something went wrong when creating the query. Continuing..."
-            )
-            return  # exit here because this will break the whole file
+                ):
+                    yield yield_object
+                return
 
         # Yield results to front end
         yield Response(text=query.message_update)
@@ -357,8 +391,8 @@ class Query(Tool):
                             to_node="chunker",
                             reasoning="Chunking collections because they are too large to vectorise effectively.",
                             last_in_branch=not any(
-                                query.data_display[x].summarise_items
-                                for x in query.data_display
+                                query.data_display[collection_name_0].summarise_items
+                                for collection_name_0 in query.data_display
                             ),
                         )
                         chunking_status_sent = True
@@ -401,7 +435,7 @@ class Query(Tool):
                     for j, c in enumerate(query_output.target_collections):
                         if c == collection_name:
                             query_output.target_collections[j] = (
-                                f"ELYSIA_CHUNKED_{collection_name}__"
+                                f"ELYSIA_CHUNKED_{collection_name.lower()}__"
                             )
 
                     if self.logger:
@@ -417,25 +451,14 @@ class Query(Tool):
                     )
                 except Exception as e:
                     for collection_name in collection_names:
-                        yield self._handle_assertion_error(
+                        async for yield_object in self._handle_query_error(
                             e,
                             collection_name,
                             tree_data.user_prompt,
                             query_output.model_dump(),
-                        )
-
-                    if self.logger:
-                        self.logger.warning(
-                            f"Something went wrong with the LLM creating the query! Continuing..."
-                        )
-                        self.logger.debug(
-                            f"The assertion error was during the execution of the query: {str(e)}"
-                        )
-                    yield Warning(
-                        f"Something went wrong with the LLM creating the query! Continuing..."
-                    )
-                    # dont exit because can try again for next collection etc
-                    continue
+                        ):
+                            yield yield_object
+                    continue  # don't exit, try again for next query_output (might not error)
 
                 yield Status(
                     f"Retrieved {sum(len(x.objects) for x in responses)} objects from {len(collection_names)} collections..."

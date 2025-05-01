@@ -1,11 +1,10 @@
 from typing import Any, List
 from logging import Logger
 from datetime import datetime
+from pydantic import BaseModel
 
 from elysia.objects import Result
 from elysia.util.client import ClientManager
-
-# Util
 from elysia.util.parsing import format_dict_to_serialisable, remove_whitespace
 
 
