@@ -39,6 +39,8 @@ class Query(Tool):
             This views the data specifically, and returns the data that matches the query.
             You will be given information about the collection, such as the fields and types of the data.
             Then, query with semantic search, keyword search, or a combination of both.
+            Queries can be filtered, sorted, and more.
+            All collections may be filtered by creation time, regardless of the schema.
             """,
             status="Querying...",
             inputs={

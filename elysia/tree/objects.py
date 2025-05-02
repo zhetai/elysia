@@ -154,9 +154,9 @@ class Environment:
 def datetime_reference():
     date: datetime = datetime.now()
     return {
-        "datetime": date.isoformat(),
-        "day_of_week": date.strftime("%A"),
-        "time_of_day": date.strftime("%I:%M %p"),
+        "current_datetime": date.isoformat(),
+        "current_day_of_week": date.strftime("%A"),
+        "current_time_of_day": date.strftime("%I:%M %p"),
     }
 
 

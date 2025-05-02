@@ -11,24 +11,37 @@ from weaviate.classes.query import Filter, Metrics, QueryReference, Sort
 # == Filters
 class NumberPropertyFilter(BaseModel):
     property_name: str
-    operator: Literal["=", "<", ">", "<=", ">="]
-    value: int | float
+    operator: Literal["=", "<", ">", "<=", ">=", "IS_NULL"]
+    value: int | float | bool
+    length: Optional[bool] = False
 
 
 class TextPropertyFilter(BaseModel):
     property_name: str
-    operator: Literal["=", "LIKE"]
-    value: str
+    operator: Literal["=", "LIKE", "IS_NULL"]
+    value: str | bool
 
 
 class BooleanPropertyFilter(BaseModel):
     property_name: str
-    operator: Literal["=", "!="]
+    operator: Literal["=", "!=", "IS_NULL"]
     value: bool
 
 
 class DatePropertyFilter(BaseModel):
     property_name: str
+    operator: Literal["=", "<", ">", "<=", ">=", "IS_NULL"]
+    value: str | bool
+
+
+class ListPropertyFilter(BaseModel):
+    property_name: str
+    operator: Literal["=", "!=", "CONTAINS_ANY", "CONTAINS_ALL", "IS_NULL"]
+    value: List[str] | bool
+    length: Optional[bool] = False
+
+
+class CreationTimeFilter(BaseModel):
     operator: Literal["=", "<", ">", "<=", ">="]
     value: str
 
@@ -66,6 +79,8 @@ class FilterBucket(BaseModel):
             TextPropertyFilter,
             BooleanPropertyFilter,
             DatePropertyFilter,
+            ListPropertyFilter,
+            CreationTimeFilter,
         ]
     ]
     operator: Literal["AND", "OR"]
@@ -252,24 +267,41 @@ def _build_single_filter(
         | TextPropertyFilter
         | BooleanPropertyFilter
         | DatePropertyFilter
+        | ListPropertyFilter
+        | CreationTimeFilter
     ),
     reference_property: str | None = None,
 ):
     """Build a Weaviate Filter from a typed Filter object."""
 
-    prop_name = filter.property_name
-    filter_operator = filter.operator
-    filter_value = filter.value
+    if isinstance(filter, CreationTimeFilter):
+        filter_operator = filter.operator
+        filter_value = filter.value
+    else:
+        prop_name = filter.property_name
+        filter_operator = filter.operator
+        filter_value = filter.value
+        try:
+            filter_length = filter.length
+        except AttributeError:
+            filter_length = False
 
-    if isinstance(filter, NumberPropertyFilter):
+    if isinstance(filter, NumberPropertyFilter) and filter_operator != "IS_NULL":
         filter_value = float(filter_value)
     elif isinstance(filter, DatePropertyFilter):
         filter_value = parser.parse(filter_value).replace(tzinfo=timezone.utc)
+    elif isinstance(filter, CreationTimeFilter):
+        filter_value = parser.parse(filter_value).replace(tzinfo=timezone.utc)
 
     if reference_property:
-        filter_obj = Filter.by_ref(link_on=reference_property).by_property(prop_name)
+        filter_obj = Filter.by_ref(link_on=reference_property)
     else:
-        filter_obj = Filter.by_property(prop_name)
+        filter_obj = Filter
+
+    if isinstance(filter, CreationTimeFilter):
+        filter_obj = filter_obj.by_creation_time()
+    else:
+        filter_obj = filter_obj.by_property(prop_name, length=filter_length)
 
     if filter_operator == "=":
         return filter_obj.equal(filter_value)
@@ -285,6 +317,12 @@ def _build_single_filter(
         return filter_obj.less_or_equal(filter_value)
     elif filter_operator == "LIKE":
         return filter_obj.like(filter_value)
+    elif filter_operator == "CONTAINS_ANY":
+        return filter_obj.contains_any(filter_value)
+    elif filter_operator == "CONTAINS_ALL":
+        return filter_obj.contains_all(filter_value)
+    elif filter_operator == "IS_NULL":
+        return filter_obj.is_none(filter_value)
     else:
         raise ValueError(f"Invalid filter operator: {filter_operator}")
 
@@ -306,6 +344,8 @@ def _build_filter_bucket(
             or isinstance(filter, TextPropertyFilter)
             or isinstance(filter, BooleanPropertyFilter)
             or isinstance(filter, DatePropertyFilter)
+            or isinstance(filter, ListPropertyFilter)
+            or isinstance(filter, CreationTimeFilter)
         ):
             filters.append(_build_single_filter(filter, reference_collection))
 
@@ -596,11 +636,22 @@ def _build_single_filter_string(
         | TextPropertyFilter
         | BooleanPropertyFilter
         | DatePropertyFilter
+        | ListPropertyFilter
+        | CreationTimeFilter
     ),
 ) -> str:
-    prop_name = filter.property_name
-    filter_operator = filter.operator
-    filter_value = filter.value
+
+    if isinstance(filter, CreationTimeFilter):
+        filter_operator = filter.operator
+        filter_value = filter.value
+    else:
+        prop_name = filter.property_name
+        filter_operator = filter.operator
+        filter_value = filter.value
+        try:
+            filter_length = filter.length
+        except AttributeError:
+            filter_length = False
 
     # Format value based on type
     if isinstance(filter_value, str):
@@ -617,13 +668,24 @@ def _build_single_filter_string(
         ">=": "greater_or_equal",
         "<=": "less_or_equal",
         "LIKE": "like",
+        "CONTAINS_ANY": "contains_any",
+        "CONTAINS_ALL": "contains_all",
+        "IS_NULL": "is_none",
     }
 
     method_name = operator_map.get(filter_operator)
     if method_name is None:
         raise ValueError(f"Invalid filter operator: {filter_operator}")
 
-    return f"Filter.by_property('{prop_name}').{method_name}({formatted_value})"
+    if isinstance(filter, CreationTimeFilter):
+        start_string = "Filter.by_creation_time()"
+    else:
+        start_string = f"Filter.by_property('{prop_name}'"
+        if filter_length:
+            start_string += ", length=True"
+        start_string += ")"
+
+    return f"{start_string}.{method_name}({formatted_value})"
 
 
 def _build_filter_bucket_string(filter_bucket: FilterBucket) -> str:
@@ -638,6 +700,8 @@ def _build_filter_bucket_string(filter_bucket: FilterBucket) -> str:
             or isinstance(filter, TextPropertyFilter)
             or isinstance(filter, BooleanPropertyFilter)
             or isinstance(filter, DatePropertyFilter)
+            or isinstance(filter, ListPropertyFilter)
+            or isinstance(filter, CreationTimeFilter)
         ):
             filter_strings.append(_build_single_filter_string(filter))
 

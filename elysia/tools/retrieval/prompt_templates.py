@@ -129,14 +129,33 @@ class QueryCreatorPrompt(dspy.Signature):
        - Example: For "January OR March", create a structure like: OR(AND(Jan-start, Jan-end), AND(Mar-start, Mar-end))
 
     5. Property filter types:
-       - IntPropertyFilter: For numeric comparisons (=, <, >, <=, >=)
-       - TextPropertyFilter: For text equality (=) or pattern matching (LIKE)
-       - BooleanPropertyFilter: For boolean comparisons (=, !=)
-       - DatePropertyFilter: For date comparisons (=, <, >, <=, >=)
+       - NumberPropertyFilter: For numeric comparisons (=, <, >, <=, >=, IS_NULL)
+       - TextPropertyFilter: For text equality (=) or pattern matching (LIKE), or IS_NULL
+       - BooleanPropertyFilter: For boolean comparisons (=, !=, IS_NULL)
+       - DatePropertyFilter: For date comparisons (=, <, >, <=, >=, IS_NULL)
+       - ListPropertyFilter: For list comparisons (=, !=, CONTAINS_ANY, CONTAINS_ALL, IS_NULL) (only if the property type is a list, e.g. "text[]", or "number[]")
        Make sure to use the correct filter type for the property type. The property type is given in the schema (field.[field_name].type).
        If you use the incorrect filter type, the query will error. It is extremely important that you use the correct filter type!
+       You can also use the `length` parameter on NumberPropertyFilter/ListPropertyFilter ONLY (even if the property is not a number) to filter by the length of a list,
+            ONLY if `isLengthIndexed` is set to True in the schema.
+            (found in `index_properties.isLengthIndexed` in the schema)
+       When `length` is set to True, you are not searching the properties, you are filtering based on the _length_ of the properties
+            (if the property is a list, then this is the list length, if the property is a string, then this is the character length)
+       Do NOT use the length filter if the property is not indexed for length. It will raise an error!
+       You can also use the IS_NULL filter to filter for properties that are None or null (not an empty list or string etc.), ONLY if `isNullIndexed` is set to True in the schema.
+            (found in `index_properties.isNullIndexed` in the schema)
+       Do NOT use the IS_NULL filter if the property is not indexed for null. It will raise an error!
 
-    6. Additional query parameters:
+
+    6. CreationTimeFilter: For date comparisons for object creation time metadata (=, <, >, <=, >=)
+       - This is a special filter that is used to filter by the creation time of an object.
+       - You cannot filter individual properties, only the creation time of objects.
+       - The value to filter on should be datetime formatted as a string, e.g. "2021-01-01T00:00:00Z"
+       - IMPORTANT: This is only achievable if the collection schema has property `isTimestampIndexed` set to True.
+            (found in `index_properties.isTimestampIndexed` in the schema)
+            Do NOT use this filter if the property is not set to True. It will raise an error!
+
+    7. Additional query parameters:
        - sort_by: Property and direction for sorting results
        - limit: Maximum number of results to return (default: 5)
        - groupby_property: Group results by a specific property value
@@ -173,9 +192,23 @@ class QueryCreatorPrompt(dspy.Signature):
     IMPORTANT NOTE: any query you perform will be on the FULL collection, not a filtered subset from any previous steps.
     So ensure that you use consistent filters and other arguments across all queries.
     Do not enclose any answers in ```python or ```.
+    All classes are defined already, you do not need to write any code. Just provide the correct arguments according to the schema.
     """
 
-    # In your reasoning, give full debug output. Explain every single step in excruciating detail.
+    advanced_reasoning: str = dspy.OutputField(
+        desc="""
+        In draft form (no more than 5 words per sentence), provide some extra reasoning and thinking.
+        You should discuss:
+            - Whether the collection isNullIndexed, isLengthIndexed, or isTimestampIndexed
+                If so, do you need to use `length`, `IS_NULL`, or number_property filters?
+            - How the filter buckets are nested, and why you chose this structure.
+                This logic is important, what should be an OR and what should be an AND?
+            - What type of search to perform, and why you chose this search type.
+            - How you are defining the query_output, and that you are providing only the schema, no extra code.
+              This includes defining any variables, you cannot do this. EVERYTHING MUST BE IN THE QUERY_OUTPUT (WITHOUT EXTRA DEFINITIONS).
+              NO CODE!
+        """.strip()
+    )
     # If you have a destination ID, explain where you obtained it from, in detail. Which field, where, etc.
     available_collections: list[str] = dspy.InputField(
         description="A list of collections that are available to query. You can ONLY choose from these collections."

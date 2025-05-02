@@ -212,6 +212,16 @@ class CollectionPreprocessor:
 
         return mapping, error_message
 
+    async def _evaluate_index_properties(self, collection):
+        schema_info = await collection.config.get()
+
+        index_properties = {
+            "isNullIndexed": schema_info.inverted_index_config.index_null_state,
+            "isLengthIndexed": schema_info.inverted_index_config.index_property_length,
+            "isTimestampIndexed": schema_info.inverted_index_config.index_timestamps,
+        }
+        return index_properties
+
     async def __call__(
         self,
         collection_name: str,
@@ -300,6 +310,9 @@ class CollectionPreprocessor:
                     "name": collection_name,
                     "length": len_collection,
                     "summary": summary,
+                    "index_properties": await self._evaluate_index_properties(
+                        collection
+                    ),
                     "fields": {},
                     "mappings": {},
                 }
@@ -488,8 +501,8 @@ async def preprocess_async(
 def preprocess(
     collection_names: list[str],
     client_manager: ClientManager | None = None,
-    min_sample_size: int = 10,
-    max_sample_size: int = 20,
+    min_sample_size: int = 5,
+    max_sample_size: int = 100,
     num_sample_tokens: int = 30000,
     settings: Settings = environment_settings,
     force: bool = False,
