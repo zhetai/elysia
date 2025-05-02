@@ -22,11 +22,11 @@ from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 
 # LLM
-from elysia.api.services.prompt_executors import (
-    FollowUpSuggestionsExecutor,
-    InstantReplyExecutor,
-    ObjectRelevanceExecutor,
-    TitleCreatorExecutor,
+from elysia.api.services.prompt_templates import (
+    FollowUpSuggestionsPrompt,
+    InstantReplyPrompt,
+    ObjectRelevancePrompt,
+    TitleCreatorPrompt,
 )
 
 # Services
@@ -99,8 +99,8 @@ async def title(data: TitleData, user_manager: UserManager = Depends(get_user_ma
 
     try:
         config = user_manager.get_user_config(data.user_id)
-        title_creator = dspy.asyncify(TitleCreatorExecutor())
-        title = await title_creator(
+        title_creator = dspy.Predict(TitleCreatorPrompt)
+        title = await title_creator.aforward(
             text=data.text,
             lm=load_base_lm(config),
         )
@@ -195,14 +195,10 @@ async def follow_up_suggestions(
         tree = await user_manager.get_tree(data.user_id, data.conversation_id)
 
         # load dspy model for suggestor
-        follow_up_suggestor = FollowUpSuggestionsExecutor()
-        # follow_up_suggestor.load(
-        #     "elysia/training/dspy_models/followup_suggestions/fewshot/gemini-2.0-flash-001_gemini-2.0-flash-001.json"
-        # )
-        follow_up_suggestor = dspy.asyncify(follow_up_suggestor)
+        follow_up_suggestor = dspy.Predict(FollowUpSuggestionsPrompt)
 
         # get prediction
-        prediction = await follow_up_suggestor(
+        prediction = await follow_up_suggestor.aforward(
             user_prompt=tree.tree_data.user_prompt,
             reference=create_reference(),
             conversation_history=tree.tree_data.conversation_history,
@@ -214,6 +210,7 @@ async def follow_up_suggestions(
             lm=load_base_lm(config),
         )
 
+        tree.suggestions.extend(prediction.suggestions)
         return JSONResponse(
             content={"suggestions": prediction.suggestions, "error": ""},
             status_code=200,
@@ -224,8 +221,6 @@ async def follow_up_suggestions(
         return JSONResponse(
             content={"suggestions": [], "error": str(e)}, status_code=200
         )
-
-    tree.suggestions.extend(suggestions)
 
 
 @router.post("/debug")
