@@ -227,7 +227,16 @@ class CollectionPreprocessor:
         if not schema_info.vector_config:
             return []
         else:
-            return list(schema_info.vector_config.keys())
+            return {
+                vector: {
+                    "source_properties": schema_info.vector_config[
+                        vector
+                    ].vectorizer.source_properties,
+                    "enabled": True,
+                    "description": "",
+                }
+                for vector in schema_info.vector_config
+            }
 
     async def __call__(
         self,

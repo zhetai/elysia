@@ -275,7 +275,11 @@ class Query(Tool):
 
         # get searchable fields
         searchable_fields = {
-            collection_name: schemas[collection_name]["named_vectors"]
+            collection_name: [
+                named_vector
+                for named_vector in schemas[collection_name]["named_vectors"]
+                if schemas[collection_name]["named_vectors"][named_vector]["enabled"]
+            ]
             for collection_name in collection_names
         }
 

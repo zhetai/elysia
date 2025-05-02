@@ -56,7 +56,7 @@ class TestQuery:
                 for result in websocket.results:
                     assert isinstance(result, dict)
                     assert "type" in result
-                    assert "id" in result, result
+                    assert "id" in result
                     assert "conversation_id" in result
                     assert "query_id" in result
                     assert "payload" in result

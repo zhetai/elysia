@@ -246,6 +246,7 @@ class QueryCreatorPrompt(dspy.Signature):
         These come from the `searchable_fields` list. If this list is empty, the value should be None.
         Otherwise, you should choose the field(s) that would be most relevant to the user's query.
         This should never be None unless the `searchable_fields` list is empty.
+        If in doubt, choose all of the available fields.
         """.strip()
     )
     data_display: dict[str, DataDisplay] = dspy.OutputField(
