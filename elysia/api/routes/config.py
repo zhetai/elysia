@@ -29,6 +29,15 @@ router = APIRouter()
 async def default_config(
     data: DefaultConfigData, user_manager: UserManager = Depends(get_user_manager)
 ):
+    """
+    Set the config to the default values (gemini 2.0 flash or environment variables).
+    Any changes to the config will propagate to all trees associated with the user, as well as update the ClientManager to use the new API keys.
+
+    Args:
+        data (DefaultConfigData): A class with the following attributes:
+            user_id (str): The user ID.
+        user_manager (UserManager): The user manager instance.
+    """
     logger.debug(f"/default_config API request received")
     logger.debug(f"User ID: {data.user_id}")
 
@@ -39,7 +48,8 @@ async def default_config(
         await client_manager.set_keys_from_settings(user["config"])
 
     except Exception as e:
-        return JSONResponse(content={"error": str(e)})
+        logger.exception(f"Error in /default_config API")
+        return JSONResponse(content={"error": str(e), "config": {}})
 
     return JSONResponse(content={"error": "", "config": user["config"].to_json()})
 
@@ -48,6 +58,23 @@ async def default_config(
 async def change_config(
     data: ChangeConfigData, user_manager: UserManager = Depends(get_user_manager)
 ):
+    """
+    Change the config for a user.
+    The `config` dictionary can contain any of the settings, and will override the current config for the user.
+    You do not need to specify all the settings, only the ones you wish to change.
+    Any changes to the config will propagate to all trees associated with the user, as well as update the ClientManager to use the new API keys.
+
+    Args:
+        data (ChangeConfigData): A class with the following attributes:
+            user_id (str): The user ID.
+            config (dict): A dictionary of config values to set, follows the same format as the Settings.configure() method.
+        user_manager (UserManager): The user manager instance.
+
+    Returns:
+        JSONResponse: A JSON response with the following attributes:
+            error (str): An error message. Empty if no error.
+            config (dict): A dictionary of the updated config values.
+    """
     logger.debug(f"/change_config API request received")
     logger.debug(f"User ID: {data.user_id}")
     logger.debug(f"Config: {data.config}")
@@ -61,7 +88,7 @@ async def change_config(
 
     except Exception as e:
         logger.exception(f"Error in /change_config API")
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": str(e), "config": {}})
 
     return JSONResponse(content={"error": "", "config": config.to_json()})
 
@@ -75,8 +102,15 @@ async def save_config(
     If the collection ELYSIA_CONFIG__ does not exist, it will be created.
 
     Args:
-        config_id: The ID of the config to save.
-        client: The weaviate client to use to store the config.
+        data (SaveConfigData): A class with the following attributes:
+            user_id (str): The user ID.
+            config_id (str): The ID of the config to save.
+        user_manager (UserManager): The user manager instance.
+
+    Returns:
+        JSONResponse: A JSON response with the following attributes:
+            error (str): An error message. Empty if no error.
+            config (dict): A dictionary of the updated config values.
     """
 
     logger.debug(f"/save_config API request received")
@@ -112,7 +146,7 @@ async def save_config(
 
     except Exception as e:
         logger.exception(f"Error in /save_config API")
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": str(e), "config": {}})
 
     return JSONResponse(content={"error": "", "config": config.to_json()})
 
@@ -125,9 +159,15 @@ async def load_config(
     Load a config from the weaviate database.
 
     Args:
-        config_id: The ID of the config to load.
-        client: The weaviate client to use to load the config,
-            attached to a weaviate cluster that has the ELYSIA_CONFIG__ collection.
+        data (LoadConfigData): A class with the following attributes:
+            user_id (str): The user ID.
+            config_id (str): The ID of the config to load. Can be found in the /list_configs API.
+        user_manager (UserManager): The user manager instance.
+
+    Returns:
+        JSONResponse: A JSON response with the following attributes:
+            error (str): An error message. Empty if no error.
+            config (dict): A dictionary of the updated config values.
     """
     logger.debug(f"/load_config API request received")
     logger.debug(f"User ID: {data.user_id}")
@@ -152,7 +192,7 @@ async def load_config(
 
     except Exception as e:
         logger.exception(f"Error in /load_config API")
-        return JSONResponse(content={"error": str(e)})
+        return JSONResponse(content={"error": str(e), "config": {}})
 
     return JSONResponse(content={"error": "", "config": config.to_json()})
 
@@ -161,6 +201,19 @@ async def load_config(
 async def list_configs(
     data: ListConfigsData, user_manager: UserManager = Depends(get_user_manager)
 ):
+    """
+    List all the configs for a user.
+
+    Args:
+        data (ListConfigsData): A class with the following attributes:
+            user_id (str): The user ID.
+        user_manager (UserManager): The user manager instance.
+
+    Returns:
+        JSONResponse: A JSON response with the following attributes:
+            error (str): An error message. Empty if no error.
+            configs (list): A list of config IDs.
+    """
     logger.debug(f"/list_configs API request received")
     logger.debug(f"User ID: {data.user_id}")
 
