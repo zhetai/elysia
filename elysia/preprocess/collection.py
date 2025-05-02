@@ -243,6 +243,7 @@ class CollectionPreprocessor:
                 total = len(rt.specific_return_types) + 1 + 1
                 progress = 0.0
                 error = ""
+
                 # Get the collection and its properties
                 # try:
                 collection = client.collections.get(collection_name)

@@ -51,25 +51,24 @@ class UserManager:
 
         self.date_of_reset = None
         self.users = {}
-        # TODO: is this fine to be here? should it be user-specific?
-        self.base_tree = Tree(debug=False)
 
     async def get_user_local(self, user_id: str):
         # add user if it doesn't exist
         if user_id not in self.users:
             self.users[user_id] = {}
 
+            # config starts by inheriting from env variables
+            self.users[user_id]["config"] = Settings()
+            self.users[user_id]["config"].set_config_from_env()
+            self.users[user_id]["config"].setup_app_logger(logger)
+
             self.users[user_id]["tree_manager"] = TreeManager(
                 user_id=user_id,
+                config=self.users[user_id]["config"],
             )
 
             # client manager starts with env variables, when config is updated, api keys are updated
             self.users[user_id]["client_manager"] = ClientManager(logger=logger)
-
-            # config starts as empty dict
-            self.users[user_id]["config"] = Settings()
-            self.users[user_id]["config"].set_config_from_env()
-            self.users[user_id]["config"].setup_app_logger(logger)
 
         # update last request (adds last_request to user)
         await self.update_user_last_request(user_id)
@@ -88,7 +87,6 @@ class UserManager:
             self.users[user_id]["tree_manager"].check_all_trees_timeout()
 
     async def check_restart_clients(self):
-        # these check within these methods if the client has been used in the last X minutes
         for user_id in self.users:
             if "client_manager" in self.users[user_id]:
                 await self.users[user_id]["client_manager"].restart_client()
@@ -104,9 +102,7 @@ class UserManager:
     ):
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
-        tree_manager.add_tree(
-            self.base_tree, conversation_id, debug, local_user["config"]
-        )
+        tree_manager.add_tree(conversation_id)
         return tree_manager.get_tree(conversation_id)
 
     async def update_user_last_request(self, user_id: str):

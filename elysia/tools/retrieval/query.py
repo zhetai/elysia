@@ -290,6 +290,8 @@ class Query(Tool):
                     yield yield_object
                 return
 
+        self.logger.debug(f"Query: {query.query_output.query_outputs}")
+
         # Yield results to front end
         yield Response(text=query.message_update)
         yield Reasoning(reasoning=query.reasoning)

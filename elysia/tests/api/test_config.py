@@ -20,7 +20,7 @@ from elysia.api.routes.config import (
     default_config,
     list_configs,
 )
-
+from elysia.tree.tree import Tree
 from elysia.api.core.log import logger, set_log_level
 
 set_log_level("CRITICAL")
@@ -151,9 +151,16 @@ class TestConfig:
     async def test_combination(self):
 
         try:
-            # Create a config
+            # Create a config via creating a user (env settings)
             local_user = await self.user_manager.get_user_local("test_user")
             config = local_user["config"]
+
+            # Create a tree
+            tree: Tree = await self.user_manager.initialise_tree(
+                user_id="test_user",
+                conversation_id="test_conversation",
+                debug=True,
+            )
 
             # Change the config
             response = await change_config(
@@ -176,6 +183,12 @@ class TestConfig:
             assert local_user["config"].COMPLEX_MODEL == "gpt-4o"
             assert local_user["config"].BASE_PROVIDER == "openai"
             assert local_user["config"].COMPLEX_PROVIDER == "openai"
+
+            # Check the config has been changed in the tree
+            assert tree.settings.BASE_MODEL == "gpt-4o-mini"
+            assert tree.settings.COMPLEX_MODEL == "gpt-4o"
+            assert tree.settings.BASE_PROVIDER == "openai"
+            assert tree.settings.COMPLEX_PROVIDER == "openai"
 
             # Save the config
             r = random.randint(0, 1000000)

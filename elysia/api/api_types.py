@@ -123,3 +123,11 @@ class SaveConfigData(BaseModel):
 
 class ListConfigsData(BaseModel):
     user_id: str
+
+
+class ChangeAtlasData(BaseModel):
+    user_id: str
+    conversation_id: str
+    style: str
+    agent_description: str
+    end_goal: str
