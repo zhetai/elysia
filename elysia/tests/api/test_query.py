@@ -31,24 +31,20 @@ class TestQuery:
     @pytest.mark.asyncio
     async def test_query(self):
 
-        try:
+        with dummy_adapter():
+            try:
 
-            user_id = "test_user"
-            conversation_id = "test_conversation"
-            query_id = "test_query"
+                user_id = "test_user"
+                conversation_id = "test_conversation"
+                query_id = "test_query"
 
-            out = await default_config(
-                DefaultConfigData(user_id=user_id), get_user_manager()
-            )
+                websocket = fake_websocket()
 
-            websocket = fake_websocket()
-
-            with dummy_adapter():
                 out = await process(
                     QueryData(
                         user_id=user_id,
                         conversation_id=conversation_id,
-                        query="test query!",
+                        query="hi!",
                         query_id=query_id,
                         collection_names=["test_collection_1", "test_collection_2"],
                     ).model_dump(),
@@ -56,21 +52,25 @@ class TestQuery:
                     get_user_manager(),
                 )
 
-            # check all payloads are valid
-            for result in websocket.results:
-                assert isinstance(result, dict)
-                assert "type" in result
-                assert "id" in result
-                assert "conversation_id" in result
-                assert "query_id" in result
-                assert "payload" in result
-                assert isinstance(result["payload"], dict)
-                if "objects" in result["payload"]:
-                    for obj in result["payload"]["objects"]:
-                        assert isinstance(obj, dict)
-                if "metadata" in result["payload"]:
-                    assert isinstance(result["payload"]["metadata"], dict)
-                if "text" in result["payload"]:
-                    assert isinstance(result["payload"]["text"], str)
-        finally:
-            await get_user_manager().close_all_clients()
+                # check all payloads are valid
+                for result in websocket.results:
+                    assert isinstance(result, dict)
+                    assert "type" in result
+                    assert "id" in result, result
+                    assert "conversation_id" in result
+                    assert "query_id" in result
+                    assert "payload" in result
+                    assert isinstance(result["payload"], dict)
+                    if "objects" in result["payload"]:
+                        for obj in result["payload"]["objects"]:
+                            assert isinstance(obj, dict)
+                    if "metadata" in result["payload"]:
+                        assert isinstance(result["payload"]["metadata"], dict)
+                    if "text" in result["payload"]:
+                        assert isinstance(result["payload"]["text"], str)
+            finally:
+                await get_user_manager().close_all_clients()
+
+
+if __name__ == "__main__":
+    asyncio.run(TestQuery().test_query())

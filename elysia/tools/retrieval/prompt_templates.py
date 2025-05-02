@@ -198,18 +198,18 @@ class QueryCreatorPrompt(dspy.Signature):
     advanced_reasoning: str = dspy.OutputField(
         desc="""
         In draft form (no more than 5 words per sentence), provide some extra reasoning and thinking.
-        You should discuss:
+        Provide one sentence for each of the following:
             - Whether the collection isNullIndexed, isLengthIndexed, or isTimestampIndexed
                 If so, do you need to use `length`, `IS_NULL`, or number_property filters?
             - How the filter buckets are nested, and why you chose this structure.
                 This logic is important, what should be an OR and what should be an AND?
             - What type of search to perform, and why you chose this search type.
+            - If there are any fields to search on, why you chose these fields.
             - How you are defining the query_output, and that you are providing only the schema, no extra code.
               This includes defining any variables, you cannot do this. EVERYTHING MUST BE IN THE QUERY_OUTPUT (WITHOUT EXTRA DEFINITIONS).
               NO CODE!
         """.strip()
     )
-    # If you have a destination ID, explain where you obtained it from, in detail. Which field, where, etc.
     available_collections: list[str] = dspy.InputField(
         description="A list of collections that are available to query. You can ONLY choose from these collections."
     )
@@ -227,10 +227,26 @@ class QueryCreatorPrompt(dspy.Signature):
         The output of `display_type` must be one of the values in the list for the dictionary entry for that collection.
         """.strip(),
     )
+    searchable_fields: dict[str, list[str]] = dspy.InputField(
+        desc="""
+        A dictionary of the fields to search for each collection. Use this to determine the field in `vector_to_search`, for each collection.
+        The keys are the collection names, and the values are the fields that are possible to perform the search on.
+        """.strip(),
+        format=dict[str, list[str]],
+    )
 
     # Output fields
     query_output: Union[ListQueryOutputs, None] = dspy.OutputField(
         description="The query(-ies) to be executed. Return None if query is impossible to execute"
+    )
+    fields_to_search: dict[str, List[str] | None] = dspy.OutputField(
+        desc="""
+        A dictionary of the fields to search for each collection.
+        The keys are the collection names, and the values are the fields to search for.
+        These come from the `searchable_fields` list. If this list is empty, the value should be None.
+        Otherwise, you should choose the field(s) that would be most relevant to the user's query.
+        This should never be None unless the `searchable_fields` list is empty.
+        """.strip()
     )
     data_display: dict[str, DataDisplay] = dspy.OutputField(
         desc="""

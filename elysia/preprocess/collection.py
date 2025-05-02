@@ -222,6 +222,13 @@ class CollectionPreprocessor:
         }
         return index_properties
 
+    async def _find_named_vectors(self, collection):
+        schema_info = await collection.config.get()
+        if not schema_info.vector_config:
+            return []
+        else:
+            return list(schema_info.vector_config.keys())
+
     async def __call__(
         self,
         collection_name: str,
@@ -232,6 +239,9 @@ class CollectionPreprocessor:
         force: bool = False,
     ):
         async with client_manager.connect_to_async_client() as client:
+            if not await client.collections.exists(collection_name):
+                raise Exception(f"Collection {collection_name} does not exist!")
+
             if (
                 not await client.collections.exists(
                     f"ELYSIA_METADATA_{collection_name.lower()}__"
@@ -286,7 +296,7 @@ class CollectionPreprocessor:
 
                 # Summarise the collection using LLM
                 # try:
-                summary = await self._summarise_collection(
+                summary, field_descriptions = await self._summarise_collection(
                     properties,
                     subset_objects,
                     len_collection,
@@ -314,6 +324,7 @@ class CollectionPreprocessor:
                     "index_properties": await self._evaluate_index_properties(
                         collection
                     ),
+                    "named_vectors": await self._find_named_vectors(collection),
                     "fields": {},
                     "mappings": {},
                 }
@@ -324,6 +335,12 @@ class CollectionPreprocessor:
                     out["fields"][property] = await self._evaluate_field_statistics(
                         collection, properties, property, full_response
                     )
+                    if property in field_descriptions:
+                        out["fields"][property]["description"] = field_descriptions[
+                            property
+                        ]
+                    else:
+                        out["fields"][property]["description"] = ""
                 # except Exception as e:
                 #     yield await self.process_update(
                 #         progress=1 / float(total), error=str(e)

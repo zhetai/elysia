@@ -273,12 +273,19 @@ class Query(Tool):
             for collection_name in collection_names
         }  # subset to just our collection names
 
+        # get searchable fields
+        searchable_fields = {
+            collection_name: schemas[collection_name]["named_vectors"]
+            for collection_name in collection_names
+        }
+
         # Generate query with LLM
         try:
             query = await query_generator.aforward(
                 available_collections=collection_names,
                 previous_queries=previous_queries,
                 collection_display_types=display_types,
+                searchable_fields=searchable_fields,
                 lm=complex_lm,
             )
 
@@ -290,7 +297,8 @@ class Query(Tool):
                     yield yield_object
                 return
 
-        self.logger.debug(f"Query: {query.query_output.query_outputs}")
+        if self.logger and query.query_output is not None:
+            self.logger.debug(f"Query: {query.query_output.query_outputs}")
 
         # Yield results to front end
         yield Response(text=query.message_update)
@@ -373,9 +381,25 @@ class Query(Tool):
         query.data_display = self._fix_collection_names_in_dict(
             query.data_display, schemas
         )
+        query.fields_to_search = self._fix_collection_names_in_dict(
+            query.fields_to_search, schemas
+        )
 
         for collection_name in query.data_display:
 
+            if collection_name not in collection_names:
+                async for yield_object in self._handle_generic_error(
+                    ValueError(
+                        f"Collection {collection_name} not found in target_collections field. "
+                        "Make sure you are using the correct collection names."
+                    ),
+                    collection_name,
+                    tree_data.user_prompt,
+                ):
+                    yield yield_object
+                return
+
+        for collection_name in query.fields_to_search:
             if collection_name not in collection_names:
                 async for yield_object in self._handle_generic_error(
                     ValueError(
@@ -396,12 +420,15 @@ class Query(Tool):
             collection_names = query_output.target_collections.copy()
 
             for collection_name in collection_names:
-                # Get display types
+
                 display_type = query.data_display[collection_name].display_type
 
                 if self.logger:
                     self.logger.debug(
                         f"Display type for collection {collection_name}: {display_type}"
+                    )
+                    self.logger.debug(
+                        f"Fields to search for collection {collection_name}: {query.fields_to_search[collection_name]}"
                     )
 
                 # Evaluate if this collection/query needs chunking
@@ -453,6 +480,7 @@ class Query(Tool):
                             client,
                             query_output_copy,
                             reference_property="isChunked",
+                            named_vector_fields=query.fields_to_search,
                         )
 
                     # chunk the unchunked response
@@ -469,6 +497,9 @@ class Query(Tool):
                             query_output.target_collections[j] = (
                                 f"ELYSIA_CHUNKED_{collection_name.lower()}__"
                             )
+                    query.fields_to_search[
+                        f"ELYSIA_CHUNKED_{collection_name.lower()}__"
+                    ] = None
 
                     if self.logger:
                         self.logger.debug(
@@ -479,7 +510,9 @@ class Query(Tool):
             async with client_manager.connect_to_async_client() as client:
                 try:
                     responses, code_strings = await execute_weaviate_query(
-                        client, query_output
+                        client,
+                        query_output,
+                        named_vector_fields=query.fields_to_search,
                     )
                 except Exception as e:
                     for collection_name in collection_names:

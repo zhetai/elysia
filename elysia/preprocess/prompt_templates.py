@@ -30,29 +30,32 @@ class CollectionSummariserPrompt(dspy.Signature):
     The fields that exist in the data. This will be a list of field names.
     """
     )
-    sentence1 = dspy.OutputField(
+    overall_summary: str = dspy.OutputField(
         description="""
-    A single sentence that summarises the type of data in the collection, what the content is.
+        An overall summary of the dataset. Use markdown formatting (such as headers, bold, italics, lists, etc.) to make the summary more readable.
+        A brief paragraph.
+        """
+    )
+    relationships: str = dspy.OutputField(
+        description="""
+    A brief overview of the relationships between the fields. Mention any overlap or relevant points about how the fields are related. Around 2-4 sentences.
     """
     )
-    sentence2 = dspy.OutputField(
+    structure: str = dspy.OutputField(
         description="""
-    A breakdown of EACH OF THE DIFFERENT FIELDS, and what sort of data they contain, this is to give the user a good indication of what different fields within the data exist.
+    An overview of the structure of the dataset. How is it formatted. Around 1-3 sentences.
     """
     )
-    sentence3 = dspy.OutputField(
+    irregularities: str = dspy.OutputField(
         description="""
-    A summary of the different categories that exist in the data.
+    Any irregularities in the dataset that you think are important to know. Anything that could cause problems for the user when querying the data. Around 1-2 sentences.
+    If there are no irregularities, you don't need to return anything. Say 'No irregularities found.' or something similar.
     """
     )
-    sentence4 = dspy.OutputField(
+    field_descriptions: dict[str, str] = dspy.OutputField(
         description="""
-    A summary of the different data types that exist in the data.
-    """
-    )
-    sentence5 = dspy.OutputField(
-        description="""
-    Any additional information that you think will be useful to the user to inform them about the data.
+    A dictionary of the field names and a description of the type of data in the field, be descriptive. Around 1-2 sentences per field.
+    The keys of this dictionary MUST be the field names in the data_fields input.
     """
     )
 

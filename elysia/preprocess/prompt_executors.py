@@ -35,11 +35,10 @@ class CollectionSummariserExecutor(dspy.Module):
         )
         summary_concat = ""
         for sentence in [
-            prediction.sentence1,
-            prediction.sentence2,
-            prediction.sentence3,
-            prediction.sentence4,
-            prediction.sentence5,
+            prediction.overall_summary,
+            prediction.relationships,
+            prediction.structure,
+            prediction.irregularities,
         ]:
             if (
                 sentence.endswith(".")
@@ -50,7 +49,7 @@ class CollectionSummariserExecutor(dspy.Module):
                 summary_concat += f"{sentence} "
             else:
                 summary_concat += f"{sentence}."
-        return summary_concat
+        return summary_concat, prediction.field_descriptions
 
 
 class ReturnTypeExecutor(dspy.Module):

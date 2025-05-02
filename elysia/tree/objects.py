@@ -525,42 +525,49 @@ class TreeData:
             with_mappings (bool): Whether to output the mappings for the collections as well as the other metadata.
 
         Returns:
-            dict: A dictionary of collection names to their metadata.
+            dict (dict[str, dict]): A dictionary of collection names to their metadata.
                 The metadata are of the form:
                 ```python
                 {
-                    collection_name_1: {
-                        # summary statistics of each field in the collection
+                    # summary statistics of each field in the collection
                         "fields": dict = {
                             field_name_1: dict = {
-                                "range": list[float],
-                                "type": str,
-                                "groups": list[str],
-                                "mean": float
-                            },
-                            field_name_2: dict,
-                            ...
+                            "description": str,
+                            "range": list[float],
+                            "type": str,
+                            "groups": list[str],
+                            "mean": float
                         },
-
-                        # mapping_1, mapping_2 etc refer to frontend-specific types that the AI has deemed appropriate for this data
-                        # then the dict is to map the frontend fields to the data fields
-                        "mappings": dict = {
-                            mapping_1: dict,
-                            mapping_2: dict,
-                            ...,
-                        },
-
-                        # number of items in collection (float but just for consistency)
-                        "length": float,
-
-                        # AI generated summary of the dataset
-                        "summary": str,
-
-                        # name of collection
-                        "name": str
-
+                        field_name_2: dict,
+                        ...
                     },
-                    ...
+
+                    # mapping_1, mapping_2 etc refer to frontend-specific types that the AI has deemed appropriate for this data
+                    # then the dict is to map the frontend fields to the data fields
+                    "mappings": dict = {
+                        mapping_1: dict,
+                        mapping_2: dict,
+                        ...,
+                    },
+
+                    # number of items in collection (float but just for consistency)
+                    "length": float,
+
+                    # AI generated summary of the dataset
+                    "summary": str,
+
+                    # name of collection
+                    "name": str,
+
+                    # what named vectors are available (if any)
+                    "named_vectors": list = [],
+
+                    # some config settings relevant for queries
+                    "index_properties": {
+                        "isNullIndexed": bool,
+                        "isLengthIndexed": bool,
+                        "isTimestampIndexed": bool,
+                    },
                 }
                 ```
                 If `with_mappings` is `False`, then the mappings are not included.

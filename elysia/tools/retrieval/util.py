@@ -160,6 +160,7 @@ async def execute_weaviate_query(
     weaviate_client: weaviate.WeaviateAsyncClient,
     predicted_query: QueryOutput,
     reference_property: str | None = None,
+    named_vector_fields: dict[str, List[str]] | None = None,
 ):
     """Execute from a QueryOutput and return response."""
 
@@ -190,6 +191,9 @@ async def execute_weaviate_query(
     if reference_property:
         tool_args["reference_property"] = reference_property
 
+    if named_vector_fields:
+        tool_args["named_vector_fields"] = named_vector_fields
+
     final_response, str_response = await _handle_search(weaviate_client, tool_args)
 
     return final_response, str_response
@@ -211,6 +215,11 @@ async def _handle_search(
         )
     else:
         reference = None
+
+    if "named_vector_fields" in tool_args:
+        named_vector_fields = tool_args["named_vector_fields"]
+    else:
+        named_vector_fields = None
 
     # Filter and sort
     combined_filter = _build_filters(tool_args)
@@ -241,6 +250,7 @@ async def _handle_search(
                 limit=tool_args["limit"],
                 filters=combined_filter,
                 return_references=reference,
+                target_vector=named_vector_fields[collection.name],
             )
 
         str_response = _construct_string_search_query(tool_args, combined_filter)

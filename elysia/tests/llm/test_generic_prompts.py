@@ -258,3 +258,9 @@ class TestGenericPrompts:
             "Example_verba_slack_conversations"
         ][0]["objects"]:
             assert "ELYSIA_SUMMARY" in item.keys() and len(item["ELYSIA_SUMMARY"]) > 0
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(TestGenericPrompts().test_itemised_summaries())

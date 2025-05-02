@@ -73,7 +73,7 @@ async def collections(
 
                     # for processed
                     processed = await client.collections.exists(
-                        f"ELYSIA_METADATA_{collection_name}__"
+                        f"ELYSIA_METADATA_{collection_name.lower()}__"
                     )
 
                     vector_config = {"fields": {}, "global": {}}
