@@ -15,6 +15,8 @@ from elysia.api.api_types import (
     TitleData,
 )
 
+from elysia.tree.tree import Tree
+
 # Logging
 from elysia.api.core.log import logger
 
@@ -23,7 +25,6 @@ from elysia.api.dependencies.common import get_user_manager
 
 # LLM
 from elysia.api.services.prompt_templates import (
-    FollowUpSuggestionsPrompt,
     InstantReplyPrompt,
     ObjectRelevancePrompt,
     TitleCreatorPrompt,
@@ -33,11 +34,9 @@ from elysia.api.services.prompt_templates import (
 from elysia.api.services.user import UserManager
 
 # Settings
-from elysia.config import nlp
+from elysia.config import nlp, load_base_lm
 
 # util
-from elysia.util.reference import create_reference
-from elysia.config import load_base_lm
 from elysia.api.core.log import logger
 
 router = APIRouter()
@@ -189,13 +188,16 @@ async def follow_up_suggestions(
         local_user = await user_manager.get_user_local(data.user_id)
         event = local_user["tree_manager"].get_event(data.conversation_id)
         await event.wait()
-        config = user_manager.get_user_config(data.user_id)
 
         # get tree from user_id, conversation_id
-        tree = await user_manager.get_tree(data.user_id, data.conversation_id)
+        tree: Tree = await user_manager.get_tree(data.user_id, data.conversation_id)
+
+        suggestions = await tree.get_follow_up_suggestions()
+
+        await event.set()
 
         return JSONResponse(
-            content={"suggestions": prediction.suggestions, "error": ""},
+            content={"suggestions": suggestions, "error": ""},
             status_code=200,
         )
 
