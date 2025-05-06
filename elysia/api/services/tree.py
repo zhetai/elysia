@@ -79,7 +79,10 @@ class TreeManager:
 
         self.debug = True
 
-    def add_tree(self, conversation_id: str):
+    def add_tree(self, conversation_id: str, settings: Settings | None = None):
+
+        if settings is None:
+            settings = self.config
 
         if not self.tree_exists(conversation_id):
 
@@ -91,7 +94,7 @@ class TreeManager:
                     conversation_id=conversation_id,
                     user_id=self.user_id,
                     debug=self.debug,
-                    settings=self.config,
+                    settings=settings,
                     style=self.style,
                     agent_description=self.agent_description,
                     end_goal=self.end_goal,

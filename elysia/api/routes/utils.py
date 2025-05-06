@@ -194,23 +194,6 @@ async def follow_up_suggestions(
         # get tree from user_id, conversation_id
         tree = await user_manager.get_tree(data.user_id, data.conversation_id)
 
-        # load dspy model for suggestor
-        follow_up_suggestor = dspy.Predict(FollowUpSuggestionsPrompt)
-
-        # get prediction
-        prediction = await follow_up_suggestor.aforward(
-            user_prompt=tree.tree_data.user_prompt,
-            reference=create_reference(),
-            conversation_history=tree.tree_data.conversation_history,
-            environment=tree.tree_data.environment.to_json(),
-            data_information=tree.tree_data.output_collection_metadata(
-                with_mappings=False
-            ),
-            old_suggestions=tree.suggestions,
-            lm=load_base_lm(config),
-        )
-
-        tree.suggestions.extend(prediction.suggestions)
         return JSONResponse(
             content={"suggestions": prediction.suggestions, "error": ""},
             status_code=200,

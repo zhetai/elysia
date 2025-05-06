@@ -98,11 +98,15 @@ class UserManager:
                 await self.users[user_id]["client_manager"].close_clients()
 
     async def initialise_tree(
-        self, user_id: str, conversation_id: str, debug: bool = False
+        self,
+        user_id: str,
+        conversation_id: str,
+        debug: bool = False,
+        settings: Settings | None = None,
     ):
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
-        tree_manager.add_tree(conversation_id)
+        tree_manager.add_tree(conversation_id, settings)
         return tree_manager.get_tree(conversation_id)
 
     async def update_user_last_request(self, user_id: str):

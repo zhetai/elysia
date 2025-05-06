@@ -20,7 +20,13 @@ from elysia.tree.objects import TreeData
 from elysia.util.objects import TrainingUpdate, TreeUpdate
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
-from elysia.tree.prompt_templates import construct_decision_prompt
+from elysia.tree.prompt_templates import (
+    construct_decision_prompt,
+    FollowUpSuggestionsPrompt,
+)
+
+# Settings
+from elysia.config import Settings, load_base_lm
 
 
 class RecursionLimitException(Exception):
@@ -319,3 +325,24 @@ class BranchVisitor(ast.NodeVisitor):
                 if evaluated_dict:
                     self.branches.append(evaluated_dict)
         self.generic_visit(node)
+
+
+async def get_follow_up_suggestions(
+    tree_data: TreeData, current_suggestions: list[str], config: Settings
+):
+
+    # load dspy model for suggestor
+    follow_up_suggestor = dspy.Predict(FollowUpSuggestionsPrompt)
+
+    # get prediction
+    prediction = await follow_up_suggestor.aforward(
+        user_prompt=tree_data.user_prompt,
+        reference=create_reference(),
+        conversation_history=tree_data.conversation_history,
+        environment=tree_data.environment.to_json(),
+        data_information=tree_data.output_collection_metadata(with_mappings=False),
+        old_suggestions=current_suggestions,
+        lm=load_base_lm(config),
+    )
+
+    return prediction.suggestions

@@ -20,7 +20,13 @@ from elysia.config import Settings
 from elysia.config import settings as environment_settings
 
 # globals
-from elysia.tree.util import BranchVisitor, DecisionNode, TreeReturner, Decision
+from elysia.tree.util import (
+    BranchVisitor,
+    DecisionNode,
+    TreeReturner,
+    Decision,
+    get_follow_up_suggestions,
+)
 from elysia.objects import (
     Completed,
     Result,
@@ -728,6 +734,23 @@ class Tree:
         self._get_root()
         self.tree = {}
         self._construct_tree(self.root, self.tree)
+
+    async def get_follow_up_suggestions(self):
+        """
+        Get follow-up suggestions for the current user prompt via a base model LLM call.
+
+        E.g., if the user asks "What was the most recent Github Issue?",
+            and the results show a message from 'Jane Doe',
+            the follow-up suggestions might be "What other issues did Jane Doe work on?"
+
+        Returns:
+            list[str]: A list of follow-up suggestions
+        """
+        suggestions = await get_follow_up_suggestions(
+            self.tree_data, self.suggestions, self.settings
+        )
+        self.suggestions.extend(suggestions)
+        return suggestions
 
     def _update_conversation_history(self, role: str, message: str):
         if message != "":

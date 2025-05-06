@@ -56,7 +56,7 @@ nav:
     - Objects: Reference/Objects.md
     # - Tools: Reference/Tools.md
     - Result: Reference/Result.md
-
+    - Util: Reference/Util.md
 plugins:
   - social
   - search
