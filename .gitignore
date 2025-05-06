@@ -32,8 +32,9 @@ MANIFEST
 *.manifest
 *.spec
 
-# anything starting with a dot
+# Ignore all dotfiles except .gitignore
 .*
+!.gitignore
 
 # Installer logs
 pip-log.txt
