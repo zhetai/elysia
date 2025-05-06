@@ -344,5 +344,6 @@ async def get_follow_up_suggestions(
         old_suggestions=current_suggestions,
         lm=load_base_lm(config),
     )
+    config.logger.debug(f"Follow-up suggestions: {prediction.suggestions}")
 
     return prediction.suggestions
