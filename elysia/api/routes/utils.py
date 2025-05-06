@@ -194,7 +194,7 @@ async def follow_up_suggestions(
 
         suggestions = await tree.get_follow_up_suggestions()
 
-        await event.set()
+        event.set()
 
         return JSONResponse(
             content={"suggestions": suggestions, "error": ""},

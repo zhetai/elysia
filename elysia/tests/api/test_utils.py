@@ -129,3 +129,9 @@ class TestUtils:
     def test_debug(self):
         # TODO: Implement this
         pass
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(TestUtils().test_follow_up_suggestions())
