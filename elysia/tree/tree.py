@@ -51,7 +51,7 @@ from elysia.config import (
     load_base_lm,
     load_complex_lm,
 )
-from elysia.util.objects import LMTimer, Timer, TrainingUpdate, TreeUpdate
+from elysia.util.objects import Timer, TrainingUpdate, TreeUpdate
 
 # Util
 from elysia.util.parsing import remove_whitespace
@@ -117,8 +117,6 @@ class Tree:
         self.decision_nodes: dict[str, DecisionNode] = {}
         self.decision_history = []
         self.tree_index = -1
-        self.base_lm_timer = LMTimer("base_lm")
-        self.complex_lm_timer = LMTimer("complex_lm")
         self.suggestions = []
         self.actions_called = {}
         self.query_id_to_prompt = {}
@@ -149,6 +147,12 @@ class Tree:
         )
 
         self.tools["final_text_response"] = TextResponse()
+
+        # initialise the timers
+        self.timer = Timer(
+            timer_names=["base_lm", "complex_lm", *self.tools.keys()],
+            logger=self.settings.logger,
+        )
 
         # some variables for storing feedback
         self.action_information = []
@@ -1003,9 +1007,7 @@ class Tree:
 
             # Under normal circumstances decide from the decision node
             else:
-                t = Timer("base_lm")
-
-                t.start()
+                self.timer.start_timer("base_lm")
                 self.current_decision, results = await current_decision_node(
                     tree_data=self.tree_data,
                     lm=base_lm,
@@ -1018,8 +1020,7 @@ class Tree:
                     if action_result is not None:
                         yield action_result
 
-                t.end()
-                self.base_lm_timer.update_avg_time(t.time_taken)
+                self.timer.end_timer("base_lm", "Decision Node")
 
                 # Force text response (later) if model chooses end actions
                 # but no response will be generated from the node, set flag now
@@ -1085,6 +1086,7 @@ class Tree:
 
             # evaluate the action
             if action_fn is not None:
+                self.timer.start_timer(self.current_decision.function_name)
                 async for result in action_fn(
                     tree_data=self.tree_data,
                     inputs=self.current_decision.function_inputs,
@@ -1097,6 +1099,8 @@ class Tree:
                     )
                     if action_result is not None:
                         yield action_result
+
+                self.timer.end_timer(self.current_decision.function_name)
 
             # check if the current node is the end of the tree
             if (
@@ -1149,12 +1153,20 @@ class Tree:
             self.settings.logger.info(
                 f"[bold green]Model identified overall goal as completed![/bold green]"
             )
-            self.settings.logger.debug(
-                f"Time taken: {time.time() - self.start_time:.2f} seconds"
+            self.settings.logger.info(
+                f"Total time taken for decision tree: {time.time() - self.start_time:.2f} seconds"
             )
             self.settings.logger.info(f"Tasks completed:\n")
             for task in self.decision_history:
-                self.settings.logger.info(f"     - {task}")
+                if task in self.timer.timers:
+                    time_taken = self.timer.timers[task]["avg_time"]
+                    self.settings.logger.info(
+                        f"     - {task} ([magenta]Avg. {time_taken:.2f} seconds[/magenta])"
+                    )
+                else:
+                    self.settings.logger.info(
+                        f"     - {task} ([magenta]Unknown avg. time[/magenta])"
+                    )
 
             if close_clients_after_completion:
                 await client_manager.close_clients()
