@@ -162,7 +162,7 @@ And this will both add the `objects` to the tree's environment, as well as displ
 
 Note that the fields inside of `objects` need to conform to the correct properties as described in the reference, [see here for a full description of the fields in the reference.](../Reference/Result.md)
 
-## Elysia Chain of Thought
+## Easy LLM calls with Elysia Chain of Thought
 
 An easy way to access attributes from the tree (if you are calling an LLM within the tool) is to use the custom `ElysiaChainOfThought` DSPy module with specific arguments. This automatically adds information from the `tree_data` to an LLM prompt as inputs in a DSPy signature, as well as some specific outputs deemed useful within the decision tree environment (and a chain of thought reasoning field output field).
 
@@ -181,7 +181,7 @@ text_response = ElysiaChainOfThought(
 ```
 By setting the boolean flags for the different variables, you can control the inputs and outputs assigned, whereas some inputs are always included (such as user prompt).
 
-See the description for more details **(WIP: not described yet)**
+[See the description for more details](../Reference/Util.md#elysia.util.elysia_chain_of_thought)
 
 ## Adding Tools to the Tree
 
