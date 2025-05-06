@@ -492,6 +492,7 @@ class TreeData:
         user_prompt: str = "",
         conversation_history: list[dict] = [],
         environment: Environment = Environment(),
+        hidden_environment: Environment = Environment(self_info=False),
         tasks_completed: list[dict] = [],
         num_trees_completed: int = 0,
         recursion_limit: int = 3,
@@ -500,6 +501,7 @@ class TreeData:
         self.user_prompt = user_prompt
         self.conversation_history = conversation_history
         self.environment = environment
+        self.hidden_environment = hidden_environment
         self.tasks_completed = tasks_completed
         self.num_trees_completed = num_trees_completed
         self.recursion_limit = recursion_limit
