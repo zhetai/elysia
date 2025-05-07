@@ -730,9 +730,25 @@ class Tree:
         Args:
             branch_id (str): The id of the branch to remove
         """
-        for branch_id in self.decision_nodes:
-            self.decision_nodes[branch_id].remove_option(branch_id)
-        del self.decision_nodes[branch_id]
+        # Validate branch exists
+        if branch_id not in self.decision_nodes:
+            self.settings.logger.warning(
+                f"Branch {branch_id} not found, nothing to remove."
+            )
+            return
+
+        # Special handling for root node
+        if branch_id == self.root:
+            self.settings.logger.error("Cannot remove root branch.")
+            raise ValueError(
+                "Cannot remove the root branch. Create a new tree instead."
+            )
+
+        for decision_node_id in self.decision_nodes:
+            self.decision_nodes[decision_node_id].remove_option(branch_id)
+
+        if branch_id in self.decision_nodes:
+            del self.decision_nodes[branch_id]
 
         # reconstruct tree
         self._get_root()
