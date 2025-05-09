@@ -51,6 +51,18 @@ class Timer:
             self.timers[timer_name]["total_time"] / self.timers[timer_name]["calls"]
         )
 
+    def remove_timer(self, timer_name: str):
+        self.timers.pop(timer_name)
+
+    def add_timer(self, timer_name: str):
+        self.timers[timer_name] = {
+            "calls": 0,
+            "avg_time": 0,
+            "total_time": 0,
+            "start_time": None,
+            "end_time": None,
+        }
+
 
 class TreeUpdate:
     """
