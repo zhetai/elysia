@@ -80,5 +80,5 @@ For example, this could be used to save raw retrieval objects that are not conve
 
 ## Some Quick Usecases
 
-- You may want to create a tool that only runs when the environment is non empty, so the `run_if_true` method of the tool [(see here for details)](creating_your_own_tools#run_if_true) returns `not tree_data.environment.is_empty()`.
+- You may want to create a tool that only runs when the environment is non empty, so the `run_if_true` method of the tool [(see here for details)](creating_your_own_tools.md#run_if_true) returns `not tree_data.environment.is_empty()`.
 - Your tool may not want to return any objects to the frontend, so instead of returning specific `Result` objects, you could modify the environment via `.add_objects()`, `.replace()` and `.remove()`. This stores 'private' variables that are not seen by the user unless they can manually inspect the environment.

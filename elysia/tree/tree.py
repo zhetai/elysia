@@ -91,7 +91,7 @@ class Tree:
         end_goal: str = "No end goal provided.",
         user_id: str | None = None,
         conversation_id: str | None = None,
-        debug: bool = False,
+        low_memory: bool = False,
         settings: Settings = environment_settings,
     ):
         # Define base variables of the tree
@@ -125,7 +125,7 @@ class Tree:
         self.store_retrieved_objects = False
 
         # -- Initialise the tree
-        self.set_debug(debug)
+        self.set_low_memory(low_memory)
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
@@ -140,19 +140,20 @@ class Tree:
             recursion_limit=5,
         )
 
-        # Set the initialisations
-        self.tools = {}
-        self.set_branch_initialisation(
-            branch_initialisation, style, agent_description, end_goal
-        )
-
-        self.tools["final_text_response"] = TextResponse()
-
         # initialise the timers
         self.timer = Timer(
-            timer_names=["base_lm", "complex_lm", *self.tools.keys()],
+            timer_names=["base_lm", "complex_lm"],
             logger=self.settings.logger,
         )
+
+        # Set the initialisations
+        self.tools = {}
+        self.set_branch_initialisation(branch_initialisation)
+        self.change_style(style)
+        self.change_agent_description(agent_description)
+        self.change_end_goal(end_goal)
+
+        self.tools["final_text_response"] = TextResponse()
 
         # some variables for storing feedback
         self.action_information = []
@@ -178,8 +179,8 @@ class Tree:
             )
 
     def get_tree_lms(self):
-        self.base_lm = self.get_lm("base", True) if self.debug else None
-        self.complex_lm = self.get_lm("complex", True) if self.debug else None
+        self.base_lm = self.get_lm("base", True) if not self.low_memory else None
+        self.complex_lm = self.get_lm("complex", True) if not self.low_memory else None
 
     def multi_branch_init(self):
         self.add_branch(
@@ -194,9 +195,7 @@ class Tree:
             """,
             status="Choosing a base-level task...",
         )
-
         self.add_tool(branch_id="base", tool=Summarizer)
-
         self.add_tool(branch_id="base", tool=FakeTextResponse)
 
         self.add_branch(
@@ -214,19 +213,8 @@ class Tree:
             """,
             status="Searching the knowledge base...",
         )
-
         self.add_tool(branch_id="search", tool=Query)
-
         self.add_tool(branch_id="search", tool=Aggregate)
-
-        self.change_style("Informative, polite, and friendly.")
-        self.change_agent_description(
-            "You are designed to search datasets in Weaviate collections."
-        )
-        self.change_end_goal(
-            "To answer the user's question by retrieving data from the knowledge base. "
-            "Try to find the requested data, but this may not always be possible."
-        )
 
     def one_branch_init(self):
         self.add_branch(
@@ -240,21 +228,9 @@ class Tree:
             status="Choosing a base-level task...",
         )
         self.add_tool(branch_id="base", tool=Summarizer)
-
         self.add_tool(branch_id="base", tool=FakeTextResponse)
-
         self.add_tool(branch_id="base", tool=Query)
-
         self.add_tool(branch_id="base", tool=Aggregate)
-
-        self.change_style("Informative, polite, and friendly.")
-        self.change_agent_description(
-            "You are designed to search datasets in Weaviate collections."
-        )
-        self.change_end_goal(
-            "To answer the user's question by retrieving data from the knowledge base. "
-            "Try to find the requested data, but this may not always be possible."
-        )
 
     def empty_init(self):
         self.add_branch(
@@ -271,13 +247,7 @@ class Tree:
     def clear_tree(self):
         self.decision_nodes = {}
 
-    def set_branch_initialisation(
-        self,
-        initialisation: str | None,
-        style: str | None = None,
-        agent_description: str | None = None,
-        end_goal: str | None = None,
-    ):
+    def set_branch_initialisation(self, initialisation: str | None):
         self.clear_tree()
 
         if (
@@ -294,24 +264,25 @@ class Tree:
         else:
             raise ValueError(f"Invalid branch initialisation: {initialisation}")
 
-        # If any of these are provided, override the initialisation
-        if style is not None:
-            self.change_style(style)
-
-        if agent_description is not None:
-            self.change_agent_description(agent_description)
-
-        if end_goal is not None:
-            self.change_end_goal(end_goal)
-
         self.branch_initialisation = initialisation
 
-    def set_debug(self, debug: bool):
-        self.debug = debug
-        self.settings.LOCAL = debug
+    def set_low_memory(self, low_memory: bool):
+        self.low_memory = low_memory
+        self.base_lm = self.get_lm("base", True) if not low_memory else None
+        self.complex_lm = self.get_lm("complex", True) if not low_memory else None
 
-        self.base_lm = self.get_lm("base", True) if debug else None
-        self.complex_lm = self.get_lm("complex", True) if debug else None
+    def default_models(self):
+        self.settings = deepcopy(self.settings)
+        self.settings.default_models()
+
+    def configure(self, **kwargs):
+        """
+        Configure the tree with new settings.
+        Wrapper for the settings.configure() method.
+        Will not affect any settings preceding this (e.g. in TreeManager).
+        """
+        self.settings = deepcopy(self.settings)
+        self.settings.configure(**kwargs)
 
     def change_style(self, style: str):
         self.tree_data.atlas.style = style
@@ -323,7 +294,22 @@ class Tree:
         self.tree_data.atlas.end_goal = end_goal
 
     def get_lm(self, model_type: str, force_load: bool = False):
-        if self.debug and not force_load:
+        """
+        Return the LMs used by the tree.
+        If low_memory is True, the LMs will be loaded in this method.
+        Otherwise, the LMs are already loaded in the tree.
+        If force_load is True, the LMs will be loaded regardless of the low_memory setting.
+
+        Args:
+            model_type (str): The type of model to load.
+                Can be "base" or "complex".
+            force_load (bool): Whether to force the loading of the LMs.
+                Defaults to False.
+
+        Returns:
+            (dspy.LM): The LM object.
+        """
+        if not self.low_memory and not force_load:
             return self.base_lm if model_type == "base" else self.complex_lm
         else:
             return (
@@ -623,6 +609,7 @@ class Tree:
             end=tool_instance.end,
             status=tool_instance.status,
         )
+        self.timer.add_timer(tool_instance.name)
 
         # reconstruct tree
         self._get_root()
@@ -649,6 +636,7 @@ class Tree:
 
         self.decision_nodes[branch_id].remove_option(tool_name)
         del self.tools[tool_name]
+        self.timer.remove_timer(tool_name)
 
         # reconstruct tree
         self._get_root()
@@ -802,7 +790,7 @@ class Tree:
                     "output": None,
                 }
             )
-        if self.debug:
+        if not self.low_memory:
             self.actions_called[self.user_prompt][-1]["output"] = result.objects
         else:
             self.actions_called[self.user_prompt][-1]["output"] = []
