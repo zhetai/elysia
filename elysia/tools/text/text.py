@@ -7,13 +7,64 @@ from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
 
 # LLM
-from elysia.objects import Response, Tool
-from elysia.tools.text.objects import Summary
-from elysia.tools.text.prompt_templates import SummarizingPrompt, TextResponsePrompt
+from elysia.objects import Response, Tool, Reasoning
+from elysia.tools.text.objects import Summary, CitedSummary
+from elysia.tools.text.prompt_templates import (
+    SummarizingPrompt,
+    TextResponsePrompt,
+    CitedSummarizingPrompt,
+)
 
 # Objects
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
+
+
+class CitedSummarizer(Tool):
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="cited_summarize",
+            description="""
+            Summarize retrieved information for the user when all relevant data has been gathered.
+            Provides a text response, and may end the conversation, but unlike text_response tool, can be used mid-conversation.
+            Avoid for general questions where text_response is available.
+            Summarisation text is directly displayed to the user.
+            Most of the time, you can choose end_actions to be True to end the conversation with a summary.
+            This is a good way to end the conversation.
+            """,
+            status="Summarizing...",
+            inputs={},
+            end=True,
+        )
+
+    async def is_tool_available(self, **kwargs):
+        # when the environment is non empty
+        return not kwargs.get("tree_data").environment.is_empty()
+
+    async def __call__(
+        self,
+        tree_data: TreeData,
+        inputs: dict,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        client_manager: ClientManager | None = None,
+        **kwargs
+    ):
+        summarizer = ElysiaChainOfThought(
+            CitedSummarizingPrompt,
+            tree_data=tree_data,
+            environment=True,
+            tasks_completed=True,
+            message_update=False,
+        )
+
+        summary = await summarizer.aforward(
+            lm=base_lm,
+        )
+
+        yield Reasoning(summary.reasoning)
+
+        yield CitedSummary(cited_texts=summary.cited_text, title=summary.subtitle)
 
 
 class Summarizer(Tool):
@@ -25,6 +76,7 @@ class Summarizer(Tool):
             Provides a text response, and may end the conversation, but unlike text_response tool, can be used mid-conversation.
             Avoid for general questions where text_response is available.
             Summarisation text is directly displayed to the user.
+            This summarizer will also include citations in the summary, so relevant information must be in the environment for this tool.
             Most of the time, you can choose end_actions to be True to end the conversation with a summary.
             This is a good way to end the conversation.
             """,
