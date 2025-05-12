@@ -183,8 +183,9 @@ By setting the boolean flags for the different variables, you can control the in
 
 To use the augmented module via `ElysiaChainOfThought`, call the `.aforward()` method of the new module, passing all your *new* inputs as keyword arguments. You do not need to include keyword arguments for the other inputs, like the `environment` or `user_prompt`, they are automatically added, e.g.
 ```python
-my_module.aforward(input1=..., input2=...)
+my_module.aforward(input1=..., input2=..., lm=...)
 ```
+The `lm` parameter can be inherited from the tool inputs, i.e. `base_lm` or `complex_lm`. Or you can define your own LMs via `dspy.LM`.
 
 [See the description for more details](../Reference/Util.md#elysia.util.elysia_chain_of_thought)
 
