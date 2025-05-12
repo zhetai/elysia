@@ -6,20 +6,28 @@ from pydantic import BaseModel, Field
 class TextWithCitation(BaseModel):
     text: str = Field(description="The text within the summary")
     ref_ids: List[str] = Field(
-        description="The ref_ids of the citations relevant to the text. Can be an empty list if the text is not related to any of the citations."
+        description=(
+            "The ref_ids of the citations relevant to the text. "
+            "Can be an empty list if the text is not related to any of the citations."
+        )
     )
 
 
-class Summary(Text):
+class TextWithTitle(Text):
     def __init__(self, text: str, title: str):
-        Text.__init__(self, "summary", [{"text": text, "title": title}])
+        Text.__init__(
+            self,
+            "text_with_title",
+            [{"text": text}],
+            metadata={"title": title},
+        )
 
 
-class CitedSummary(Text):
+class TextWithCitations(Text):
     def __init__(self, cited_texts: List[TextWithCitation], title: str):
         Text.__init__(
             self,
-            "cited_summary",
+            "text_with_citations",
             [
                 {
                     "text": cited_text_item.text,

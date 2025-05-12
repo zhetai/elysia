@@ -179,7 +179,34 @@ class Text(Return):
         Return.__init__(self, "text", payload_type)
         self.objects = objects
         self.metadata = metadata
-        self.text = objects[0]["text"]
+        self.text = self._concat_text(self.objects)
+
+    def _concat_text(self, objects: list[dict]):
+        text = ""
+        for i, obj in enumerate(objects):
+            if "text" in obj:
+                spacer = ""
+                if (
+                    not obj["text"].endswith(" ")
+                    and not obj["text"].endswith("\n")
+                    and i != len(objects) - 1
+                ):
+                    spacer += " "
+
+                if (
+                    i != len(objects) - 1
+                    and "text" in objects[i + 1]
+                    and objects[i + 1]["text"].startswith("* ")
+                    and not obj["text"].endswith("\n")
+                ):
+                    spacer += "\n"
+
+                text += obj["text"] + spacer
+
+        text = text.replace("_REF_ID", "")
+        text = text.replace("REF_ID", "")
+        text = text.replace("  ", " ")
+        return text
 
     def to_json(self):
         return {
@@ -207,7 +234,6 @@ class Text(Return):
 class Response(Text):
     def __init__(self, text: str):
         Text.__init__(self, "response", [{"text": text}])
-        self.text = text
 
 
 class Update(Return):

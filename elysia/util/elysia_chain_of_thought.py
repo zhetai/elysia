@@ -50,6 +50,7 @@ class ElysiaChainOfThought(Module):
         self,
         signature: Type[Signature],
         tree_data: TreeData,
+        reasoning: bool = True,
         message_update: bool = True,
         environment: bool = False,
         collection_schemas: bool = False,
@@ -63,6 +64,7 @@ class ElysiaChainOfThought(Module):
             tree_data (TreeData): Required. The tree data from the Elysia decision tree.
                 Used to input the current state of the tree into the prompt.
                 If you are using this module as part of a tool, the `tree_data` is an input to the tool call.
+            reasoning (bool): Whether to include a reasoning input (chain of thought).
             message_update (bool): Whether to include a message update input.
                 If True, the LLM output will include a brief 'update' message to the user.
                 This describes the current action the LLM is performing.
@@ -103,6 +105,7 @@ class ElysiaChainOfThought(Module):
         self.collection_schemas = collection_schemas
         self.tasks_completed = tasks_completed
         self.collection_names = collection_names
+        self.reasoning = reasoning
 
         # == Inputs ==
 
@@ -137,16 +140,6 @@ class ElysiaChainOfThought(Module):
 
         # == Outputs ==
 
-        # -- Reasoning Field --
-        reasoning_desc = (
-            "Reasoning: Repeat relevant parts of the any context within your environment, "
-            "use this to think step by step in order to answer the query."
-        )
-        reasoning_prefix = "${reasoning}"
-        reasoning_field: str = dspy.OutputField(
-            prefix=reasoning_prefix, desc=reasoning_desc
-        )
-
         # -- Impossible Field --
         impossible_desc = (
             "Given the actions you have available, and the environment/information. "
@@ -169,9 +162,6 @@ class ElysiaChainOfThought(Module):
         )
         extended_signature = extended_signature.append(
             name="atlas", field=atlas_field, type_=Atlas
-        )
-        extended_signature = extended_signature.prepend(
-            name="reasoning", field=reasoning_field, type_=str
         )
         extended_signature = extended_signature.append(
             name="impossible", field=impossible_field, type_=bool
@@ -251,6 +241,20 @@ class ElysiaChainOfThought(Module):
             )
             extended_signature = extended_signature.append(
                 name="message_update", field=message_update_field, type_=str
+            )
+
+        # -- Reasoning Field --
+        if reasoning:
+            reasoning_desc = (
+                "Reasoning: Repeat relevant parts of the any context within your environment, "
+                "use this to think step by step in order to answer the query."
+            )
+            reasoning_prefix = "${reasoning}"
+            reasoning_field: str = dspy.OutputField(
+                prefix=reasoning_prefix, desc=reasoning_desc
+            )
+            extended_signature = extended_signature.prepend(
+                name="reasoning", field=reasoning_field, type_=str
             )
 
         # -- Predict --

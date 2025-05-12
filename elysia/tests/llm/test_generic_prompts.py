@@ -190,7 +190,7 @@ class TestGenericPrompts:
             in tree.tree_data.environment.environment["query"]
         )
         assert (
-            "summarize" in tree.decision_history
+            "cited_summarize" in tree.decision_history
             or tree.decision_history[-1] == "text_response"
         )
 
