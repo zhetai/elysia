@@ -762,14 +762,20 @@ class Tree:
         self,
         context: str | None = None,
         num_suggestions: int = 2,
-        model_type: str = "base",
+        model_type: Literal["base", "complex"] = "base",
     ):
         """
+        Async version of get_follow_up_suggestions.
         Get follow-up suggestions for the current user prompt via a base model LLM call.
 
         E.g., if the user asks "What was the most recent Github Issue?",
             and the results show a message from 'Jane Doe',
             the follow-up suggestions might be "What other issues did Jane Doe work on?"
+
+        Args:
+            context (str | None): A description of the type of follow-up questions to suggest
+            num_suggestions (int): The number of follow-up suggestions to return (length of the list output)
+            model_type (Literal["base", "complex"]): The type of model to use for the follow-up suggestions. Default is "base".
 
         Returns:
             list[str]: A list of follow-up suggestions
@@ -789,8 +795,23 @@ class Tree:
         self,
         context: str | None = None,
         num_suggestions: int = 2,
-        model_type: str = "base",
+        model_type: Literal["base", "complex"] = "base",
     ):
+        """
+        Get follow-up suggestions for the current user prompt via a base model LLM call.
+
+        E.g., if the user asks "What was the most recent Github Issue?",
+            and the results show a message from 'Jane Doe',
+            the follow-up suggestions might be "What other issues did Jane Doe work on?"
+
+        Args:
+            context (str | None): A description of the type of follow-up questions to suggest
+            num_suggestions (int): The number of follow-up suggestions to return (length of the list output)
+            model_type (Literal["base", "complex"]): The type of model to use for the follow-up suggestions. Default is "base".
+
+        Returns:
+            list[str]: A list of follow-up suggestions
+        """
         return asyncio_run(
             self.get_follow_up_suggestions_async(context, num_suggestions, model_type)
         )
