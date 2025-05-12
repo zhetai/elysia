@@ -62,10 +62,3 @@ class DummyAdapter(ChatAdapter):
             demos,
             inputs,
         )
-
-
-# @contextmanager
-# def dummy_adapter():
-#     configure(adapter=DummyAdapter())
-#     yield
-#     configure(adapter=ChatAdapter())

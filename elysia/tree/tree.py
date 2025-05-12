@@ -778,7 +778,7 @@ class Tree:
             model_type (Literal["base", "complex"]): The type of model to use for the follow-up suggestions. Default is "base".
 
         Returns:
-            list[str]: A list of follow-up suggestions
+            (list[str]): A list of follow-up suggestions
         """
         suggestions = await get_follow_up_suggestions(
             self.tree_data,
@@ -810,7 +810,7 @@ class Tree:
             model_type (Literal["base", "complex"]): The type of model to use for the follow-up suggestions. Default is "base".
 
         Returns:
-            list[str]: A list of follow-up suggestions
+            (list[str]): A list of follow-up suggestions
         """
         return asyncio_run(
             self.get_follow_up_suggestions_async(context, num_suggestions, model_type)

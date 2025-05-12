@@ -192,7 +192,7 @@ async def follow_up_suggestions(
         # get tree from user_id, conversation_id
         tree: Tree = await user_manager.get_tree(data.user_id, data.conversation_id)
 
-        suggestions = await tree.get_follow_up_suggestions()
+        suggestions = await tree.get_follow_up_suggestions_async()
 
         event.set()
 
