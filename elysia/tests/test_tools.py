@@ -1,6 +1,7 @@
 import os
 import pytest
 import asyncio
+import dspy
 from dspy import LM
 from elysia.objects import Result
 from copy import deepcopy
@@ -17,7 +18,8 @@ except NameError:
     pass
 
 from elysia.util.client import ClientManager
-from elysia.tests.dummy_adapter import dummy_adapter
+
+# from elysia.tests.dummy_adapter import dummy_adapter
 
 configure(logging_level="CRITICAL")
 
@@ -40,7 +42,7 @@ class RunIfTrueFalseTool(Tool):
         complex_lm: LM,
         client_manager: ClientManager,
     ):
-        return False
+        return False, {}
 
     async def __call__(
         self,
@@ -53,12 +55,12 @@ class RunIfTrueFalseTool(Tool):
     ):
 
         tree_data.environment.add(
+            "rule_tool",
             Result(
                 objects=[{"message": "Rule tool called!!!"}],
                 payload_type="text",
                 name="rule_tool",
             ),
-            "rule_tool",
         )
         yield False
 
@@ -81,7 +83,7 @@ class RunIfTrueTrueTool(Tool):
         complex_lm: LM,
         client_manager: ClientManager,
     ):
-        return True
+        return True, {}
 
     async def __call__(
         self,
@@ -94,12 +96,64 @@ class RunIfTrueTrueTool(Tool):
     ):
 
         tree_data.environment.add(
+            "rule_tool",
             Result(
                 objects=[{"message": "Rule tool called!!!"}],
                 payload_type="text",
                 name="rule_tool",
             ),
+        )
+        yield True
+
+
+class RunIfTrueTrueWithInputsTool(Tool):
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="run_if_true_true_tool",
+            description="Always returns True",
+            rule=True,
+            inputs={
+                "message": {
+                    "type": "string",
+                    "description": "A test input",
+                    "default": "This is the default input",
+                }
+            },
+        )
+        self.use_default_inputs = kwargs.get("use_default_inputs", False)
+
+    async def is_tool_available(self, tree_data, base_lm, complex_lm, client_manager):
+        return False
+
+    async def run_if_true(
+        self,
+        tree_data: TreeData,
+        base_lm: LM,
+        complex_lm: LM,
+        client_manager: ClientManager,
+    ):
+        if self.use_default_inputs:
+            return True, {}
+        else:
+            return True, {"message": "This is not the default input"}
+
+    async def __call__(
+        self,
+        tree_data: TreeData,
+        inputs: dict,
+        base_lm: LM,
+        complex_lm: LM,
+        client_manager: ClientManager,
+        **kwargs,
+    ):
+
+        tree_data.environment.add(
             "rule_tool",
+            Result(
+                objects=[{"message": inputs["message"]}],
+                payload_type="text",
+                name="rule_tool",
+            ),
         )
         yield True
 
@@ -195,83 +249,130 @@ class IncorrectToolInitialisation_call_non_async_generator(Tool):
 
 class TestTools:
 
-    base_tree = Tree(
-        low_memory=False,
-        branch_initialisation="empty",
-        settings=Settings.from_default(),
-    )
-
     async def run_tree(
         self,
         user_prompt: str,
         collection_names: list[str],
         tools: list[Tool],
         remove_tools: bool = False,
+        **kwargs,
     ):
-        tree = deepcopy(self.base_tree)
+
+        tree = Tree(
+            low_memory=False,
+            branch_initialisation="empty",
+            settings=Settings.from_default(),
+        )
 
         if not remove_tools:
             tree.add_tool(TextResponse)
 
         for tool in tools:
-            tree.add_tool(tool)
+            tree.add_tool(tool, **kwargs)
 
         async for result in tree.async_run(
             user_prompt,
             collection_names=collection_names,
         ):
             pass
+
         return tree
 
     @pytest.mark.asyncio
     async def test_run_if_true_false_tool(self):
 
-        with dummy_adapter():
-            tree = await self.run_tree("Hello", [], [RunIfTrueFalseTool])
+        tree = await self.run_tree("Hello", [], [RunIfTrueFalseTool])
 
         assert "rule_tool" not in tree.tree_data.environment.environment
 
     @pytest.mark.asyncio
     async def test_run_if_true_true_tool(self):
 
-        with dummy_adapter():
-            tree = await self.run_tree("Hello", [], [RunIfTrueTrueTool])
+        tree = await self.run_tree("Hello", [], [RunIfTrueTrueTool])
 
         assert "rule_tool" in tree.tree_data.environment.environment
 
     @pytest.mark.asyncio
+    async def test_run_if_true_true_with_default_inputs_tool(self):
+        tree = await self.run_tree(
+            "Hello",
+            [],
+            [RunIfTrueTrueWithInputsTool],
+            use_default_inputs=True,
+        )
+
+        assert "rule_tool" in tree.tree_data.environment.environment
+        assert (
+            tree.tree_data.environment.environment["rule_tool"]["rule_tool"][0][
+                "objects"
+            ][0]["message"]
+            == "This is the default input"
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_if_true_true_with_non_default_inputs_tool(self):
+        tree = await self.run_tree(
+            "Hello",
+            [],
+            [RunIfTrueTrueWithInputsTool],
+            use_default_inputs=False,
+        )
+
+        assert "rule_tool" in tree.tree_data.environment.environment
+        assert (
+            tree.tree_data.environment.environment["rule_tool"]["rule_tool"][0][
+                "objects"
+            ][0]["message"]
+            == "This is not the default input"
+        )
+
+    @pytest.mark.asyncio
     async def test_tool_not_available(self):
 
-        with dummy_adapter():
-            with pytest.raises(RuntimeError):  # should have no tools available
-                await self.run_tree("Hello", [], [ToolNotAvailable], remove_tools=True)
+        with pytest.raises(ValueError):  # should have no tools available
+            await self.run_tree("Hello", [], [ToolNotAvailable], remove_tools=True)
 
     @pytest.mark.asyncio
     async def test_tool_available(self):
 
-        with dummy_adapter():
-            tree = await self.run_tree("Hello", [], [ToolAvailable], remove_tools=True)
+        tree = await self.run_tree("Hello", [], [ToolAvailable], remove_tools=True)
 
         assert "always_pick_this_tool" in tree.decision_history
 
     def test_incorrect_tool_initialisation(self):
         with pytest.raises(TypeError):
-            tree = deepcopy(self.base_tree)
+            tree = Tree(
+                low_memory=False,
+                branch_initialisation="empty",
+                settings=Settings.from_default(),
+            )
             tree.add_tool(IncorrectToolInitialisation_kwargs_init)
 
         with pytest.raises(TypeError):
-            tree = deepcopy(self.base_tree)
+            tree = Tree(
+                low_memory=False,
+                branch_initialisation="empty",
+                settings=Settings.from_default(),
+            )
             tree.add_tool(IncorrectToolInitialisation_kwargs_call)
 
         with pytest.raises(TypeError):
-            tree = deepcopy(self.base_tree)
+            tree = Tree(
+                low_memory=False,
+                branch_initialisation="empty",
+                settings=Settings.from_default(),
+            )
             tree.add_tool(IncorrectToolInitialisation_call_non_async)
 
         with pytest.raises(TypeError):
-            tree = deepcopy(self.base_tree)
+            tree = Tree(
+                low_memory=False,
+                branch_initialisation="empty",
+                settings=Settings.from_default(),
+            )
             tree.add_tool(IncorrectToolInitialisation_call_non_async_generator)
 
 
 if __name__ == "__main__":
     test = TestTools()
-    asyncio.run(test.test_tool_available())
+    asyncio.run(test.test_run_if_true_true_with_default_inputs_tool())

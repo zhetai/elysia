@@ -70,3 +70,12 @@ class TestTreeMethods:
         assert tree.tree_data.num_trees_completed == 0
         assert tree.tree_index == 1
         assert len(tree.decision_history) == 0
+
+    def test_get_follow_up_suggestions(self):
+        tree = self.do_query("What was Edward's last message?")
+        suggestions = tree.get_follow_up_suggestions(
+            model_type="complex",
+            context="make it about a man called john",
+            num_suggestions=5,
+        )
+        assert len(suggestions) == 5

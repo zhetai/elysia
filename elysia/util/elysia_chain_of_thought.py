@@ -42,7 +42,7 @@ class ElysiaChainOfThought(Module):
         collection_schemas=True,
         tasks_completed=True,
     )
-    my_module.aforward(input1=..., input2=...)
+    my_module.aforward(input1=..., input2=..., lm=...)
     ```
     """
 
@@ -87,7 +87,7 @@ class ElysiaChainOfThought(Module):
                 If provided, this will modify the collection schema input to only include the collections in this list.
                 This is useful if you only want to include certain collections in the prompt.
                 And to reduce token usage.
-            **config: The configuration for the module.
+            **config: The DSPy configuration for the module.
         """
 
         super().__init__()

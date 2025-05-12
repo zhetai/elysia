@@ -207,9 +207,13 @@ Elysia sometimes has *branches* in the decision tree, which can be created via `
 
 ### `run_if_true`
 
-You can optionally choose to add another method to your Tool - `run_if_true`. This is a method that returns a boolean value.
-The `run_if_true` method will be checked at the _start_ of every decision tree, for every tool that has this method. If you don't wish to use this method, then simply do not define one.
-If `run_if_true` returns `True`, then the `__call__` method of your tool will be called and carried out regardless of if the LLM wishes to use this tool or not. It is a hardcoded rule to run the tool. Some examples of using this include:
+You can optionally choose to add another method to your Tool - `run_if_true`. This is a method that will be checked at the _start_ of every decision tree, for every tool that has this method. If you don't wish to use this method, then simply do not define one.
+
+The `run_if_true` method returns two arguments (`tuple[bool, dict]`):
+- a boolean value indicating whether the tool should be called *straight away*,
+- a dictionary of `inputs` for if this tool gets called.
+
+If `run_if_true` returns `True`, then the `__call__` method of your tool will be called and carried out regardless of if the LLM wishes to use this tool or not. It is a hardcoded rule to run the tool. Some potential examples of using this include:
 
 - The `run_if_true` method can count the number of tokens in the environment, and if the environment is getting too large, it runs the tool. Then the `__call__` method will be shrinking the environment in some way (e.g. using an LLM or just taking one particular item from it).
 - If the user is asking about a particular subject, e.g. if the `user_prompt` (inside of `tree_data`) contains a specific word, then you could augment the `tree_data` to include some more specific information.

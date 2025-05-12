@@ -1,5 +1,6 @@
 import pytest
-from elysia.tests.dummy_adapter import dummy_adapter
+
+# from elysia.tests.dummy_adapter import dummy_adapter
 
 from fastapi.responses import JSONResponse
 

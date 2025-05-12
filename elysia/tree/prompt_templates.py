@@ -101,11 +101,6 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
     Generate questions that showcase system capabilities and maintain user interest.
     Questions should be fun, creative, and designed to impress.
 
-    System context:
-    An agentic RAG service querying or aggregating information from Weaviate collections via filtering, sorting, multi-collection queries, summary statistics.
-    Uses tree-based approach with specialized agents and decision nodes for dynamic information retrieval,
-    summary generation, and real-time results display while maintaining natural conversation flow.
-
     Since you are suggesting _follow-up_ questions, you should not suggest questions that are too similar to the user's prompt.
     Instead, try to think of something that can connect different data sources together, or provide new insights that the user may not have thought of.
     These should be fully formed questions, that you think the system is capable of answering, that the user would be interested in, and that show off the system's capabilities.
@@ -115,12 +110,22 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
 
     Do not suggest questions that will require _complex_ calculations or reasoning, it should be mostly focused on following up on the already retrieved data,
     or following up by retrieving similar or new data that is related to the already retrieved data.
+
+    You must ALWAYS return a list of strings (for `suggestions`), with each string being a follow-up question. Do not leave it empty.
     """
 
     user_prompt = dspy.InputField(description="The user's input prompt.")
     reference: dict = dspy.InputField(
         desc="""
         Current state information like date/time to frame.
+        """.strip(),
+        format=str,
+    )
+    context: str = dspy.InputField(
+        description="""
+        Context for the suggestions.
+        The context gives an overview of the system you are a part of, and the type of follow-up questions you should suggest.
+        But, the questions should still be possible. If the context is impossible to create questions about, fall back to generic follow-up questions.
         """.strip(),
         format=str,
     )
@@ -165,6 +170,16 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
         description="A list of questions that have already been suggested. Do not suggest the same question (or anything similar) as any items in this list.",
         format=str,
     )
+    num_suggestions: int = dspy.InputField(
+        description="The number of follow-up questions to suggest.",
+        format=int,
+    )
     suggestions: list[str] = dspy.OutputField(
-        description="A list of follow up questions to the user's prompt. Around 2 questions. These should be punctual, short, around 10 words or so. Try to mix up the vocabulary and type of question between them."
+        description=(
+            "A list of follow up questions to the user's prompt. "
+            "These should be punctual, short, around 10 words or so. "
+            "This should be a list of questions of size `num_suggestions`."
+            "Try to mix up the vocabulary and type of question between them."
+        ),
+        format=list,
     )

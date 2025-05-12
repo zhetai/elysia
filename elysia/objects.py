@@ -1,6 +1,7 @@
 import uuid
 
 from elysia.util.parsing import format_dict_to_serialisable
+from typing import Any, AsyncGenerator
 
 
 class Branch:
@@ -58,7 +59,7 @@ class Tool:
         else:
             self.status = status
 
-    def get_default_inputs(self):
+    def get_default_inputs(self) -> dict:
         return {
             key: value["default"] if "default" in value else None
             for key, value in self.inputs.items()
@@ -70,11 +71,13 @@ class Tool:
         base_lm,
         complex_lm,
         client_manager,
-    ):
+    ) -> tuple[bool, dict]:
         """
         This method is called to check if the tool should be run automatically.
         If this returns `True`, then the tool is immediately called at the start of the tree.
         Otherwise it does not appear in the decision tree.
+        You must also return a dictionary of inputs for the tool, which will be used to call the tool if `True` is returned.
+        If the inputs are None or an empty dictionary, then the default inputs will be used.
 
         This must be an async function.
 
@@ -86,8 +89,14 @@ class Tool:
 
         Returns:
             bool: True if the tool should be run automatically, False otherwise.
+            dict: A dictionary of inputs for the tool, with the following structure:
+                ```python
+                {
+                    input_name: input_value
+                }
+                ```
         """
-        return False
+        return False, {}
 
     async def is_tool_available(
         self,
@@ -95,7 +104,7 @@ class Tool:
         base_lm,
         complex_lm,
         client_manager,
-    ):
+    ) -> bool:
         """
         This method is called to check if the tool is available.
         If this returns `True`, then the tool is available to be used by the LLM.
@@ -123,7 +132,7 @@ class Tool:
         base_lm,
         complex_lm,
         client_manager,
-    ):
+    ) -> AsyncGenerator[Any, None]:
         """
         This method is called to run the tool.
 

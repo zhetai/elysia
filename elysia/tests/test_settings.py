@@ -44,8 +44,10 @@ class TestConfig:
         """
         os.environ["BASE_MODEL"] = os.getenv("BASE_MODEL", "gemini-2.0-flash-001")
         os.environ["COMPLEX_MODEL"] = os.getenv("COMPLEX_MODEL", "gemini-2.0-flash-001")
-        os.environ["BASE_PROVIDER"] = os.getenv("BASE_PROVIDER", "google")
-        os.environ["COMPLEX_PROVIDER"] = os.getenv("COMPLEX_PROVIDER", "google")
+        os.environ["BASE_PROVIDER"] = os.getenv("BASE_PROVIDER", "openrouter/google")
+        os.environ["COMPLEX_PROVIDER"] = os.getenv(
+            "COMPLEX_PROVIDER", "openrouter/google"
+        )
         os.environ["MODEL_API_BASE"] = os.getenv(
             "MODEL_API_BASE", "https://api.google.com"
         )

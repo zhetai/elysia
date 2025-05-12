@@ -355,11 +355,11 @@ class ActionConsequence(Tool):
         yield items
 
         tree_data.environment.add(
+            "action_consequence",
             BoringGeneric(
                 objects=[{"text": result.consequences}],
                 name="story",
             ),
-            "action_consequence",
         )
 
         tree_data.update_tasks_completed(
@@ -461,19 +461,19 @@ class SetTheScene(Tool):
         )
 
         tree_data.environment.add(
+            "set_the_scene",
             BoringGeneric(
                 objects=[{"text": result.story_plan}],
                 name="story_plan",
             ),
-            "set_the_scene",
         )
 
         tree_data.environment.add(
+            "set_the_scene",
             BoringGeneric(
                 objects=[{"text": result.opening_story}],
                 name="story",
             ),
-            "set_the_scene",
         )
 
         yield Status("Creating characters and items...")
