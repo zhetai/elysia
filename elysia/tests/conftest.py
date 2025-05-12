@@ -1,5 +1,7 @@
 import asyncio
 import pytest
+from elysia.tests.dummy_adapter import DummyAdapter
+from dspy import configure, ChatAdapter
 
 
 @pytest.fixture(scope="session")
@@ -12,3 +14,11 @@ def event_loop():
         yield loop
     finally:
         loop.close()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def use_dummy_adapter():
+
+    configure(adapter=DummyAdapter())
+    yield
+    configure(adapter=ChatAdapter())

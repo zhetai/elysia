@@ -337,7 +337,7 @@ class TestObjects:
             metadata={"metadata_a": "hello", "metadata_b": 10},
             name="test_result",
         )
-        environment.add(res, "test_tool")
+        environment.add("test_tool", res)
 
         assert not environment.is_empty()
         assert (

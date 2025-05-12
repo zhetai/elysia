@@ -59,9 +59,11 @@ class Environment:
 
     def __init__(
         self,
-        environment: dict[str, dict[str, List[Result]]] = {},
+        environment: dict[str, dict[str, List[Result]]] | None = None,
         self_info: bool = True,
     ):
+        if environment is None:
+            environment = {}
         self.environment = environment
         self.hidden_environment = {}
         if self_info:
@@ -493,22 +495,50 @@ class TreeData:
         self,
         collection_data: CollectionData,
         atlas: Atlas,
-        user_prompt: str = "",
-        conversation_history: list[dict] = [],
-        environment: Environment = Environment(),
-        hidden_environment: Environment = Environment(self_info=False),
-        tasks_completed: list[dict] = [],
-        num_trees_completed: int = 0,
-        recursion_limit: int = 3,
+        user_prompt: str | None = None,
+        conversation_history: list[dict] | None = None,
+        environment: Environment | None = None,
+        hidden_environment: Environment | None = None,
+        tasks_completed: list[dict] | None = None,
+        num_trees_completed: int | None = None,
+        recursion_limit: int | None = None,
     ):
+
         # -- Base Data --
-        self.user_prompt = user_prompt
-        self.conversation_history = conversation_history
-        self.environment = environment
-        self.hidden_environment = hidden_environment
-        self.tasks_completed = tasks_completed
-        self.num_trees_completed = num_trees_completed
-        self.recursion_limit = recursion_limit
+        if user_prompt is None:
+            self.user_prompt = ""
+        else:
+            self.user_prompt = user_prompt
+
+        if conversation_history is None:
+            self.conversation_history = []
+        else:
+            self.conversation_history = conversation_history
+
+        if environment is None:
+            self.environment = Environment()
+        else:
+            self.environment = environment
+
+        if hidden_environment is None:
+            self.hidden_environment = Environment(self_info=False)
+        else:
+            self.hidden_environment = hidden_environment
+
+        if tasks_completed is None:
+            self.tasks_completed = []
+        else:
+            self.tasks_completed = tasks_completed
+
+        if num_trees_completed is None:
+            self.num_trees_completed = 0
+        else:
+            self.num_trees_completed = num_trees_completed
+
+        if recursion_limit is None:
+            self.recursion_limit = 3
+        else:
+            self.recursion_limit = recursion_limit
 
         # -- Atlas --
         self.atlas = atlas

@@ -11,7 +11,8 @@ set_log_level("CRITICAL")
 
 from elysia.api.routes.query import process
 from elysia.api.api_types import QueryData, InitialiseUserData, InitialiseTreeData
-from elysia.tests.dummy_adapter import dummy_adapter
+
+# from elysia.tests.dummy_adapter import dummy_adapter
 from elysia.api.routes.init import initialise_user, initialise_tree
 
 

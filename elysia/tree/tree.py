@@ -41,7 +41,7 @@ from elysia.tools.text.text import FakeTextResponse, Summarizer, TextResponse
 from elysia.util.async_util import asyncio_run
 
 # Objects
-from elysia.tree.objects import CollectionData, TreeData, Atlas
+from elysia.tree.objects import CollectionData, TreeData, Atlas, Environment
 
 # Decision Prompt executors
 from elysia.util.client import ClientManager
@@ -62,23 +62,6 @@ class Tree:
     """
     The main class for the Elysia decision tree.
     Calling this method will execute the decision tree based on the user's prompt, and available collections and tools.
-
-    Args:
-        branch_initialisation (str): The initialisation method for the branches,
-            currently supports some pre-defined initialisations: "multi_branch", "one_branch".
-            Set to "empty" to start with no branches and to add them, and the tools, yourself.
-        style (str): The writing style of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
-        agent_description (str): The description of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
-        end_goal (str): The end goal of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
-        user_id (str): The id of the user, e.g. "123-456",
-            unneeded outside of user management/hosting Elysia app
-        conversation_id (str): The id of the conversation, e.g. "123-456",
-            unneeded outside of conversation management/hosting Elysia app
-        debug (bool): Whether to run the tree in debug mode.
-            If True, the tree will save the (dspy) models within the tree.
-            Set to False for saving memory.
-        settings (Settings): The settings for the tree, an object of elysia.Settings.
-            This is automatically set to the environment settings if not provided.
     """
 
     def __init__(
@@ -92,8 +75,26 @@ class Tree:
         user_id: str | None = None,
         conversation_id: str | None = None,
         low_memory: bool = False,
-        settings: Settings = environment_settings,
+        settings: Settings | None = None,
     ):
+        """
+        Args:
+            branch_initialisation (str): The initialisation method for the branches,
+                currently supports some pre-defined initialisations: "multi_branch", "one_branch".
+                Set to "empty" to start with no branches and to add them, and the tools, yourself.
+            style (str): The writing style of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
+            agent_description (str): The description of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
+            end_goal (str): The end goal of the agent. Automatically set for "multi_branch" and "one_branch" initialisation, but overrided if non-empty.
+            user_id (str): The id of the user, e.g. "123-456",
+                unneeded outside of user management/hosting Elysia app
+            conversation_id (str): The id of the conversation, e.g. "123-456",
+                unneeded outside of conversation management/hosting Elysia app
+            low_memory (bool): Whether to run the tree in low memory mode.
+                If True, the tree will not load the (dspy) models within the tree.
+                Set to False for normal operation.
+            settings (Settings): The settings for the tree, an object of elysia.Settings.
+                This is automatically set to the environment settings if not provided.
+        """
         # Define base variables of the tree
         if user_id is None:
             self.user_id = str(uuid.uuid4())
@@ -105,10 +106,13 @@ class Tree:
         else:
             self.conversation_id = conversation_id
 
-        assert isinstance(
-            settings, Settings
-        ), "settings must be an instance of Settings"
-        self.settings = settings
+        if settings is None:
+            self.settings = environment_settings
+        else:
+            assert isinstance(
+                settings, Settings
+            ), "settings must be an instance of Settings"
+            self.settings = settings
 
         # keep track of the number of trees completed
         self.num_trees_completed = 0
@@ -129,6 +133,7 @@ class Tree:
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
+            environment=Environment(),
             collection_data=CollectionData(
                 collection_names=[], logger=self.settings.logger
             ),
@@ -445,12 +450,13 @@ class Tree:
                 self.decision_nodes[branch_id].remove_option(empty_branch)
 
         for empty_branch in empty_branches:
-            self.settings.logger.warning(
-                f"Removing empty branch: {empty_branch}",
-                "No tools are attached to this branch, so it has been removed.",
-                f"To add a tool to this branch, use .add_tool(tool_name, branch_id={empty_branch})",
-            )
-            del self.decision_nodes[empty_branch]
+            if empty_branch != self.root:
+                self.settings.logger.warning(
+                    f"Removing empty branch: {empty_branch} "
+                    "No tools are attached to this branch, so it has been removed. "
+                    f"To add a tool to this branch, use .add_tool(tool_name, branch_id={empty_branch})"
+                )
+                del self.decision_nodes[empty_branch]
 
         return empty_branches
 
@@ -480,9 +486,12 @@ class Tree:
 
         branch = self.decision_nodes[branch_id]
         nodes_with_rules_met = []
+        rule_tool_inputs = {}
         for function_name, option in branch.options.items():
             if "run_if_true" in dir(self.tools[function_name]):
-                rule_met = await self.tools[function_name].run_if_true(
+                rule_met, rule_tool_inputs = await self.tools[
+                    function_name
+                ].run_if_true(
                     tree_data=self.tree_data,
                     client_manager=client_manager,
                     base_lm=base_lm,
@@ -490,8 +499,14 @@ class Tree:
                 )
                 if rule_met:
                     nodes_with_rules_met.append(function_name)
+                    if rule_tool_inputs is None or rule_tool_inputs == {}:
+                        rule_tool_inputs[function_name] = self.tools[
+                            function_name
+                        ].get_default_inputs()
+                    else:
+                        rule_tool_inputs[function_name] = rule_tool_inputs
 
-        return nodes_with_rules_met
+        return nodes_with_rules_met, rule_tool_inputs
 
     def set_conversation_id(self, conversation_id: str):
         self.conversation_id = conversation_id
@@ -743,7 +758,12 @@ class Tree:
         self.tree = {}
         self._construct_tree(self.root, self.tree)
 
-    async def get_follow_up_suggestions(self):
+    async def get_follow_up_suggestions_async(
+        self,
+        context: str | None = None,
+        num_suggestions: int = 2,
+        model_type: str = "base",
+    ):
         """
         Get follow-up suggestions for the current user prompt via a base model LLM call.
 
@@ -755,10 +775,25 @@ class Tree:
             list[str]: A list of follow-up suggestions
         """
         suggestions = await get_follow_up_suggestions(
-            self.tree_data, self.suggestions, self.settings
+            self.tree_data,
+            self.suggestions,
+            self.settings,
+            context=context,
+            num_suggestions=num_suggestions,
+            model_type=model_type,
         )
         self.suggestions.extend(suggestions)
         return suggestions
+
+    def get_follow_up_suggestions(
+        self,
+        context: str | None = None,
+        num_suggestions: int = 2,
+        model_type: str = "base",
+    ):
+        return asyncio_run(
+            self.get_follow_up_suggestions_async(context, num_suggestions, model_type)
+        )
 
     def _update_conversation_history(self, role: str, message: str):
         if message != "":
@@ -804,7 +839,7 @@ class Tree:
         """
 
         # add to environment (store of retrieved/called objects)
-        self.tree_data.environment.add(result, decision.function_name)
+        self.tree_data.environment.add(decision.function_name, result)
 
         # make note of which objects were retrieved _this session_ (for returning)
         if self.store_retrieved_objects:
@@ -862,18 +897,21 @@ class Tree:
             last_in_tree=decision.last_in_tree,
         )
 
-    async def _get_available_tools(self, client_manager: ClientManager):
+    async def _get_available_tools(
+        self, current_decision_node: DecisionNode, client_manager: ClientManager
+    ):
         available_tools = []
-        for tool in self.tools.values():
-            if not "is_tool_available" in dir(tool):
-                available_tools.append(tool.name)
-            elif await tool.is_tool_available(
+
+        for tool in current_decision_node.options.keys():
+            if not "is_tool_available" in dir(self.tools[tool]):
+                available_tools.append(tool)
+            elif await self.tools[tool].is_tool_available(
                 tree_data=self.tree_data,
                 base_lm=self.get_lm("base"),
                 complex_lm=self.get_lm("complex"),
                 client_manager=client_manager,
             ):
-                available_tools.append(tool.name)
+                available_tools.append(tool)
         return available_tools
 
     async def async_run(
@@ -968,7 +1006,9 @@ class Tree:
         # Loop through the tree until the end is reached
         while True:
 
-            available_tools = await self._get_available_tools(client_manager)
+            available_tools = await self._get_available_tools(
+                current_decision_node, client_manager
+            )
             if len(available_tools) == 0:
                 self.settings.logger.error("No tools available to use!")
                 raise ValueError(
@@ -977,7 +1017,7 @@ class Tree:
                 )
 
             # Evaluate any tools which have hardcoded rules that have been met
-            nodes_with_rules_met = await self._check_rules(
+            nodes_with_rules_met, rule_tool_inputs = await self._check_rules(
                 current_decision_node.id, client_manager
             )
 
@@ -986,7 +1026,7 @@ class Tree:
                     rule_decision = Decision(rule, {}, "", False, False)
                     async for result in self.tools[rule](
                         tree_data=self.tree_data,
-                        inputs={},
+                        inputs=rule_tool_inputs[rule],
                         base_lm=self.get_lm("base"),
                         complex_lm=self.get_lm("complex"),
                         client_manager=client_manager,

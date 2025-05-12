@@ -14,7 +14,8 @@ from elysia.api.routes.init import initialise_user
 from elysia.api.routes.processor import process_collection
 from elysia.util.client import ClientManager
 from elysia.api.core.log import logger, set_log_level
-from elysia.tests.dummy_adapter import dummy_adapter
+
+# from elysia.tests.dummy_adapter import dummy_adapter
 from weaviate.classes.config import Configure
 
 set_log_level("CRITICAL")

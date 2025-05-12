@@ -26,7 +26,7 @@ from elysia.tree.prompt_templates import (
 )
 
 # Settings
-from elysia.config import Settings, load_base_lm
+from elysia.config import Settings, load_base_lm, load_complex_lm
 
 
 class RecursionLimitException(Exception):
@@ -166,7 +166,8 @@ class DecisionNode:
         # decision_executor = self._load_model(decision_executor)
         # decision_executor = dspy.asyncify(decision_executor)
 
-        self.logger.debug(f"Available options: {list(options.keys())}")
+        if self.logger:
+            self.logger.debug(f"Available options: {list(options.keys())}")
 
         output = await decision_executor.aforward(
             instruction=self.instruction,
@@ -328,22 +329,54 @@ class BranchVisitor(ast.NodeVisitor):
 
 
 async def get_follow_up_suggestions(
-    tree_data: TreeData, current_suggestions: list[str], config: Settings
+    tree_data: TreeData,
+    current_suggestions: list[str],
+    config: Settings,
+    model_type: str = "base",
+    num_suggestions: int = 2,
+    context: str | None = None,
 ):
 
     # load dspy model for suggestor
     follow_up_suggestor = dspy.Predict(FollowUpSuggestionsPrompt)
 
-    # get prediction
-    prediction = await follow_up_suggestor.aforward(
-        user_prompt=tree_data.user_prompt,
-        reference=create_reference(),
-        conversation_history=tree_data.conversation_history,
-        environment=tree_data.environment.to_json(),
-        data_information=tree_data.output_collection_metadata(with_mappings=False),
-        old_suggestions=current_suggestions,
-        lm=load_base_lm(config),
-    )
-    config.logger.debug(f"Follow-up suggestions: {prediction.suggestions}")
+    if model_type == "base":
+        lm = load_base_lm(config)
+    elif model_type == "complex":
+        lm = load_complex_lm(config)
+    else:
+        raise ValueError(
+            f"Invalid model type: {model_type}. Must be 'base' or 'complex'."
+        )
 
-    return prediction.suggestions
+    if context is None:
+        context = (
+            "System context: You are an agentic RAG service querying or aggregating information from Weaviate collections via filtering, "
+            "sorting, multi-collection queries, summary statistics. "
+            "Uses tree-based approach with specialized agents and decision nodes for dynamic information retrieval, "
+            "summary generation, and real-time results display while maintaining natural conversation flow. "
+            "Create questions that are natural follow-ups to the user's prompt, "
+            "which they may find interesting or create relevant insights to the already retrieved data. "
+            "Or, questions which span across other collections, but are still relevant to the user's prompt."
+        )
+
+    # get prediction
+    try:
+        prediction = await follow_up_suggestor.aforward(
+            user_prompt=tree_data.user_prompt,
+            reference=create_reference(),
+            conversation_history=tree_data.conversation_history,
+            environment=tree_data.environment.to_json(),
+            data_information=tree_data.output_collection_metadata(with_mappings=False),
+            old_suggestions=current_suggestions,
+            context=context,
+            num_suggestions=num_suggestions,
+            lm=lm,
+        )
+        suggestions = prediction.suggestions
+        config.logger.debug(f"Follow-up suggestions: {suggestions}")
+    except Exception as e:
+        config.logger.error(f"Error getting follow-up suggestions: {e}")
+        suggestions = []
+
+    return suggestions
