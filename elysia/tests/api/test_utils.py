@@ -1,7 +1,5 @@
 import pytest
 
-# from elysia.tests.dummy_adapter import dummy_adapter
-
 from fastapi.responses import JSONResponse
 
 import json
@@ -79,15 +77,14 @@ class TestUtils:
             response = read_response(out)
             assert response["error"] == ""
 
-            with dummy_adapter():
-                out = await title(
-                    TitleData(
-                        user_id="test_user",
-                        conversation_id="test_conversation",
-                        text="Hello, world!",
-                    ),
-                    user_manager,
-                )
+            out = await title(
+                TitleData(
+                    user_id="test_user",
+                    conversation_id="test_conversation",
+                    text="Hello, world!",
+                ),
+                user_manager,
+            )
 
             response = read_response(out)
             assert response["error"] == ""
@@ -120,14 +117,14 @@ class TestUtils:
             response = read_response(out)
             assert response["error"] == ""
 
-            with dummy_adapter():
-                out = await follow_up_suggestions(
-                    FollowUpSuggestionsData(
-                        user_id="test_user",
-                        conversation_id="test_conversation",
-                    ),
-                    user_manager,
-                )
+            out = await follow_up_suggestions(
+                FollowUpSuggestionsData(
+                    user_id="test_user",
+                    conversation_id="test_conversation",
+                ),
+                user_manager,
+            )
+
             response = read_response(out)
             assert response["error"] == ""
         finally:

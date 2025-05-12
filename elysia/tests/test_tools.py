@@ -19,7 +19,6 @@ except NameError:
 
 from elysia.util.client import ClientManager
 
-# from elysia.tests.dummy_adapter import dummy_adapter
 
 configure(logging_level="CRITICAL")
 

@@ -196,6 +196,7 @@ class Text(Return):
     ):
         return {
             "type": self.frontend_type,
+            "id": self.frontend_type[:3] + "-" + str(uuid.uuid4()),
             "user_id": user_id,
             "conversation_id": conversation_id,
             "query_id": query_id,
