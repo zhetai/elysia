@@ -26,6 +26,8 @@ class CitedSummarizingPrompt(dspy.Signature):
 
         Take the _REF_ID from items in the environment, only use them as the ref_ids in the TextWithCitation objects.
         Do not use the _REF_ID anywhere in the 'text' fields, they should only be copied as the ref_id in the TextWithCitation objects.
+
+        Ensure that you use newline characters (\\n) in each 'text' field if you are using markdown formatting such as lists, or other formatting.
         """.strip()
     )
 

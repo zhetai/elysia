@@ -37,7 +37,12 @@ from elysia.objects import (
 )
 from elysia.tools.retrieval.aggregate import Aggregate
 from elysia.tools.retrieval.query import Query
-from elysia.tools.text.text import FakeTextResponse, Summarizer, TextResponse
+from elysia.tools.text.text import (
+    FakeTextResponse,
+    Summarizer,
+    TextResponse,
+    CitedSummarizer,
+)
 from elysia.util.async_util import asyncio_run
 
 # Objects
@@ -200,7 +205,7 @@ class Tree:
             """,
             status="Choosing a base-level task...",
         )
-        self.add_tool(branch_id="base", tool=Summarizer)
+        self.add_tool(branch_id="base", tool=CitedSummarizer)
         self.add_tool(branch_id="base", tool=FakeTextResponse)
 
         self.add_branch(
@@ -232,7 +237,7 @@ class Tree:
             """,
             status="Choosing a base-level task...",
         )
-        self.add_tool(branch_id="base", tool=Summarizer)
+        self.add_tool(branch_id="base", tool=CitedSummarizer)
         self.add_tool(branch_id="base", tool=FakeTextResponse)
         self.add_tool(branch_id="base", tool=Query)
         self.add_tool(branch_id="base", tool=Aggregate)

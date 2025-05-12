@@ -8,7 +8,7 @@ from elysia.util.reference import create_reference
 
 # LLM
 from elysia.objects import Response, Tool, Reasoning
-from elysia.tools.text.objects import Summary, CitedSummary
+from elysia.tools.text.objects import TextWithTitle, TextWithCitations
 from elysia.tools.text.prompt_templates import (
     SummarizingPrompt,
     TextResponsePrompt,
@@ -53,6 +53,7 @@ class CitedSummarizer(Tool):
         summarizer = ElysiaChainOfThought(
             CitedSummarizingPrompt,
             tree_data=tree_data,
+            reasoning=False,
             environment=True,
             tasks_completed=True,
             message_update=False,
@@ -62,9 +63,10 @@ class CitedSummarizer(Tool):
             lm=base_lm,
         )
 
-        yield Reasoning(summary.reasoning)
-
-        yield CitedSummary(cited_texts=summary.cited_text, title=summary.subtitle)
+        yield TextWithCitations(
+            cited_texts=summary.cited_text,
+            title=summary.subtitle,
+        )
 
 
 class Summarizer(Tool):
@@ -110,7 +112,7 @@ class Summarizer(Tool):
             lm=base_lm,
         )
 
-        yield Summary(text=summary.summary, title=summary.subtitle)
+        yield TextWithTitle(text=summary.summary, title=summary.subtitle)
 
 
 class TextResponse(Tool):
