@@ -114,7 +114,7 @@ class Environment:
                     break
         return empty
 
-    def add(self, result: Result, tool_name: str):
+    def add(self, tool_name: str, result: Result):
         """
         Adds a result to the environment.
         Is called automatically by the tree when a result is returned from an agent.
@@ -128,8 +128,8 @@ class Environment:
         as well as the `_REF_ID` of the original object.
 
         Args:
-            result (Result): The result to add to the environment.
             tool_name (str): The name of the tool called that the result belongs to.
+            result (Result): The result to add to the environment.
         """
         objects = result.to_json()
         name = result.name
