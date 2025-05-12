@@ -33,13 +33,13 @@ This calls the `.add()` method on the environment using the `Result` object.
 
 When calling a tool, you can specifically add a `Result` object to the environment via 
 ```python
-environment.add(Result, tool_name)
+environment.add(tool_name, Result)
 ```
 The corresponding `to_json()` method in the `Result` is used to obtain the objects which get added.
 
 You can also have more control over which objects get added specifically by using
 ```python
-environment.add_objects(objects, metadata, tool_name, name)
+environment.add_objects(tool_name, name, objects, metadata)
 ```
 where `objects` is a list of dictionaries, `metadata` is a dictionary and `tool_name` and `name` are string identifiers.
 
