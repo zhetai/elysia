@@ -18,6 +18,55 @@ where each item in `objects` is a list of objects retrieved during the call of t
 
 For example, if Elysia calls the 'Query' tool, then the `tool_name` is `"query"` and the `name` is the name of the collection queried. Each list of objects has metadata associated with the query used to retrieve the data. So each list of objects has unique metadata.
 
+<details closed>
+<summary>Environment Example</summary>
+
+Below is an example of what the environment looks like, after the tools `query` and `aggregate` have been called within this tree session.
+```python
+{
+    "query": {
+        "message_result": [
+            {
+                "objects": [
+                    {"message_id": 1, "message_content": "Hi this is an example message about frogs!"},
+                    {"message_id": 2, "message_content": "Hi this is also an example message about reindeer!"},
+                ], 
+                "metadata": {
+                    "collection_name": "example_email_messages_collection",
+                    "query_search_term": "animals"
+                }
+            },
+        ]
+    },
+    "aggregate": {
+        "pet_food_result": [
+            {
+                "objects": [
+                    {
+                        "average_price": 45.99, 
+                        "product_count": 150, 
+                    }
+                ],
+                "metadata": {
+                    "collection_name": "pet_food",
+                    "group_by": {"field": "animal", "value": "frog"} 
+                }
+            }
+        ]
+    }
+}
+```
+This is just an example and not exactly how the structure within Elysia's inbuilt query and aggregate tools behave (they have much more information and would be harder to follow).
+
+Note the levels of indexing the environment. 
+- The outer most level is the tool name that yielded the result (`"query"` and `"aggregate"`).
+- The next level is a `name` parameter associated with the `Result` that was yielded (`"message_result"` for query and `"pet_food_result"` for aggregate).
+- After the `name` key, there is a list of dictionaries. This list corresponds to a different result that was yielded within the same tool/name combination.
+- Each element of the list underneath `name` contains an `objects` and `metadata`, where the metadata is shared amongst all objects in this element.
+
+
+</details>
+
 
 ## Interacting with the Environment
 
@@ -28,6 +77,68 @@ For a full breakdown of all the methods, [see the Environment reference page](..
 When yielding a `Result` object from a Tool, the result's `to_json()` method will return a list of dictionaries which automatically gets created or appended to the objects field in `environment[tool_name][name]`. The metadata are added at the same point.
 
 This calls the `.add()` method on the environment using the `Result` object.
+
+
+<details closed>
+<summary>Environment Example (cont. pt. 1)</summary>
+
+From the `aggregate` tool, we can yield and initialise a `Result` back to the decision tree, where it is processed by the tree logic:
+
+```python
+yield Result(
+    name="pet_food_result",
+    objects = [
+        {
+            "average_price": 12.52, 
+            "product_count": 33,
+        }
+    ],
+    metadata = {
+        "collection_name": "pet_food",
+        "group_by": {"field": "animal", "value": "reindeer"} 
+    }
+)
+```
+
+And the updated environment looks like:
+
+```python
+{
+    "query": {
+        "message_result": [...]
+    },
+    "aggregate": {
+        "pet_food_result": [
+            {
+                "objects": [
+                    {
+                        "average_price": 45.99, 
+                        "product_count": 150, 
+                    }
+                ],
+                "metadata": {
+                    "collection_name": "pet_food",
+                    "group_by": {"field": "animal", "value": "frog"} 
+                }
+            },
+            {
+                "objects": [
+                    {
+                        "average_price": 12.52, 
+                        "product_count": 33,
+                    }
+                ],
+                "metadata": {
+                    "collection_name": "pet_food",
+                    "group_by": {"field": "animal", "value": "reindeer"} 
+                }
+            }
+        ]
+    }
+}
+```
+Notice how a new entry was not added to either the first or second level of the environment dictionary, but was instead appended to the existing entries under `aggregate -> pet_food_result`
+</details>
 
 ### `.add()` and `.add_objects()`
 
@@ -43,6 +154,48 @@ environment.add_objects(tool_name, name, objects, metadata)
 ```
 where `objects` is a list of dictionaries, `metadata` is a dictionary and `tool_name` and `name` are string identifiers.
 
+<details closed>
+<summary>Environment Example (cont. pt. 2)</summary>
+If we were to do
+```python
+frog_result = Result(
+    objects = [
+        {
+            "animal": "frog",
+            "description": "Green and slimy"
+        }
+    ],
+    name="animal_description"
+)
+environment.add(tool_name="descriptor", result=frog_result)
+```
+Then the environment would be updated to 
+```python
+{
+    "query": {
+        "message_result": [...]
+    },
+    "aggregate": {
+        "pet_food_result": [...]
+    }
+    "descriptor": {
+        "animal_description": [
+            {
+                "objects": [
+                    {
+                        "animal": "frog",
+                        "description": "Green and slimy"
+                    }
+                ],
+                "metadata": {}
+            }
+        ]
+    }
+}
+```
+Even though we never interfaced with a tool called `descriptor`.
+</details>
+
 ### `.replace()`
 
 Change an item in the environment with another item 
@@ -50,6 +203,42 @@ Change an item in the environment with another item
 environment.replace(tool_name, name, objects, metadata, index)
 ```
 either replace the entire list of items (objects + metadatas) or a single item at a particular index. `index` will only replace a particular item at that location, or if `None` (default) will replace the entire list.
+
+<details closed>
+<summary>Environment Example (cont. pt. 3)</summary>
+If we were to change the results from the `"descriptor"` to something else,
+```python
+environment.replace(
+    tool_name="descriptor", 
+    name="animal_description",
+    objects = [{"animal": "reindeer", "description": "Has a red nose"}]
+)
+```
+Then the environment would be updated to 
+```python
+{
+    "query": {
+        "message_result": [...]
+    },
+    "aggregate": {
+        "pet_food_result": [...]
+    }
+    "descriptor": {
+        "animal_description": [
+            {
+                "objects": [
+                    {
+                        "animal": "reindeer",
+                        "description": "Has a red nose"
+                    }
+                ],
+                "metadata": {}
+            }
+        ]
+    }
+}
+```
+</details>
 
 ### `.find()`
 
