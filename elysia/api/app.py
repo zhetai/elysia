@@ -84,12 +84,9 @@ register_error_handlers(app)
 
 # Include routers
 app.include_router(init.router, prefix="/init", tags=["init"])
-
 app.include_router(query.router, prefix="/ws", tags=["websockets"])
 app.include_router(processor.router, prefix="/ws", tags=["websockets"])
-
 app.include_router(collections.router, prefix="/collections", tags=["collections"])
-
 app.include_router(config.router, prefix="/config", tags=["config"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(utils.router, prefix="/util", tags=["utilities"])
