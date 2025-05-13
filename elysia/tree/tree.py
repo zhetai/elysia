@@ -856,6 +856,21 @@ class Tree:
         else:
             self.actions_called[self.user_prompt][-1]["output"] = []
 
+    def _add_refs(self, objects: list[dict], tool_name: str, name: str):
+
+        if (
+            tool_name not in self.tree_data.environment.to_json()
+            or name not in self.tree_data.environment.to_json()[tool_name]
+        ):
+            len_objects = 0
+        else:
+            len_objects = len(self.tree_data.environment.to_json()[tool_name][name])
+
+        for i, obj in enumerate(objects):
+            if "_REF_ID" not in obj:
+                _REF_ID = f"{tool_name}_{name}_{len_objects}_{i}"
+                obj["_REF_ID"] = _REF_ID
+
     def _update_environment(self, result: Result, decision: Decision):
         """
         Given a yielded result from an action or otherwise, update the environment.
@@ -865,6 +880,7 @@ class Tree:
         """
 
         # add to environment (store of retrieved/called objects)
+        self._add_refs(result.to_json(), decision.function_name, result.name)
         self.tree_data.environment.add(decision.function_name, result)
 
         # make note of which objects were retrieved _this session_ (for returning)

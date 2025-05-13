@@ -116,7 +116,7 @@ class Environment:
                     break
         return empty
 
-    def add(self, tool_name: str, result: Result):
+    def add(self, tool_name: str, result: Result, include_duplicates: bool = False):
         """
         Adds a result to the environment.
         Is called automatically by the tree when a result is returned from an agent.
@@ -126,12 +126,15 @@ class Environment:
         If you want to add something manually, you can use the `add_objects` method.
 
         Each item is added with a `_REF_ID` attribute, which is a unique identifier used to identify the object in the environment.
-        If duplicate objects are detected, they are added with a special `REPEAT_ID` entry detailing that they are a duplicate,
+        If duplicate objects are detected, they are added with a duplicate `_REF_ID` entry detailing that they are a duplicate,
         as well as the `_REF_ID` of the original object.
 
         Args:
             tool_name (str): The name of the tool called that the result belongs to.
             result (Result): The result to add to the environment.
+            include_duplicates (bool): Optional. Whether to include duplicate objects in the environment.
+                Defaults to `False`, which still adds the duplicate object, but with a duplicate `_REF_ID` entry (and no repeating properties).
+                If `True`, the duplicate object is added with a new `_REF_ID` entry, and the repeated properties are added to the object.
         """
         objects = result.to_json()
         name = result.name
@@ -139,10 +142,15 @@ class Environment:
         if tool_name not in self.environment:
             self.environment[tool_name] = {}
 
-        self.add_objects(tool_name, name, objects, metadata)
+        self.add_objects(tool_name, name, objects, metadata, include_duplicates)
 
     def add_objects(
-        self, tool_name: str, name: str, objects: list[dict], metadata: dict = {}
+        self,
+        tool_name: str,
+        name: str,
+        objects: list[dict],
+        metadata: dict = {},
+        include_duplicates: bool = False,
     ):
         """
         Adds an object to the environment.
@@ -150,7 +158,7 @@ class Environment:
         This is useful if you want to add an object to the environment manually that doesn't come from a Result object.
 
         Each item is added with a `_REF_ID` attribute, which is a unique identifier used to identify the object in the environment.
-        If duplicate objects are detected, they are added with a special `REPEAT_ID` entry detailing that they are a duplicate,
+        If duplicate objects are detected, they are added with a duplicate `_REF_ID` entry detailing that they are a duplicate,
         as well as the `_REF_ID` of the original object.
 
         Args:
@@ -159,6 +167,10 @@ class Environment:
             objects (list[dict]): The objects to add to the environment.
             metadata (dict): Optional. The metadata of the objects to add to the environment.
                 Defaults to an empty dictionary.
+            include_duplicates (bool): Optional. Whether to include duplicate objects in the environment.
+                Defaults to `False`, which still adds the duplicate object, but with a duplicate `_REF_ID` entry (and no repeating properties).
+                If `True`, the duplicate object is added with a new `_REF_ID` entry, and the repeated properties are added to the object.
+
         """
         if tool_name not in self.environment:
             self.environment[tool_name] = {}
@@ -185,14 +197,14 @@ class Environment:
                         _REF_ID = env_item["objects"][where_obj]["_REF_ID"]
                         break
 
-                if obj_found:
+                if obj_found and not include_duplicates:
                     self.environment[tool_name][name][-1]["objects"].append(
                         {
                             "object_info": f"[repeat]",
-                            "REPEAT_ID": _REF_ID,
+                            "_REF_ID": _REF_ID,
                         }
                     )
-                else:
+                elif "_REF_ID" not in obj:
                     _REF_ID = f"{tool_name}_{name}_{len(self.environment[tool_name][name])}_{i}"
                     self.environment[tool_name][name][-1]["objects"].append(
                         {
@@ -200,6 +212,8 @@ class Environment:
                             **obj,
                         }
                     )
+                else:
+                    self.environment[tool_name][name][-1]["objects"].append(obj)
 
     def remove(self, tool_name: str, name: str, index: int | None = None):
         """
