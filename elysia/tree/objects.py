@@ -500,6 +500,7 @@ class TreeData:
         This is separate from the environment, as it separates what tasks were completed in each prompt in which order.
     - num_trees_completed (int): The current level of the decision tree, how many iterations have been completed so far.
     - recursion_limit (int): The maximum number of iterations allowed in the decision tree.
+    - errors (dict): A dictionary of self-healing errors that have occurred in the tree. Keyed by the function name that caused the error.
 
     In general, you should not initialise this class directly.
     But you can access the data in this class to access the relevant data from the tree (in e.g. tool construction/usage).
@@ -560,6 +561,10 @@ class TreeData:
         # -- Collection Data --
         self.collection_data = collection_data
         self.collection_names = []
+
+        # -- Errors --
+        self.errors = {}
+        self.current_task = None
 
     def to_json(self):
         return {k: v for k, v in self.__dict__.items()}
@@ -665,6 +670,17 @@ class TreeData:
                 self._update_task(
                     self.tasks_completed[-1]["task"][task_i], kwarg, kwargs[kwarg]
                 )
+
+    def set_current_task(self, task: str):
+        self.current_task = task
+
+    def get_errors(self):
+        if self.current_task == "elysia_decision_node":
+            return self.errors
+        elif self.current_task is None or self.current_task not in self.errors:
+            return []
+        else:
+            return self.errors[self.current_task]
 
     def tasks_completed_string(self):
         """

@@ -8,7 +8,7 @@ load_dotenv(override=True)
 
 from elysia.api.services.tree import TreeManager
 from elysia.config import Settings
-from elysia.objects import Error, Update
+from elysia.objects import Update
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
 from elysia.util.objects import Timer

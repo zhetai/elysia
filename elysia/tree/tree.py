@@ -34,6 +34,7 @@ from elysia.objects import (
     Text,
     Tool,
     Warning,
+    Error,
 )
 from elysia.tools.retrieval.aggregate import Aggregate
 from elysia.tools.retrieval.query import Query
@@ -80,6 +81,7 @@ class Tree:
         user_id: str | None = None,
         conversation_id: str | None = None,
         low_memory: bool = False,
+        use_elysia_collections: bool = True,
         settings: Settings | None = None,
     ):
         """
@@ -97,6 +99,8 @@ class Tree:
             low_memory (bool): Whether to run the tree in low memory mode.
                 If True, the tree will not load the (dspy) models within the tree.
                 Set to False for normal operation.
+            use_elysia_collections (bool): Whether to use weaviate collections as processed by Elysia.
+                If False, the tree will not use the processed collections.
             settings (Settings): The settings for the tree, an object of elysia.Settings.
                 This is automatically set to the environment settings if not provided.
         """
@@ -119,6 +123,8 @@ class Tree:
             ), "settings must be an instance of Settings"
             self.settings = settings
 
+        self.use_elysia_collections = use_elysia_collections
+
         # keep track of the number of trees completed
         self.num_trees_completed = 0
 
@@ -135,6 +141,8 @@ class Tree:
 
         # -- Initialise the tree
         self.set_low_memory(low_memory)
+
+        # define the collection data
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
@@ -723,6 +731,7 @@ class Tree:
             options={},
             root=root,
             logger=self.settings.logger,
+            use_elysia_collections=self.use_elysia_collections,
         )
         self.decision_nodes[branch_id] = decision_node
 
@@ -909,9 +918,14 @@ class Tree:
         # TODO: is this the same thing as action_information? but better?
         self._update_actions_called(result, decision)
 
+    def _add_error(self, function_name: str, error: Error):
+        if function_name not in self.tree_data.errors:
+            self.tree_data.errors[function_name] = []
+        self.tree_data.errors[function_name].append(error.to_json())
+
     async def _evaluate_result(
         self,
-        result: Return | Decision | TreeUpdate,
+        result: Return | TreeUpdate | Error | TrainingUpdate,
         decision: Decision,
     ):
 
@@ -920,6 +934,18 @@ class Tree:
 
         if isinstance(result, TrainingUpdate):
             self.training_updates.append(result)
+
+        if isinstance(result, Error):
+            self._add_error(decision.function_name, result)
+            if self.settings.LOGGING_LEVEL_INT <= 20:
+                print(
+                    Panel.fit(
+                        result.feedback,
+                        title="Error",
+                        border_style="red",
+                        padding=(1, 1),
+                    )
+                )
 
         if isinstance(result, Text):
             self._update_conversation_history("assistant", result.text)
@@ -1014,14 +1040,15 @@ class Tree:
             # Initialise the collections
             # TODO: with client manager error handling, another bool check to see if client manager is active
             # if active, keep collection names empty
-            if collection_names == []:
-                async with client_manager.connect_to_async_client() as client:
-                    collection_names = await retrieve_all_collection_names(client)
+            if self.use_elysia_collections:
+                if collection_names == []:
+                    async with client_manager.connect_to_async_client() as client:
+                        collection_names = await retrieve_all_collection_names(client)
 
-            await self.set_collection_names(
-                collection_names,
-                client_manager,
-            )
+                await self.set_collection_names(
+                    collection_names,
+                    client_manager,
+                )
 
             # If there are any empty branches, remove them (no tools attached to them)
             self._remove_empty_branches()
@@ -1094,6 +1121,7 @@ class Tree:
             # Under normal circumstances decide from the decision node
             else:
                 self.timer.start_timer("base_lm")
+                self.tree_data.set_current_task("elysia_decision_node")
                 self.current_decision, results = await current_decision_node(
                     tree_data=self.tree_data,
                     lm=base_lm,
@@ -1173,6 +1201,7 @@ class Tree:
             # evaluate the action
             if action_fn is not None:
                 self.timer.start_timer(self.current_decision.function_name)
+                self.tree_data.set_current_task(self.current_decision.function_name)
                 async for result in action_fn(
                     tree_data=self.tree_data,
                     inputs=self.current_decision.function_inputs,

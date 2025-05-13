@@ -7,8 +7,7 @@ from rich.panel import Panel
 import dspy
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.util.reference import create_reference
-from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning
+from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning, Error
 from elysia.tools.retrieval.objects import Aggregation
 from elysia.tools.retrieval.prompt_templates import AggregationPrompt
 from elysia.tools.retrieval.util import execute_weaviate_aggregation
@@ -68,55 +67,6 @@ class Aggregate(Tool):
                             ]
 
         return previous_aggregations
-
-    async def _handle_generic_error(
-        self,
-        e: Exception,
-        collection_name: str,
-        user_prompt: str,
-    ):
-        metadata = {
-            "collection_name": collection_name,
-            "error_message": str(e),
-            "impossible": user_prompt,
-        }
-
-        if self.logger:
-            self.logger.warning(
-                f"Oops! Something went wrong during the LLM aggregation. Continuing..."
-            )
-            self.logger.debug(f"The error was: {str(e)}")
-
-        yield Aggregation([], metadata)
-        yield Warning(
-            f"Oops! Something went wrong during the LLM aggregation. Continuing..."
-        )
-
-    async def _handle_aggregation_error(
-        self,
-        e: Exception,
-        collection_name: str,
-        user_prompt: str,
-        aggregation_output: dict | List[dict] | None = None,
-    ):
-        metadata = {
-            "collection_name": collection_name,
-            "assertion_error_message": str(e),
-            "impossible": user_prompt,
-        }
-        if aggregation_output is not None:
-            metadata["aggregation_output"] = aggregation_output
-
-        if self.logger:
-            self.logger.warning(
-                f"Oops! Something went wrong when executing the aggregation. Continuing..."
-            )
-            self.logger.debug(f"The error was: {str(e)}")
-
-        yield Aggregation([], metadata)
-        yield Warning(
-            f"Oops! Something went wrong when executing the aggregation. Continuing..."
-        )
 
     def _fix_collection_names(self, collection_names: list[str], schemas: dict):
         return [
@@ -187,13 +137,7 @@ class Aggregate(Tool):
                 lm=complex_lm,
             )
         except Exception as e:
-            for collection_name in collection_names:
-                async for yield_object in self._handle_generic_error(
-                    e,
-                    collection_name,
-                    tree_data.user_prompt,
-                ):
-                    yield yield_object
+            yield Error(str(e))
             return
 
         # Yield results to front end
@@ -250,13 +194,7 @@ class Aggregate(Tool):
                     )
                 except Exception as e:
                     for collection_name in aggregation_output.target_collections:
-                        async for yield_object in self._handle_aggregation_error(
-                            e,
-                            collection_name,
-                            tree_data.user_prompt,
-                            aggregation_output.model_dump(),
-                        ):
-                            yield yield_object
+                        yield Error(str(e))
                     continue  # continue to next aggregation output
 
             yield Status(

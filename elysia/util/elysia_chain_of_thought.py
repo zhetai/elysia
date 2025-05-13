@@ -14,6 +14,7 @@ class ElysiaChainOfThought(Module):
     - The user's prompt
     - The conversation history
     - The atlas
+    - Any errors (from calls of the same tool)
 
     And you can also include optional inputs (by setting their boolean flags on initialisation to `True`):
     - The environment
@@ -138,6 +139,18 @@ class ElysiaChainOfThought(Module):
         atlas_prefix = "${atlas}"
         atlas_field: Atlas = dspy.InputField(prefix=atlas_prefix, desc=atlas_desc)
 
+        # -- Errors --
+        errors_desc = (
+            "Any errors that have occurred during the previous attempt at this action. "
+            "This is a list of dictionaries, containing details of the error. "
+            "Make an attempt at providing different output to avoid this error now. "
+            "If this error is repeated, or you judge it to be unsolvable, you can set `impossible` to True"
+        )
+        errors_prefix = "${previous_errors}"
+        errors_field: list[dict] = dspy.InputField(
+            prefix=errors_prefix, desc=errors_desc
+        )
+
         # == Outputs ==
 
         # -- Impossible Field --
@@ -162,6 +175,9 @@ class ElysiaChainOfThought(Module):
         )
         extended_signature = extended_signature.append(
             name="atlas", field=atlas_field, type_=Atlas
+        )
+        extended_signature = extended_signature.append(
+            name="previous_errors", field=errors_field, type_=list[dict]
         )
         extended_signature = extended_signature.append(
             name="impossible", field=impossible_field, type_=bool
@@ -247,6 +263,7 @@ class ElysiaChainOfThought(Module):
         if reasoning:
             reasoning_desc = (
                 "Reasoning: Repeat relevant parts of the any context within your environment, "
+                "Evaluate all relevant information from the inputs, including any previous errors if applicable, "
                 "use this to think step by step in order to answer the query."
             )
             reasoning_prefix = "${reasoning}"
@@ -266,6 +283,7 @@ class ElysiaChainOfThought(Module):
         kwargs["user_prompt"] = self.tree_data.user_prompt
         kwargs["conversation_history"] = self.tree_data.conversation_history
         kwargs["atlas"] = self.tree_data.atlas
+        kwargs["previous_errors"] = self.tree_data.get_errors()
 
         # Add the optional inputs to the kwargs
         if self.environment:
@@ -294,6 +312,7 @@ class ElysiaChainOfThought(Module):
         kwargs["user_prompt"] = self.tree_data.user_prompt
         kwargs["conversation_history"] = self.tree_data.conversation_history
         kwargs["atlas"] = self.tree_data.atlas
+        kwargs["previous_errors"] = self.tree_data.get_errors()
 
         # Add the optional inputs to the kwargs
         if self.environment:

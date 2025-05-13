@@ -16,7 +16,7 @@ def event_loop():
         loop.close()
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True, scope="function")
 def use_dummy_adapter():
 
     configure(adapter=DummyAdapter())

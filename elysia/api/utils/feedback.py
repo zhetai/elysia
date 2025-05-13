@@ -4,7 +4,7 @@ from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Filter, Metrics
 from weaviate.util import generate_uuid5
 
-from elysia.objects import Error
+from elysia.api.utils.default_payloads import error_payload
 from elysia.tree.tree import Tree
 from elysia.util.parsing import format_datetime
 from elysia.api.core.log import logger
@@ -239,8 +239,9 @@ async def create_feedback(
 
 
 async def view_feedback(user_id: str, conversation_id: str, query_id: str, client):
-    if not await client.collections.exists("ELYSIA_FEEDBACK__"):
-        return Error("No feedback collection found")
+    assert await client.collections.exists(
+        "ELYSIA_FEEDBACK__"
+    ), "No feedback collection found"
 
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
     session_uuid = generate_uuid5(
@@ -259,8 +260,9 @@ async def view_feedback(user_id: str, conversation_id: str, query_id: str, clien
 
 
 async def remove_feedback(user_id: str, conversation_id: str, query_id: str, client):
-    if not await client.collections.exists("ELYSIA_FEEDBACK__"):
-        return Error("No feedback collection found")
+    assert await client.collections.exists(
+        "ELYSIA_FEEDBACK__"
+    ), "No feedback collection found"
 
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
     session_uuid = generate_uuid5(

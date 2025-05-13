@@ -9,7 +9,7 @@ import dspy
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
-from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning
+from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning, Error
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
 from elysia.tools.retrieval.objects import (
     BoringGenericRetrieval,
@@ -121,53 +121,6 @@ class Query(Tool):
             and query_type != "filter_only"
             and display_type
             == "document"  # for the moment, the only type we chunk is document
-        )
-
-    async def _handle_generic_error(
-        self,
-        e: Exception,
-        collection_name: str,
-        user_prompt: str,
-    ):
-        metadata = {
-            "collection_name": collection_name,
-            "error_message": str(e),
-            "impossible": user_prompt,
-        }
-
-        if self.logger:
-            self.logger.warning(
-                f"Oops! Something went wrong during the LLM query. Continuing..."
-            )
-            self.logger.debug(f"The error was: {str(e)}")
-
-        yield BoringGenericRetrieval([], metadata)
-        yield Warning(f"Oops! Something went wrong during the LLM query. Continuing...")
-
-    async def _handle_query_error(
-        self,
-        e: Exception,
-        collection_name: str,
-        user_prompt: str,
-        query_output: dict | List[dict] | None = None,
-    ):
-        metadata = {
-            "collection_name": collection_name,
-            "assertion_error_message": str(e),
-            "impossible": user_prompt,
-        }
-        if query_output is not None:
-            metadata["query_output"] = query_output
-
-        if self.logger:
-            self.logger.warning(
-                f"Oops! Something went wrong when executing the query. Continuing..."
-            )
-            self.logger.debug(f"The error was: {str(e)}")
-
-        yield BoringGenericRetrieval([], metadata)
-        yield Warning(
-            f"Oops! Something went wrong when executing the query. Continuing..."
         )
 
     def _fix_collection_names(self, collection_names: list[str], schemas: dict):
@@ -294,12 +247,8 @@ class Query(Tool):
             )
 
         except Exception as e:
-            for collection_name in collection_names:
-                async for yield_object in self._handle_generic_error(
-                    e, collection_name, tree_data.user_prompt
-                ):
-                    yield yield_object
-                return
+            yield Error(str(e))
+            return
 
         if self.logger and query.query_output is not None:
             self.logger.debug(f"Query: {query.query_output.query_outputs}")
@@ -371,15 +320,11 @@ class Query(Tool):
 
             for collection_name in current_query_output.target_collections:
                 if collection_name not in collection_names:
-                    async for yield_object in self._handle_generic_error(
-                        ValueError(
-                            f"Collection {collection_name} not found in target_collections field. "
-                            "Make sure you are using the correct collection names."
-                        ),
-                        collection_name,
-                        tree_data.user_prompt,
-                    ):
-                        yield yield_object
+                    yield Error(
+                        f"Collection {collection_name} in target_collections field of the query output, "
+                        "but not found in the available collections. "
+                        "Make sure you are using the correct collection names."
+                    )
                     return
 
         query.data_display = self._fix_collection_names_in_dict(
@@ -392,28 +337,20 @@ class Query(Tool):
         for collection_name in query.data_display:
 
             if collection_name not in collection_names:
-                async for yield_object in self._handle_generic_error(
-                    ValueError(
-                        f"Collection {collection_name} not found in target_collections field. "
-                        "Make sure you are using the correct collection names."
-                    ),
-                    collection_name,
-                    tree_data.user_prompt,
-                ):
-                    yield yield_object
+                yield Error(
+                    f"Collection {collection_name} in data_display keys, "
+                    "but not found in the available collections. "
+                    "Make sure you are using the correct collection names."
+                )
                 return
 
         for collection_name in query.fields_to_search:
             if collection_name not in collection_names:
-                async for yield_object in self._handle_generic_error(
-                    ValueError(
-                        f"Collection {collection_name} not found in target_collections field. "
-                        "Make sure you are using the correct collection names."
-                    ),
-                    collection_name,
-                    tree_data.user_prompt,
-                ):
-                    yield yield_object
+                yield Error(
+                    f"Collection {collection_name} in fields_to_search keys, "
+                    "but not found in the available collections. "
+                    "Make sure you are using the correct collection names."
+                )
                 return
 
         chunking_status_sent = False
@@ -480,12 +417,16 @@ class Query(Tool):
 
                     # run this augmented query for the unchunked collection
                     async with client_manager.connect_to_async_client() as client:
-                        unchunked_response, _ = await execute_weaviate_query(
-                            client,
-                            query_output_copy,
-                            reference_property="isChunked",
-                            named_vector_fields=query.fields_to_search,
-                        )
+                        try:
+                            unchunked_response, _ = await execute_weaviate_query(
+                                client,
+                                query_output_copy,
+                                reference_property="isChunked",
+                                named_vector_fields=query.fields_to_search,
+                            )
+                        except Exception as e:
+                            yield Error(str(e))
+                            continue
 
                     # chunk the unchunked response
                     yield Status(
@@ -520,13 +461,7 @@ class Query(Tool):
                     )
                 except Exception as e:
                     for collection_name in collection_names:
-                        async for yield_object in self._handle_query_error(
-                            e,
-                            collection_name,
-                            tree_data.user_prompt,
-                            query_output.model_dump(),
-                        ):
-                            yield yield_object
+                        yield Error(str(e))
                     continue  # don't exit, try again for next query_output (might not error)
 
                 yield Status(

@@ -81,13 +81,13 @@ Within your tool's call method, you may want to `yield` different objects to bri
 - Any class that inherits from the [`Result` class](../Reference/Objects.md#elysia.objects.Result) have their corresponding objects added to the tree's environment, which the decision agent will 'look at', so that it can continue making decisions and respond accordingly to the user. Then, if applicable, relevant payloads will be sent to the frontend.
 
 
-#### Update
+#### Status
 
-Some updates you can yield include:
+A **[`Status`](../Reference/Objects.md#elysia.objects.Status)** message is initialised with a single string argument, this displays on the frontend or the progress bar a unique message.
 
-- **[`Status`](../Reference/Objects.md#elysia.objects.Status)**: provide a single string argument - displays on the frontend or the progress bar a unique message.
-- **[`Warning`](../Reference/Objects.md#elysia.objects.Warning)**: provide a single string argument - displays on a connected frontend a warning message.
-- **[`Error`](../Reference/Objects.md#elysia.objects.Error)**: provide a single string argument - displays on a connected frontend an error message. *Note that this does not raise an error, just is a unique identifier to an error object.*
+#### Warning
+
+A **[`Warning`](../Reference/Objects.md#elysia.objects.Warning)** is initialised with a single string argument. This will display on a connected frontend a warning message, or a warning box in the terminal.
 
 
 #### Result
@@ -112,7 +112,8 @@ The arguments for the `Result` are:
 
 These specific pre-made `Result` objects also will show a custom display to the frontend also. For example, a document object will be shown on the frontend with the specific fields of the document. This has important considerations however, which we will discuss in the next section.
 
-### Interacting with the Environment
+
+## Interacting with the Environment
 
 [See here a full description of the methods that you can use to interact with the environment](environment.md).
 
@@ -121,7 +122,7 @@ You can do so via calling the `.add()`, `.add_objects()`, `.replace()` or `.remo
 
 **Note:** If you add items to the environment and also yield a `Result` object with the same items, there will likely be duplicate items in the environment.
 
-### Displaying Objects (Frontend Only)
+## Displaying Objects (Frontend Only)
 
 You can (currently) choose one of the following objects that are *supported by the frontend*. If you do not use one of these objects, then the LLM will still receive the data for the decision agent, it will still be added to the environment, but the frontend will not recognise its type and it will not be shown in the app.
 
@@ -202,6 +203,17 @@ Elysia sometimes has *branches* in the decision tree, which can be created via `
 ```python 
 .add_tool(TextResponse, branch_id="base")
 ```
+
+
+## Self Healing Errors
+
+You can yield an **[`Error`](../Reference/Objects.md#elysia.objects.Error)** object to 'return' an error from the tool to the decision tree. These errors are saved within the tree data and automatically added to the decision nodes as well as any LLM calls made with `ElysiaChainOfThought` called within that tool. The LLM is 'informed' about these errors via an input to the prompts. The LLM can choose to continue calling the tool again, in spite of the error (if it seems fixable), or it can use the information to end the conversation and inform the user of an error, or to try a different tool that will not error.
+
+The `Error` object is initialised with a single string argument, which should be informative and descriptive.
+
+*Note that this does not raise an error within Python, it is used to 'inform' the LLM that a potentially preventable error has occurred somewhere within the tool.*
+
+**For example**, the Query tool built into Elysia will yield `Error` objects if the LLM creates a query which fails to run in Weaviate, such as not having the correct filter type for a particular property. The decision agent will read the error, and perhaps try to call the query tool again. Upon seeing the previous error in the error history, the query LLM agent should see that it should instead use a different filter property type, and correct itself.
 
 ## Advanced Tool Methods
 

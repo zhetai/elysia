@@ -280,16 +280,6 @@ class Warning(Update):
         Update.__init__(self, "warning", {"text": text})
 
 
-class Error(Update):
-    """
-    Error message to be sent to the frontend.
-    """
-
-    def __init__(self, text: str):
-        self.text = text
-        Update.__init__(self, "error", {"text": text})
-
-
 class Completed(Update):
     """
     Completed message to be sent to the frontend (tree is complete all recursions).
@@ -613,3 +603,11 @@ class Retrieval(Result):
             "id": self.frontend_type[:3] + "-" + str(uuid.uuid4()),
             "payload": payload,
         }
+
+
+class Error:
+    def __init__(self, feedback: str):
+        self.feedback = feedback
+
+    def to_json(self):
+        return {"feedback": self.feedback}

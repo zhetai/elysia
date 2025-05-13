@@ -167,7 +167,8 @@ class FakeTextResponse(Tool):
                         "If you know why, explain any shortcomings, maybe it was a limitation, a misunderstanding, a problem with the data. "
                         "Your suggestions should be useful to the user so they know if there is something possible to fix or do as a follow up. "
                         "Sometimes you can ask for clarification. "
-                        "Be polite, professional, apologetic if necessary but above all - helpful!"
+                        "Be polite, professional, apologetic if necessary but above all - helpful! "
+                        "Only provide a response in text, not using any variables or otherwise."
                     ),
                     "default": "",
                 }
