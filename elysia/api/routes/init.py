@@ -38,30 +38,56 @@ async def initialise_user(
         if data.default_models:
             settings.default_models()
 
-        # create a user and set up the config
-        user_manager.add_user_local(
-            data.user_id,
-            style=data.style,
-            agent_description=data.agent_description,
-            end_goal=data.end_goal,
-            branch_initialisation=data.branch_initialisation,
-            settings=settings,
-        )
+        user_exists = user_manager.user_exists(data.user_id)
 
-        config = Config(
-            settings=settings.to_json(),
-            style=data.style,
-            agent_description=data.agent_description,
-            end_goal=data.end_goal,
-            branch_initialisation=data.branch_initialisation,
-        )
+        # if a user does not exist, create a user and set up the config
+        if not user_exists:
+            user_manager.add_user_local(
+                data.user_id,
+                style=data.style,
+                agent_description=data.agent_description,
+                end_goal=data.end_goal,
+                branch_initialisation=data.branch_initialisation,
+                settings=settings,
+            )
+
+            config = Config(
+                settings=settings.to_json(),
+                style=data.style,
+                agent_description=data.agent_description,
+                end_goal=data.end_goal,
+                branch_initialisation=data.branch_initialisation,
+            )
+
+        # if a user exists, return the config
+        else:
+            user = await user_manager.get_user_local(data.user_id)
+            user_settings: Settings = user["tree_manager"].settings
+            config = Config(
+                settings=user_settings.to_json(),
+                style=user["tree_manager"].style,
+                agent_description=user["tree_manager"].agent_description,
+                end_goal=user["tree_manager"].end_goal,
+                branch_initialisation=user["tree_manager"].branch_initialisation,
+            )
 
     except Exception as e:
         logger.exception(f"Error in /initialise_user API")
-        return JSONResponse(content={"error": str(e), "config": {}}, status_code=500)
-
+        return JSONResponse(
+            content={
+                "error": str(e),
+                "user_exists": None,
+                "config": {},
+            },
+            status_code=500,
+        )
     return JSONResponse(
-        content={"error": "", "config": config.model_dump()}, status_code=200
+        content={
+            "error": "",
+            "user_exists": user_exists,
+            "config": config.model_dump(),
+        },
+        status_code=200,
     )
 
 

@@ -1,5 +1,5 @@
 import os
-from typing import Callable
+from typing import Callable, Literal
 from logging import Logger
 from rich.logging import logging, RichHandler
 
@@ -19,10 +19,31 @@ except Exception as e:
 
 
 class Settings:
+    """
+    Settings for Elysia.
+    This class handles the configuration of various settings within Elysia.
+    This includes:
+    - The base and complex models to use.
+    - The providers for the base and complex models.
+    - The Weaviate cloud URL and API key.
+    - The API keys for the providers.
+    - The logger and logging level.
+
+    The Settings object is set as at a default `settings` object if running Elysia as a package.
+    You can import this via `elysia.config.settings`.
+    This is initialised to default values from the environment variables.
+
+    Or, you can create your own Settings object, and configure it as you wish.
+    The Settings object can be passed to different Elysia classes and functions, such as `Tree` and `preprocess`.
+    These will not use the global `settings` object, but instead use the Settings object you passed to them.
+    """
 
     def __init__(self):
+        """
+        Initialize the settings for Elysia.
+        These are all settings initialised to None, and should be set using the `configure` method.
+        """
         # Default settings
-        self.CLIENT_TIMEOUT: int = os.getenv("CLIENT_TIMEOUT", 3)
         self.SETTINGS_ID = str(uuid.uuid4())
 
         self.BASE_MODEL: str | None = None
@@ -49,6 +70,9 @@ class Settings:
     def setup_app_logger(self, logger: Logger):
         """
         Override existing logger with the app-level logger.
+
+        Args:
+            logger (Logger): The logger to use.
         """
         self.logger = logger
         self.LOGGING_LEVEL_INT = logger.level
@@ -57,9 +81,17 @@ class Settings:
         }
         self.LOGGING_LEVEL = inverted_logging_mapping[self.LOGGING_LEVEL_INT]
 
-    def configure_logger(self, level: str = "NOTSET"):
+    def configure_logger(
+        self,
+        level: Literal[
+            "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"
+        ] = "NOTSET",
+    ):
         """
         Configure the logger with a RichHandler.
+
+        Args:
+            level (Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"]): The logging level to use.
         """
         self.logger.setLevel(level)
         self.LOGGING_LEVEL = level
@@ -75,8 +107,6 @@ class Settings:
         for item in settings:
             setattr(self, item, settings[item])
 
-        # self.load_base_dspy_model()
-        # self.load_complex_dspy_model()
         self.logger = logging.getLogger("rich")
         self.logger.setLevel(self.LOGGING_LEVEL)
         self.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
@@ -86,8 +116,6 @@ class Settings:
         settings = cls()
         for item in settings:
             setattr(settings, item, settings[item])
-        # settings.load_base_dspy_model()
-        # settings.load_complex_dspy_model()
         settings.logger = logging.getLogger("rich")
         settings.logger.setLevel(settings.LOGGING_LEVEL)
         settings.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
@@ -115,8 +143,6 @@ class Settings:
         self.MODEL_API_BASE = os.getenv("MODEL_API_BASE", None)
         self.LOGGING_LEVEL = os.getenv("LOGGING_LEVEL", "NOTSET")
         self.set_api_keys_from_env()
-        # self.load_base_dspy_model()
-        # self.load_complex_dspy_model()
 
     def set_api_keys_from_env(self):
         self.WCD_URL = os.getenv("WCD_URL", "")
@@ -144,31 +170,6 @@ class Settings:
         self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER", "openrouter/google")
         self.MODEL_API_BASE = os.getenv("MODEL_API_BASE", None)
 
-        # self.load_base_dspy_model()
-        # self.load_complex_dspy_model()
-
-    # def load_base_dspy_model(self):
-    #     if (
-    #         "LOCAL" in dir(self)
-    #         and self.LOCAL
-    #         and "BASE_MODEL" in dir(self)
-    #         and self.BASE_MODEL
-    #     ):
-    #         self.BASE_MODEL_LM = load_base_lm(self)
-    #     else:
-    #         self.BASE_MODEL_LM = None
-
-    # def load_complex_dspy_model(self):
-    #     if (
-    #         "LOCAL" in dir(self)
-    #         and self.LOCAL
-    #         and "COMPLEX_MODEL" in dir(self)
-    #         and self.COMPLEX_MODEL
-    #     ):
-    #         self.COMPLEX_MODEL_LM = load_complex_lm(self)
-    #     else:
-    #         self.COMPLEX_MODEL_LM = None
-
     def reset(self):
         self = Settings()
 
@@ -177,7 +178,7 @@ class Settings:
         **kwargs,
     ):
         """
-        Configure the settings for the Elysia API.
+        Configure the settings for Elysia.
 
         Args:
             base_model: The base model to use (str). e.g. "gpt-4o-mini"

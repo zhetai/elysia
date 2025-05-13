@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import os
+import uuid
 from copy import deepcopy
 from dotenv import load_dotenv
 
@@ -31,6 +32,7 @@ class TreeManager:
         end_goal: str = "",
         branch_initialisation: str = "one_branch",
         settings: Settings | None = None,
+        tree_timeout: datetime.timedelta | int | None = None,
     ):
         """
         Args:
@@ -43,12 +45,22 @@ class TreeManager:
                 Other options are "multi_branch", which contains 'Query' and 'Aggregate' in a separate branch,
                 and "empty", which contains no tools (only a base branch), designed to add more tools to.
             settings (Settings | None): Optional. A settings for all trees managed by this TreeManager.
+            tree_timeout (datetime.timedelta | int | None): Optional. A timeout for all trees managed by this TreeManager.
+                Defaults to the value of the `USER_TREE_TIMEOUT` environment variable.
+                If an integer is passed, it will be interpreted as minutes.
+                If set to 0, trees will not be automatically removed.
         """
         self.trees = {}
         self.user_id = user_id
-        self.tree_timeout = datetime.timedelta(
-            minutes=int(os.environ.get("USER_TREE_TIMEOUT", 10))
-        )
+
+        if tree_timeout is None:
+            self.tree_timeout = datetime.timedelta(
+                minutes=int(os.environ.get("USER_TREE_TIMEOUT", 10))
+            )
+        elif isinstance(tree_timeout, int):
+            self.tree_timeout = datetime.timedelta(minutes=tree_timeout)
+        else:
+            self.tree_timeout = tree_timeout
 
         if settings is None:
             self.settings = Settings()
@@ -292,7 +304,7 @@ class TreeManager:
         self,
         query: str,
         conversation_id: str,
-        query_id: str,
+        query_id: str | None = None,
         training_route: str = "",
         collection_names: list[str] = [],
         client_manager: ClientManager | None = None,
@@ -304,7 +316,8 @@ class TreeManager:
         Args:
             query (str): Required. The user input/prompt to process in the decision tree.
             conversation_id (str): Required. The conversation ID which contains the tree.
-            query_id (str): Required. A unique identifier for the query.
+            query_id (str): Optional. A unique identifier for the query.
+                If not supplied, a random UUID will be generated.
             training_route (str): Optional. The training route, a string of the form "tool1/tool2/tool1" etc.
                 See the `tree.async_run()` method for more details.
             collection_names (list[str]): Optional. A list of collection names to use in the query.
@@ -312,6 +325,9 @@ class TreeManager:
             client_manager (ClientManager | None): Optional. A client manager to use for the query.
                 If not supplied, a new ClientManager will be created.
         """
+
+        if query_id is None:
+            query_id = str(uuid.uuid4())
 
         tree: Tree = self.get_tree(conversation_id)
         self.update_tree_last_request(conversation_id)
@@ -337,6 +353,15 @@ class TreeManager:
         self.trees[conversation_id]["event"].set()
 
     def check_tree_timeout(self, conversation_id: str):
+        """
+        Check if a tree has been idle for the last tree_timeout.
+
+        Args:
+            conversation_id (str): The conversation ID which contains the tree.
+
+        Returns:
+            (bool): True if the tree has been idle for the last tree_timeout, False otherwise.
+        """
         # if tree not found, return True
         if conversation_id not in self.trees:
             return True
@@ -355,6 +380,12 @@ class TreeManager:
         self.trees[conversation_id]["last_request"] = datetime.datetime.now()
 
     def check_all_trees_timeout(self):
+        """
+        Check all trees in the TreeManager and remove any that have not been active in the last tree_timeout.
+        """
+        if self.tree_timeout == datetime.timedelta(minutes=0):
+            return
+
         convs_to_remove = []
         for i, conversation_id in enumerate(self.trees):
             if self.check_tree_timeout(conversation_id):
