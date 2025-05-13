@@ -1333,6 +1333,7 @@ class Tree:
                 If not provided, a new query id will be generated.
             close_clients_after_completion (bool): Whether to close the clients after the tree is completed.
                 Leave as True for most use cases, but if you don't want to close the clients for the ClientManager, set to False.
+                For example, if you are managing your own clients (e.g. in an app), you may want to set this to False.
         """
 
         self.store_retrieved_objects = True

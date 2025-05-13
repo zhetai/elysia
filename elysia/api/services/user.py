@@ -49,22 +49,31 @@ class UserManager:
 
     def __init__(
         self,
-        user_timeout: datetime.timedelta | None = None,
-        tree_timeout: datetime.timedelta | None = None,
+        user_timeout: datetime.timedelta | int | None = None,
+        tree_timeout: datetime.timedelta | int | None = None,
+        client_timeout: datetime.timedelta | int | None = None,
     ):
         """
         Args:
-            user_timeout (datetime.timedelta | None): Optional.
+            user_timeout (datetime.timedelta | int | None): Optional.
                 The length of time a user can be idle before being timed out.
                 Defaults to 20 minutes or the value of the USER_TIMEOUT environment variable.
-            tree_timeout (datetime.timedelta | None): Optional.
+                If an integer is provided, it is interpreted as the number of minutes.
+            tree_timeout (datetime.timedelta | int | None): Optional.
                 The length of time a tree can be idle before being timed out.
                 Defaults to 10 minutes or the value of the USER_TREE_TIMEOUT environment variable.
+                If an integer is provided, it is interpreted as the number of minutes.
+            client_timeout (datetime.timedelta | int | None): Optional.
+                The length of time a client can be idle before being timed out.
+                Defaults to 10 minutes or the value of the CLIENT_TIMEOUT environment variable.
+                If an integer is provided, it is interpreted as the number of minutes.
         """
         if user_timeout is None:
             self.user_timeout = datetime.timedelta(
                 minutes=int(os.environ.get("USER_TIMEOUT", 20))
             )
+        elif isinstance(user_timeout, int):
+            self.user_timeout = datetime.timedelta(minutes=user_timeout)
         else:
             self.user_timeout = user_timeout
 
@@ -72,12 +81,26 @@ class UserManager:
             self.tree_timeout = datetime.timedelta(
                 minutes=int(os.environ.get("USER_TREE_TIMEOUT", 10))
             )
+        elif isinstance(tree_timeout, int):
+            self.tree_timeout = datetime.timedelta(minutes=tree_timeout)
         else:
             self.tree_timeout = tree_timeout
+
+        if client_timeout is None:
+            self.client_timeout = datetime.timedelta(
+                minutes=int(os.environ.get("CLIENT_TIMEOUT", 10))
+            )
+        elif isinstance(client_timeout, int):
+            self.client_timeout = datetime.timedelta(minutes=client_timeout)
+        else:
+            self.client_timeout = client_timeout
 
         self.manager_id = random.randint(0, 1000000)
         self.date_of_reset = None
         self.users = {}
+
+    def user_exists(self, user_id: str):
+        return user_id in self.users
 
     def add_user_local(
         self,
@@ -115,14 +138,18 @@ class UserManager:
                 end_goal=end_goal,
                 branch_initialisation=branch_initialisation,
                 settings=settings,
+                tree_timeout=self.tree_timeout,
             )
 
             # client manager starts with env variables, when config is updated, api keys are updated
-            self.users[user_id]["client_manager"] = ClientManager(logger=logger)
+            self.users[user_id]["client_manager"] = ClientManager(
+                logger=logger, client_timeout=self.client_timeout
+            )
 
     async def get_user_local(self, user_id: str):
         """
-        Create or return a local user object.
+        Return a local user object.
+        Will raise a ValueError if the user is not found.
 
         Args:
             user_id (str): Required. The unique identifier for the user.
@@ -157,16 +184,61 @@ class UserManager:
         return local_user["tree_manager"].get_tree(conversation_id)
 
     async def check_all_trees_timeout(self):
+        """
+        Check all trees in all TreeManagers across all users and remove any that have not been active in the last tree_timeout.
+        """
         for user_id in self.users:
             self.users[user_id]["tree_manager"].check_all_trees_timeout()
 
+    def check_user_timeout(self, user_id: str):
+        """
+        Check if a user has been idle for the last user_timeout.
+
+        Args:
+            user_id (str): The user ID which contains the user.
+
+        Returns:
+            (bool): True if the user has been idle for the last user_timeout, False otherwise.
+        """
+        # if user not found, return True
+        if user_id not in self.users:
+            return True
+
+        # Remove any trees that have not been active in the last USER_TREE_TIMEOUT minutes
+        if (
+            "last_request" in self.users[user_id]
+            and datetime.datetime.now() - self.users[user_id]["last_request"]
+            > self.user_timeout
+        ):
+            return True
+
+        return False
+
+    async def check_all_users_timeout(self):
+        """
+        Check all users in the UserManager and remove any that have not been active in the last user_timeout.
+        """
+        if self.user_timeout == datetime.timedelta(minutes=0):
+            return
+
+        for user_id in self.users:
+            if self.check_user_timeout(user_id):
+                del self.users[user_id]
+
     async def check_restart_clients(self):
+        """
+        Check all clients in all ClientManagers across all users and run the restart_client() method (for sync and async clients).
+        The restart_client() methods will check if the client has been inactive for the last client_timeout minutes (set in init).
+        """
         for user_id in self.users:
             if "client_manager" in self.users[user_id]:
                 await self.users[user_id]["client_manager"].restart_client()
                 await self.users[user_id]["client_manager"].restart_async_client()
 
     async def close_all_clients(self):
+        """
+        Close all clients in all ClientManagers across all users.
+        """
         for user_id in self.users:
             if "client_manager" in self.users[user_id]:
                 await self.users[user_id]["client_manager"].close_clients()
@@ -183,11 +255,9 @@ class UserManager:
         low_memory: bool = False,
     ):
         """
-        Initialise a user, and a tree for that user.
-        This is a wrapper for:
-
-        - adding a user if one does not exist
-        - the TreeManager.add_tree() method.
+        Initialises a tree for a user for an existing user at user_id.
+        Requires a user to already exist in the UserManager, via `add_user_local`.
+        This is a wrapper for the TreeManager.add_tree() method.
 
         Args:
             user_id (str): Required. The unique identifier for the user.
@@ -207,7 +277,7 @@ class UserManager:
                 Controls the LM history being saved in the tree, and some other variables.
                 Defaults to False.
         """
-        self.add_user_local(user_id)
+        # self.add_user_local(user_id)
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
         tree_manager.add_tree(
@@ -244,6 +314,7 @@ class UserManager:
         Wrapper for the TreeManager.process_tree() method.
         Which itself is a wrapper for the Tree.async_run() method.
         This is an async generator which yields results from the tree.async_run() method.
+        Automatically sends error payloads if the user or tree has been timed out.
 
         Args:
             query (str): Required. The user input/prompt to process in the decision tree.
@@ -256,6 +327,14 @@ class UserManager:
             collection_names (list[str]): Optional. A list of collection names to use in the query.
                 If not supplied, all collections will be used.
         """
+
+        if self.check_user_timeout(user_id):
+            user_timeout_error = UserTimeoutError()
+            error_payload = await user_timeout_error.to_frontend(
+                conversation_id, query_id
+            )
+            yield error_payload
+            return
 
         if self.check_tree_timeout(user_id, conversation_id):
             tree_timeout_error = TreeTimeoutError()

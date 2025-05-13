@@ -120,7 +120,7 @@ class Config(BaseModel):
 
 class InitialiseUserData(BaseModel):
     user_id: str
-    default_models: bool
+    default_models: Optional[bool] = None
     settings: Optional[dict[str, Any]] = None
     style: Optional[str] = "Informative, polite and friendly."
     agent_description: Optional[str] = (

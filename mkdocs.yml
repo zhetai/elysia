@@ -40,7 +40,7 @@ nav:
   - API: 
     - Overview: API/index.md
     - Client Management: API/client_management.md
-    - User Management: API/user_management.md
+    - User Management: API/user_and_tree_managers.md
     # - Routes: API/routes.md
     - Payload Formats: API/payload_formats.md
  
