@@ -6,28 +6,42 @@ from elysia.tools.text.objects import TextWithCitation
 class CitedSummarizingPrompt(dspy.Signature):
     """
     Given a user_prompt, as well as a list of retrieved objects from the environment, summarize the information in the objects to answer the user's prompt.
-    You will do so by providing a full summary, via a collection of TextWithCitation objects.
-    The combination of these 'text' fields in these objects will form the full summary (combined via string concatenation).
+    Your output will be a collection of TextWithCitation objects that form a complete summary when combined.
+    Do not list any of the retrieved objects in your response. Do not give an itemised list of the objects, since they will be displayed to the user anyway.
+    Your summary should be parsing the retrieved objects, and summarising the information in them that is relevant to the user's prompt.
+    For example, picking the most relevant information from the retrieved objects, and discussing it, repeating ONLY relevant information if necessary.
+    You should provide useful analysis, new information via analysing the existing objects, and synthesising the information.
     """
 
     subtitle = dspy.OutputField(description="A subtitle for the summary")
     cited_text: List[TextWithCitation] = dspy.OutputField(
         description="""
-        The list of TextWithCitation objects, which will form the full summary when the 'text' fields are concatenated.
-        Use markdown formatting in the 'text' fields to break down the information into sections, bullet points, etc to make it easier to read.
-        Your summary should take account what the user prompt is, and the information in the environment.
-        Your summary should be parsing the retrieved objects, and summarising the information in them that is relevant to the user's prompt.
-        For example, picking the most relevant information from the retrieved objects, and discussing it, repeating ONLY relevant information if necessary.
-        You should provide useful analysis.
+        A list of TextWithCitation objects whose 'text' fields will be concatenated to form the complete summary.
+        
+        FORMATTING RULES:
+        1. Use markdown for structure (headings, lists, etc.)
+        2. IMPORTANT: Always add newline characters (\\n) before and after markdown elements (lists, headers)
+        3. When a formatting element spans multiple TextWithCitation objects, ensure each object has proper newlines
+        4. Example: If a bullet point list spans multiple objects, each object must end with \\n and the next begin with proper indentation
+        
+        CITATION RULES:
+        1. NEVER include reference IDs in the 'text' field itself
+        2. NEVER include the literal string "_REF_ID" in your text
+        3. NEVER create hyperlinks to references in the text field
+        4. ALWAYS copy reference IDs exactly from the source's _REF_ID to the ref_ids list
+        5. Keep the text clean and reference-free: all citations happen only through the ref_ids list
+        6. Since you are referencing via _REF_ID, you do not need any other type of referencing such as URLs or hyperlinks.
 
-        Make sure that your citations are accurate.
-        You can provide cited_text fields which MUST come from the environment.
-        Do not include any citations which are not in the environment.
-
-        Take the _REF_ID from items in the environment, only use them as the ref_ids in the TextWithCitation objects.
-        Do not use the _REF_ID anywhere in the 'text' fields, they should only be copied as the ref_id in the TextWithCitation objects.
-
-        Ensure that you use newline characters (\\n) in each 'text' field if you are using markdown formatting such as lists, or other formatting.
+        CORRECT EXAMPLE: text: "Here is some text", ref_ids: ["example_citation_1", "example_citation_2"]
+        INCORRECT EXAMPLE: text: "Here is some text _REF_ID", ref_ids: ["example_citation_1", "example_citation_2"]
+        INCORRECT EXAMPLE: text: "Here is some text [example_citation_1]", ref_ids: ["example_citation_1", "example_citation_2"]
+        
+        CONTENT GUIDELINES:
+        1. Focus only on information relevant to the user's prompt
+        2. Provide analysis and synthesis, not just extraction
+        3. Only cite information that exists in the retrieved objects
+        4. Each text segment should map logically to its citations
+        5. Use multiple TextWithCitation objects to align text with its specific sources
         """.strip()
     )
 
