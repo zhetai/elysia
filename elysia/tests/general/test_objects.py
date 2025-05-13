@@ -7,7 +7,6 @@ from weaviate.classes.query import Filter, QueryReference
 from elysia.tree.objects import Environment
 from elysia.objects import (
     Completed,
-    Error,
     Response,
     Status,
     Text,
@@ -179,7 +178,6 @@ class TestObjects:
         types = [
             Status,
             Warning,
-            Error,
         ]
         names = [
             "status",

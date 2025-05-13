@@ -10,7 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 from elysia.api.core.log import logger
 
 # Objects
-from elysia.objects import Error
+from elysia.api.utils.default_payloads import error_payload
 
 
 async def help_websocket(websocket: WebSocket, ws_route: callable):
@@ -55,8 +55,9 @@ async def help_websocket(websocket: WebSocket, ws_route: callable):
                             continue
 
                 except Exception as e:
-                    error = Error(text=str(e))
-                    error_payload = await error.to_frontend("", "")
+                    error_payload = error_payload(
+                        text=str(e), conversation_id="", query_id=""
+                    )
                     await websocket.send_json(error_payload)
                     logger.error(f"Error in websocket communication: {str(e)}")
 
@@ -80,13 +81,24 @@ async def help_websocket(websocket: WebSocket, ws_route: callable):
             except Exception as e:
                 logger.error(f"Error in WebSocket: {str(e)}")
                 try:
-                    if data and "conversation_id" in data:
-                        error = Error(text=str(e))
-                        error_payload = await error.to_frontend(data["conversation_id"])
+                    if data and "conversation_id" in data and "query_id" in data:
+                        error_payload = error_payload(
+                            text=str(e),
+                            conversation_id=data["conversation_id"],
+                            query_id=data["query_id"],
+                        )
+                        await websocket.send_json(error_payload)
+                    elif data and "conversation_id" in data:
+                        error_payload = error_payload(
+                            text=str(e),
+                            conversation_id=data["conversation_id"],
+                            query_id="",
+                        )
                         await websocket.send_json(error_payload)
                     else:
-                        error = Error(text=str(e))
-                        error_payload = await error.to_frontend("")
+                        error_payload = error_payload(
+                            text=str(e), conversation_id="", query_id=""
+                        )
                         await websocket.send_json(error_payload)
 
                 except RuntimeError:

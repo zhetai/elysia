@@ -59,12 +59,14 @@ class DecisionNode:
         options: dict[str, dict[str, str | bool | Tool | None]],
         root: bool = False,
         logger: Logger = None,
+        use_elysia_collections: bool = True,
     ):
         self.id = id
         self.instruction = instruction
         self.options = options
         self.root = root
         self.logger = logger
+        self.use_elysia_collections = use_elysia_collections
 
     def _get_options(self):
         return self.options
@@ -159,7 +161,7 @@ class DecisionNode:
             construct_decision_prompt(self._get_options()),
             tree_data=tree_data,
             environment=True,
-            collection_schemas=True,
+            collection_schemas=self.use_elysia_collections,
             tasks_completed=True,
             message_update=True,
         )

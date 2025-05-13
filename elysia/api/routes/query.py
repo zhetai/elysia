@@ -7,8 +7,8 @@ from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.api.utils.websocket import help_websocket
-from elysia.objects import Error
 from elysia.util.collection import retrieve_all_collection_names
+from elysia.api.utils.default_payloads import error_payload
 
 router = APIRouter()
 
@@ -58,14 +58,17 @@ async def process(data: dict, websocket: WebSocket, user_manager: UserManager):
         logger.exception(f"Error in /query API")
 
         if "conversation_id" in data:
-            error = Error(text=f"{str(e)}")
-            error_payload = await error.to_frontend(
-                data["conversation_id"], data["query_id"]
+            error_payload = error_payload(
+                text=f"{str(e)}",
+                conversation_id=data["conversation_id"],
+                query_id=data["query_id"],
             )
             await websocket.send_json(error_payload)
         else:
-            error_payload = await Error(text=f"{str(e)}").to_frontend(
-                "", data["query_id"]
+            error_payload = error_payload(
+                text=f"{str(e)}",
+                conversation_id="",
+                query_id="",
             )
             await websocket.send_json(error_payload)
 

@@ -218,7 +218,7 @@ class TestGenericPrompts:
         ]
 
         summarisation_metric = metrics.AnswerRelevancyMetric(
-            threshold=0.5, model="gpt-4o-mini", include_reason=True
+            threshold=0.5, model="gpt-4o", include_reason=True
         )
         summarisation_test_case = LLMTestCase(
             input=user_prompt,
