@@ -54,6 +54,7 @@ class CitedSummarizer(Tool):
             CitedSummarizingPrompt,
             tree_data=tree_data,
             reasoning=False,
+            impossible=False,
             environment=True,
             tasks_completed=True,
             message_update=False,

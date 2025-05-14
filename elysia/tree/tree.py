@@ -57,7 +57,7 @@ from elysia.config import (
     load_base_lm,
     load_complex_lm,
 )
-from elysia.util.objects import Timer, TrainingUpdate, TreeUpdate
+from elysia.util.objects import Tracker, TrainingUpdate, TreeUpdate
 
 # Util
 from elysia.util.parsing import remove_whitespace
@@ -159,8 +159,8 @@ class Tree:
         )
 
         # initialise the timers
-        self.timer = Timer(
-            timer_names=["base_lm", "complex_lm"],
+        self.tracker = Tracker(
+            tracker_names=["decision_node"],
             logger=self.settings.logger,
         )
 
@@ -501,7 +501,9 @@ class Tree:
         nodes_with_rules_met = []
         rule_tool_inputs = {}
         for function_name, option in branch.options.items():
-            if "run_if_true" in dir(self.tools[function_name]):
+            if function_name not in self.tools:
+                pass
+            elif "run_if_true" in dir(self.tools[function_name]):
                 rule_met, rule_tool_inputs = await self.tools[
                     function_name
                 ].run_if_true(
@@ -569,7 +571,9 @@ class Tree:
     def set_start_time(self):
         self.start_time = time.time()
 
-    def add_tool(self, tool: Tool, branch_id: str | None = None, **kwargs):
+    def add_tool(
+        self, tool: Tool, branch_id: str | None = None, root: bool = False, **kwargs
+    ):
         """
         Add a Tool to a branch.
         The tool needs to be an instance of the Tool class.
@@ -619,15 +623,21 @@ class Tree:
                     "run_if_true must be an async function that returns a single boolean value"
                 )
 
-        self.tools[tool_instance.name] = tool_instance
-
-        if branch_id is None:
+        if root:
+            if branch_id is not None:
+                self.settings.logger.warning(
+                    "In .add_tool(), `root` is True, so `branch_id` will be ignored. "
+                    f"Tool: {tool_instance.name} will be added to the root branch ({self.root})."
+                )
             branch_id = self.root
 
         if branch_id not in self.decision_nodes:
             raise ValueError(
-                f"Branch {branch_id} not found. Use .add_branch() to add a branch before adding a tool."
+                f"Branch {branch_id} not found. Use .add_branch() to add a branch before adding a tool. "
+                f"Or, set `root=True` to add the tool to the root branch ({self.root})."
             )
+
+        self.tools[tool_instance.name] = tool_instance
 
         self.decision_nodes[branch_id].add_option(
             id=tool_instance.name,
@@ -637,7 +647,7 @@ class Tree:
             end=tool_instance.end,
             status=tool_instance.status,
         )
-        self.timer.add_timer(tool_instance.name)
+        self.tracker.add_tracker(tool_instance.name)
 
         # reconstruct tree
         self._get_root()
@@ -664,7 +674,7 @@ class Tree:
 
         self.decision_nodes[branch_id].remove_option(tool_name)
         del self.tools[tool_name]
-        self.timer.remove_timer(tool_name)
+        self.tracker.remove_tracker(tool_name)
 
         # reconstruct tree
         self._get_root()
@@ -912,6 +922,7 @@ class Tree:
             reasoning=decision.reasoning,
             # retrieved_objects=result.to_json(),
             parsed_info=result.llm_parse(),
+            action=True,
         )
 
         # add to log of actions called
@@ -971,9 +982,11 @@ class Tree:
         available_tools = []
 
         for tool in current_decision_node.options.keys():
-            if not "is_tool_available" in dir(self.tools[tool]):
+            if current_decision_node.options[tool]["action"] is None:
                 available_tools.append(tool)
-            elif await self.tools[tool].is_tool_available(
+            elif "is_tool_available" in dir(self.tools[tool]) and await self.tools[
+                tool
+            ].is_tool_available(
                 tree_data=self.tree_data,
                 base_lm=self.get_lm("base"),
                 complex_lm=self.get_lm("complex"),
@@ -981,6 +994,48 @@ class Tree:
             ):
                 available_tools.append(tool)
         return available_tools
+
+    def log_token_usage(self):
+        if not self.low_memory:
+            avg_input_base = self.tracker.get_average_input_tokens("base_lm")
+            avg_output_base = self.tracker.get_average_output_tokens("base_lm")
+            total_input_base = self.tracker.get_total_input_tokens("base_lm")
+            total_output_base = self.tracker.get_total_output_tokens("base_lm")
+            avg_input_complex = self.tracker.get_average_input_tokens("complex_lm")
+            avg_output_complex = self.tracker.get_average_output_tokens("complex_lm")
+            total_input_complex = self.tracker.get_total_input_tokens("complex_lm")
+            total_output_complex = self.tracker.get_total_output_tokens("complex_lm")
+            total_cost_base = self.tracker.get_total_cost("base_lm")
+            total_cost_complex = self.tracker.get_total_cost("complex_lm")
+            avg_cost_base = self.tracker.get_average_cost("base_lm")
+            avg_cost_complex = self.tracker.get_average_cost("complex_lm")
+            num_calls_base = self.tracker.get_num_calls("base_lm")
+            num_calls_complex = self.tracker.get_num_calls("complex_lm")
+
+            if num_calls_base > 0:
+                self.settings.logger.info(
+                    f"Base Model Usage: \n"
+                    f"  - Calls: [magenta]{num_calls_base}[/magenta]\n"
+                    f"  - Input Tokens: [magenta]{total_input_base}[/magenta] (Avg. [magenta]{avg_input_base:.2f}[/magenta] per call)\n"
+                    f"  - Output Tokens: [cyan]{total_output_base}[/cyan] (Avg. [cyan]{avg_output_base:.2f}[/cyan] per call)\n"
+                    f"  - Total Cost: [yellow]${total_cost_base:.4f}[/yellow] (Avg. [yellow]${avg_cost_base:.3f}[/yellow] per call)\n"
+                )
+            else:
+                self.settings.logger.info(
+                    f"Base Model Usage: [magenta]0[/magenta] calls"
+                )
+            if num_calls_complex > 0:
+                self.settings.logger.info(
+                    f"Complex Model Usage: \n"
+                    f"  - Calls: [magenta]{num_calls_complex}[/magenta]\n"
+                    f"  - Input Tokens: [magenta]{total_input_complex}[/magenta] (Avg. [magenta]{avg_input_complex:.2f}[/magenta] per call)\n"
+                    f"  - Output Tokens: [cyan]{total_output_complex}[/cyan] (Avg. [cyan]{avg_output_complex:.2f}[/cyan] per call)\n"
+                    f"  - Total Cost: [yellow]${total_cost_complex:.4f}[/yellow] (Avg. [yellow]${avg_cost_complex:.3f}[/yellow] per call)\n"
+                )
+            else:
+                self.settings.logger.info(
+                    f"Complex Model Usage: [magenta]0[/magenta] calls"
+                )
 
     async def async_run(
         self,
@@ -1120,7 +1175,7 @@ class Tree:
 
             # Under normal circumstances decide from the decision node
             else:
-                self.timer.start_timer("base_lm")
+                self.tracker.start_tracking("decision_node")
                 self.tree_data.set_current_task("elysia_decision_node")
                 self.current_decision, results = await current_decision_node(
                     tree_data=self.tree_data,
@@ -1134,7 +1189,12 @@ class Tree:
                     if action_result is not None:
                         yield action_result
 
-                self.timer.end_timer("base_lm", "Decision Node")
+                self.tracker.end_tracking(
+                    "decision_node",
+                    "Decision Node",
+                    self.base_lm if not self.low_memory else None,
+                    self.complex_lm if not self.low_memory else None,
+                )
 
                 # Force text response (later) if model chooses end actions
                 # but no response will be generated from the node, set flag now
@@ -1198,9 +1258,9 @@ class Tree:
                 is None
             )
 
-            # evaluate the action
+            # evaluate the action if this is not a branch
             if action_fn is not None:
-                self.timer.start_timer(self.current_decision.function_name)
+                self.tracker.start_tracking(self.current_decision.function_name)
                 self.tree_data.set_current_task(self.current_decision.function_name)
                 async for result in action_fn(
                     tree_data=self.tree_data,
@@ -1215,7 +1275,21 @@ class Tree:
                     if action_result is not None:
                         yield action_result
 
-                self.timer.end_timer(self.current_decision.function_name)
+                self.tracker.end_tracking(
+                    self.current_decision.function_name,
+                    self.current_decision.function_name,
+                    self.base_lm if not self.low_memory else None,
+                    self.complex_lm if not self.low_memory else None,
+                )
+            # if it is a branch, only update tasks completed
+            else:
+                self.tree_data.update_tasks_completed(
+                    prompt=self.user_prompt,
+                    task=self.current_decision.function_name,
+                    num_trees_completed=self.tree_data.num_trees_completed,
+                    reasoning=self.current_decision.reasoning,
+                    action=False,
+                )
 
             # check if the current node is the end of the tree
             if (
@@ -1271,17 +1345,20 @@ class Tree:
             self.settings.logger.info(
                 f"Total time taken for decision tree: {time.time() - self.start_time:.2f} seconds"
             )
-            self.settings.logger.info(f"Tasks completed:\n")
-            for task in self.decision_history:
-                if task in self.timer.timers:
-                    time_taken = self.timer.timers[task]["avg_time"]
-                    self.settings.logger.info(
-                        f"     - {task} ([magenta]Avg. {time_taken:.2f} seconds[/magenta])"
-                    )
-                else:
-                    self.settings.logger.info(
-                        f"     - {task} ([magenta]Unknown avg. time[/magenta])"
-                    )
+            self.settings.logger.info(
+                f"Decision Node Avg. Time: {self.tracker.get_average_time('decision_node'):.2f} seconds"
+            )
+            self.log_token_usage()
+
+            avg_times = [
+                (
+                    f"  - {task} ([magenta]Avg. {self.tracker.get_average_time(task):.2f} seconds[/magenta])\n"
+                    if task in self.tracker.trackers
+                    else ""
+                )
+                for task in self.decision_history
+            ]
+            self.settings.logger.info("Tasks completed:\n" + "".join(avg_times))
 
             if close_clients_after_completion:
                 await client_manager.close_clients()
