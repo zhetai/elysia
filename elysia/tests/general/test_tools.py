@@ -264,10 +264,10 @@ class TestTools:
         )
 
         if not remove_tools:
-            tree.add_tool(TextResponse)
+            tree.add_tool(TextResponse, root=True)
 
         for tool in tools:
-            tree.add_tool(tool, **kwargs)
+            tree.add_tool(tool, root=True, **kwargs)
 
         async for result in tree.async_run(
             user_prompt,

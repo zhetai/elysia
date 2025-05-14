@@ -17,7 +17,7 @@ def event_loop():
         loop.close()
 
 
-@pytest.fixture(autouse=True, scope="function")
+@pytest.fixture(autouse=True, scope="module")
 def use_dummy_adapter():
 
     prev_adapter = dspy.settings.adapter

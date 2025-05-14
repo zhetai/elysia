@@ -19,7 +19,7 @@ class CitedSummarizingPrompt(dspy.Signature):
         A list of TextWithCitation objects whose 'text' fields will be concatenated to form the complete summary.
         
         FORMATTING RULES:
-        1. Use markdown for structure (headings, lists, etc.)
+        1. Use markdown for structure (headings, lists, etc.), this is encouraged and recommended to break down the information to be more readable.
         2. IMPORTANT: Always add newline characters (\\n) before and after markdown elements (lists, headers)
         3. When a formatting element spans multiple TextWithCitation objects, ensure each object has proper newlines
         4. Example: If a bullet point list spans multiple objects, each object must end with \\n and the next begin with proper indentation

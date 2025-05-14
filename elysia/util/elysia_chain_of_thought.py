@@ -23,12 +23,10 @@ class ElysiaChainOfThought(Module):
 
     You can also specify `collection_names` to only include certain collections in the collection schemas.
 
-    It will automatically output:
+    It will optionally output (by setting the boolean flags on initialisation to `True`):
     - The reasoning (model step by step reasoning)
-    - Whether the task is impossible (boolean)
-
-    And optionally output (by setting the boolean flags on initialisation to `True`):
     - A message update (if `message_update` is `True`), a brief 'update' message to the user.
+    - Whether the task is impossible (boolean)
 
     You can use this module by calling the `.aforward()` method, passing all your *new* inputs as keyword arguments.
     You do not need to include keyword arguments for the other inputs, like the `environment`.
@@ -52,6 +50,7 @@ class ElysiaChainOfThought(Module):
         signature: Type[Signature],
         tree_data: TreeData,
         reasoning: bool = True,
+        impossible: bool = True,
         message_update: bool = True,
         environment: bool = False,
         collection_schemas: bool = False,
@@ -66,6 +65,9 @@ class ElysiaChainOfThought(Module):
                 Used to input the current state of the tree into the prompt.
                 If you are using this module as part of a tool, the `tree_data` is an input to the tool call.
             reasoning (bool): Whether to include a reasoning input (chain of thought).
+            impossible (bool): Whether to include a boolean flag indicating whether the task is impossible.
+                This is useful for stopping the tree from continuing and returning to the base of the decision tree.
+                For example, the model judges a query impossible to execute, or the user has not provided enough information.
             message_update (bool): Whether to include a message update input.
                 If True, the LLM output will include a brief 'update' message to the user.
                 This describes the current action the LLM is performing.
@@ -107,6 +109,7 @@ class ElysiaChainOfThought(Module):
         self.tasks_completed = tasks_completed
         self.collection_names = collection_names
         self.reasoning = reasoning
+        self.impossible = impossible
 
         # == Inputs ==
 
@@ -151,19 +154,6 @@ class ElysiaChainOfThought(Module):
             prefix=errors_prefix, desc=errors_desc
         )
 
-        # == Outputs ==
-
-        # -- Impossible Field --
-        impossible_desc = (
-            "Given the actions you have available, and the environment/information. "
-            "Is the task impossible to complete? "
-            "I.e., do you wish that you had a different task to perform/choose from and hence should return to the base of the decision tree?"
-        )
-        impossible_prefix = "${impossible}"
-        impossible_field: bool = dspy.OutputField(
-            prefix=impossible_prefix, desc=impossible_desc
-        )
-
         # -- Add to Signature --
         extended_signature = signature.prepend(
             name="user_prompt", field=user_prompt_field, type_=str
@@ -178,9 +168,6 @@ class ElysiaChainOfThought(Module):
         )
         extended_signature = extended_signature.append(
             name="previous_errors", field=errors_field, type_=list[dict]
-        )
-        extended_signature = extended_signature.append(
-            name="impossible", field=impossible_field, type_=bool
         )
 
         # == Optional Inputs / Outputs ==
@@ -257,6 +244,21 @@ class ElysiaChainOfThought(Module):
             )
             extended_signature = extended_signature.append(
                 name="message_update", field=message_update_field, type_=str
+            )
+
+        # -- Impossible Field --
+        if impossible:
+            impossible_desc = (
+                "Given the actions you have available, and the environment/information. "
+                "Is the task impossible to complete? "
+                "I.e., do you wish that you had a different task to perform/choose from and hence should return to the base of the decision tree?"
+            )
+            impossible_prefix = "${impossible}"
+            impossible_field: bool = dspy.OutputField(
+                prefix=impossible_prefix, desc=impossible_desc
+            )
+            extended_signature = extended_signature.prepend(
+                name="impossible", field=impossible_field, type_=bool
             )
 
         # -- Reasoning Field --
