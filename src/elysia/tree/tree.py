@@ -1016,8 +1016,8 @@ class Tree:
                 self.settings.logger.info(
                     f"Base Model Usage: \n"
                     f"  - Calls: [magenta]{num_calls_base}[/magenta]\n"
-                    f"  - Input Tokens: [magenta]{total_input_base}[/magenta] (Avg. [magenta]{int(avg_input_base)}[/magenta] per call)\n"
-                    f"  - Output Tokens: [cyan]{total_output_base}[/cyan] (Avg. [cyan]{int(avg_output_base)}[/cyan] per call)\n"
+                    f"  - Input Tokens: [magenta]{total_input_base}[/magenta] (Avg. [magenta]{avg_input_base:.2f}[/magenta] per call)\n"
+                    f"  - Output Tokens: [cyan]{total_output_base}[/cyan] (Avg. [cyan]{avg_output_base:.2f}[/cyan] per call)\n"
                     f"  - Total Cost: [yellow]${total_cost_base:.4f}[/yellow] (Avg. [yellow]${avg_cost_base:.3f}[/yellow] per call)\n"
                 )
             else:
@@ -1028,8 +1028,8 @@ class Tree:
                 self.settings.logger.info(
                     f"Complex Model Usage: \n"
                     f"  - Calls: [magenta]{num_calls_complex}[/magenta]\n"
-                    f"  - Input Tokens: [magenta]{total_input_complex}[/magenta] (Avg. [magenta]{int(avg_input_complex)}[/magenta] per call)\n"
-                    f"  - Output Tokens: [cyan]{total_output_complex}[/cyan] (Avg. [cyan]{int(avg_output_complex)}[/cyan] per call)\n"
+                    f"  - Input Tokens: [magenta]{total_input_complex}[/magenta] (Avg. [magenta]{avg_input_complex:.2f}[/magenta] per call)\n"
+                    f"  - Output Tokens: [cyan]{total_output_complex}[/cyan] (Avg. [cyan]{avg_output_complex:.2f}[/cyan] per call)\n"
                     f"  - Total Cost: [yellow]${total_cost_complex:.4f}[/yellow] (Avg. [yellow]${avg_cost_complex:.3f}[/yellow] per call)\n"
                 )
             else:
