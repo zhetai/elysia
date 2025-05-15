@@ -310,20 +310,6 @@ class Settings:
                 "Unknown arguments to configure: " + ", ".join(kwargs.keys())
             )
 
-    @classmethod
-    def inherit_config(cls, settings):
-        """
-        Inherit the settings from another Settings object.
-        """
-        new_settings = cls()
-        for key in dir(settings):
-            if not key.startswith("__"):  # Skip special attributes
-                try:
-                    setattr(new_settings, key, getattr(settings, key))
-                except AttributeError:
-                    pass
-        return new_settings
-
     def __repr__(self) -> str:
         out = ""
         if "BASE_MODEL" in dir(self) and self.BASE_MODEL is not None:
@@ -430,9 +416,6 @@ def load_lm(
 # but used when using Elysia as a package
 settings = Settings()
 settings.set_from_env()
-
-DEFAULT_SETTINGS = Settings()
-DEFAULT_SETTINGS.set_from_env()
 
 
 def reset_settings():
