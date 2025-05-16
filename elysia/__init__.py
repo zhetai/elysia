@@ -3,7 +3,6 @@ __version__ = "0.2.0"
 
 from elysia.tree.tree import Tree
 from elysia.objects import (
-    Branch,
     Tool,
     Reasoning,
     Return,

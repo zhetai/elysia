@@ -7,7 +7,7 @@ from rich.panel import Panel
 import dspy
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning, Error
+from elysia.objects import Reasoning, Response, Status, Tool, Warning, Error
 from elysia.tools.retrieval.objects import Aggregation
 from elysia.tools.retrieval.prompt_templates import AggregationPrompt
 from elysia.tools.retrieval.util import execute_weaviate_aggregation
@@ -88,13 +88,6 @@ class Aggregate(Tool):
         complex_lm: dspy.LM,
         **kwargs,
     ):
-        # Set up the branch spanning off the node
-        Branch(
-            {
-                "name": "Aggregation Generator",
-                "description": "Generate summary statistics of the data via an LLM aggregation query.",
-            }
-        )
 
         if self.logger:
             self.logger.debug("Aggregation Tool called!")

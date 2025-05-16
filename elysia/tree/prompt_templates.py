@@ -50,7 +50,7 @@ def construct_decision_prompt(
         # Task-specific input fields
         available_actions: list[dict] = dspy.InputField(
             description="""
-            List of possible actions to choose from:
+            List of possible actions to choose from for this task only:
             {
                 "[name]": {
                     "function_name": [name of the function],
@@ -59,6 +59,25 @@ def construct_decision_prompt(
                     "inputs": [inputs for the action]. A dictionary where the keys are the input names, and the values are the input descriptions.
                 }
             }
+            """.strip()
+        )
+
+        successive_actions: str = dspy.InputField(
+            description="""
+            Actions that stem from actions you can choose from.
+            In the format:
+            {
+                "action_1": {
+                    "sub_action_1": {
+                        "sub_sub_action_1": {},
+                        "sub_sub_action_2": {},
+                    },
+                    "sub_action_2": {},
+                },
+                "action_2": {},
+            }
+            etc.
+            Do NOT choose sub_actions for `function_name`, only choose actions from `available_actions`.
             """.strip()
         )
 
@@ -81,7 +100,9 @@ def construct_decision_prompt(
             Select exactly one function name from available_actions that best advances toward answering the user's input prompt.
             You MUST select one function name exactly as written as it appears in the `function_name` field of the dictionary.
             You can select a function again in the future if you need to, you are allowed to choose the same function multiple times.
-            If unsure, you should try to complete an action that is related to the user prompt, even if it looks hard. However, do not continually choose the same action.
+            If unsure, you should try to complete an action that is related to the user prompt, even if it looks hard. 
+            However, do not continually choose the same action.
+            Use the action descriptions (and an instruction, if given) to make your decision.
             """.strip()
         )
 

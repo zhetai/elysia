@@ -4,16 +4,6 @@ from elysia.util.parsing import format_dict_to_serialisable
 from typing import Any, AsyncGenerator
 
 
-class Branch:
-    """
-    These branches are searched in advance of the tree being run, iterating through code and function calls.
-    Used to build the decision tree display on the frontend.
-    """
-
-    def __init__(self, updates: dict):
-        self.updates = updates
-
-
 class Tool:
     """
     The generic Tool class, which will be a superclass of any tools used by Elysia.
@@ -127,11 +117,7 @@ class Tool:
         return True
 
     async def __call__(
-        self,
-        tree_data,
-        base_lm,
-        complex_lm,
-        client_manager,
+        self, tree_data, base_lm, complex_lm, client_manager, **kwargs
     ) -> AsyncGenerator[Any, None]:
         """
         This method is called to run the tool.
@@ -145,7 +131,7 @@ class Tool:
             complex_lm (LM): The complex language model, a dspy.LM object.
             client_manager (ClientManager): The client manager, a way of interfacing with a Weaviate client.
         """
-        pass
+        yield None
 
 
 class Reasoning:
@@ -175,11 +161,18 @@ class Text(Return):
     But is not limited to this.
     """
 
-    def __init__(self, payload_type: str, objects: list[dict], metadata: dict = {}):
+    def __init__(
+        self,
+        payload_type: str,
+        objects: list[dict],
+        metadata: dict = {},
+        display: bool = True,
+    ):
         Return.__init__(self, "text", payload_type)
         self.objects = objects
         self.metadata = metadata
         self.text = self._concat_text(self.objects)
+        self.display = display
 
     def _concat_text(self, objects: list[dict]):
         text = ""
@@ -221,6 +214,9 @@ class Text(Return):
         conversation_id: str,
         query_id: str,
     ):
+        if not self.display:
+            return
+
         return {
             "type": self.frontend_type,
             "id": self.frontend_type[:3] + "-" + str(uuid.uuid4()),
@@ -232,8 +228,8 @@ class Text(Return):
 
 
 class Response(Text):
-    def __init__(self, text: str):
-        Text.__init__(self, "response", [{"text": text}])
+    def __init__(self, text: str, **kwargs):
+        Text.__init__(self, "response", [{"text": text}], **kwargs)
 
 
 class Update(Return):
@@ -307,6 +303,7 @@ class Result(Return):
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
+        display: bool = True,
     ):
         """
         Args:
@@ -327,6 +324,8 @@ class Result(Return):
                 - {num_objects}: The number of objects in the object
                 - {metadata_key}: Any key in the metadata dictionary
             unmapped_keys (list[str]): A list of keys that are not mapped to the frontend.
+            display (bool): Whether to display the result on the frontend when yielding this object.
+                Defaults to `True`.
         """
         Return.__init__(self, "result", payload_type)
         self.objects = objects
@@ -335,27 +334,10 @@ class Result(Return):
         self.mapping = mapping
         self.llm_message = llm_message
         self.unmapped_keys = unmapped_keys
+        self.display = display
 
     def __len__(self):
         return len(self.objects)
-
-    # TODO: _remove duplicates is unused, do we need it?
-    def _remove_duplicates(self, objects: list[dict | str]):
-        unique_objects = []
-        seen = set()
-
-        for obj in objects:
-            if isinstance(obj, dict):
-                # Convert dict to a string representation for comparison
-                obj_str = str(sorted(obj.items()))
-            else:
-                obj_str = str(obj)
-
-            if obj_str not in seen:
-                seen.add(obj_str)
-                unique_objects.append(obj)
-
-        return unique_objects
 
     def format_llm_message(self):
         """
@@ -459,6 +441,9 @@ class Result(Return):
                 }
                 ```
         """
+        if not self.display:
+            return
+
         objects = self.to_json(mapping=True)
         if len(objects) == 0:
             return
@@ -510,6 +495,7 @@ class Retrieval(Result):
         metadata: dict = {},
         mapping: dict | None = None,
         unmapped_keys: list[str] = ["uuid", "summary", "collection_name"],
+        display: bool = True,
     ):
         if name is None and "collection_name" in metadata:
             name = metadata["collection_name"]
@@ -524,6 +510,7 @@ class Retrieval(Result):
             name=name,
             mapping=mapping,
             unmapped_keys=unmapped_keys,
+            display=display,
         )
 
     def add_summaries(self, summaries: list[str] = []):
