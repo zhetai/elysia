@@ -3,7 +3,7 @@ import uuid
 from copy import deepcopy
 import dspy
 from pydantic import BaseModel
-
+from typing import Any
 from elysia.util.parsing import format_dict_to_serialisable
 from logging import Logger
 
@@ -298,13 +298,15 @@ class TrainingUpdate:
         self.inputs = {**inputs_copy, **extra_inputs}
         self.outputs = outputs_copy
 
-    def _convert_basemodel(self, value: BaseModel | dict | list):
+    def _convert_basemodel(self, value: Any):
         if isinstance(value, BaseModel):
             return value.model_dump()
         elif isinstance(value, dict):
             return {k: self._convert_basemodel(v) for k, v in value.items()}
         elif isinstance(value, list):
             return [self._convert_basemodel(v) for v in value]
+        else:
+            return value
 
     def to_json(self):
         return {"model": self.model, "inputs": self.inputs, "outputs": self.outputs}

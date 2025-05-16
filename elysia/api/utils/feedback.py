@@ -12,8 +12,8 @@ import weaviate.classes as wvc
 import weaviate.classes.config as wc
 
 
-def create_feedback_collection(client):
-    client.collections.create(
+async def create_feedback_collection(client):
+    await client.collections.create(
         "ELYSIA_FEEDBACK__",
         properties=[
             # session data
@@ -152,7 +152,11 @@ def create_feedback_collection(client):
                 name="feedback_date",
                 data_type=wc.DataType.DATE,
             ),
-            # proper things for training models
+            wc.Property(
+                name="decision_time",
+                data_type=wc.DataType.NUMBER,
+            ),
+            # dump training_updates as string
             wc.Property(name="training_updates", data_type=wc.DataType.TEXT),
         ],
         vectorizer_config=wvc.config.Configure.Vectorizer.none(),
@@ -163,6 +167,9 @@ def create_feedback_collection(client):
 async def create_feedback(
     user_id: str, conversation_id: str, query_id: str, feedback: int, tree: Tree, client
 ):
+    if not await client.collections.exists("ELYSIA_FEEDBACK__"):
+        await create_feedback_collection(client)
+
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
 
     history = tree.history[query_id]
@@ -185,11 +192,9 @@ async def create_feedback(
     for task_prompt in history["tree_data"].tasks_completed:
         for task in task_prompt["task"]:
             task["action"] = bool(task["action"])
-            del task["inputs"]
-            # TODO: remake feedback collection later to include inputs
 
     date_now = datetime.now()
-    date_now = date_now - timedelta(days=1)
+    # date_now = date_now - timedelta(days=1)
 
     properties = {
         "user_id": user_id,
@@ -202,18 +207,16 @@ async def create_feedback(
         "route": history["decision_history"],
         "action_information": history["action_information"],
         "time_taken_seconds": history["time_taken_seconds"],
-        "base_lm_avg_time": tree.base_lm_timer.avg_time,
-        "complex_lm_avg_time": tree.complex_lm_timer.avg_time,
-        "base_lm_used": tree.base_lm.model if tree.debug else tree.base_lm,
-        "complex_lm_used": tree.complex_lm.model if tree.debug else tree.complex_lm,
+        "decision_time": tree.tracker.get_average_time("decision_node"),
+        "base_lm_used": tree.base_lm.model if not tree.low_memory else tree.base_lm,
+        "complex_lm_used": (
+            tree.complex_lm.model if not tree.low_memory else tree.complex_lm
+        ),
         "feedback_datetime": format_datetime(date_now),
-        "feedback_date": format_datetime(date_now),
+        "feedback_date": date_now.strftime("%Y-%m-%d"),
         "training_updates": history["training_updates"],
         "initialisation": history["initialisation"],
     }
-
-    # from rich import print
-    # print(history["training_updates"])
 
     # uuid is generated based on the user_id, conversation_id, query_id ONLY
     # so if the user re-selects the same feedback, it will be updated instead of added
@@ -239,9 +242,8 @@ async def create_feedback(
 
 
 async def view_feedback(user_id: str, conversation_id: str, query_id: str, client):
-    assert await client.collections.exists(
-        "ELYSIA_FEEDBACK__"
-    ), "No feedback collection found"
+    if not await client.collections.exists("ELYSIA_FEEDBACK__"):
+        raise Exception("No feedback collection found")
 
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
     session_uuid = generate_uuid5(
@@ -260,9 +262,8 @@ async def view_feedback(user_id: str, conversation_id: str, query_id: str, clien
 
 
 async def remove_feedback(user_id: str, conversation_id: str, query_id: str, client):
-    assert await client.collections.exists(
-        "ELYSIA_FEEDBACK__"
-    ), "No feedback collection found"
+    if not await client.collections.exists("ELYSIA_FEEDBACK__"):
+        raise Exception("No feedback collection found")
 
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
     session_uuid = generate_uuid5(
@@ -278,42 +279,20 @@ async def remove_feedback(user_id: str, conversation_id: str, query_id: str, cli
 async def feedback_metadata(client, user_id: str):
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
 
-    if user_id != "admin":
-        user_id_filter = Filter.by_property("user_id").equal(user_id)
-    else:
-        user_id_filter = None
-
-    all_aggregate = await feedback_collection.aggregate.over_all(
-        filters=user_id_filter, total_count=True
-    )
+    all_aggregate = await feedback_collection.aggregate.over_all(total_count=True)
     total_feedback = all_aggregate.total_count
-
-    # get unique feedback values
-    # feedback_values = await feedback_collection.aggregate.over_all(
-    #     group_by = GroupByAggregate(prop="feedback"),
-    #     filters = user_id_filter,
-    #     return_metrics = [
-    #         Metrics("feedback").number(
-    #             count=True
-    #         )
-    #     ]
-    # )
 
     feedback_values = {
         0.0: "negative",
         1.0: "positive",
         2.0: "superpositive",
-    }  # [float(group.grouped_by.value) for group in feedback_values.groups]
+    }
 
     feedback_by_date = {}
     feedback_by_value = {}
+    date = None
     for feedback_value in [0.0, 1.0, 2.0]:
-        if user_id != "admin":
-            filters = Filter.all_of(
-                [Filter.by_property("feedback").equal(feedback_value), user_id_filter]
-            )
-        else:
-            filters = Filter.by_property("feedback").equal(feedback_value)
+        filters = Filter.by_property("feedback").equal(feedback_value)
 
         agg_feedback_i = await feedback_collection.aggregate.over_all(
             group_by=GroupByAggregate(prop="feedback_date"),
@@ -328,12 +307,28 @@ async def feedback_metadata(client, user_id: str):
             agg_feedback_count_i.properties["feedback"].count
         )
 
-        for date_group in agg_feedback_i.groups:
-            if date_group.grouped_by.value not in feedback_by_date:
-                feedback_by_date[date_group.grouped_by.value] = {}
-            feedback_by_date[date_group.grouped_by.value][
+        try:
+            for date_group in agg_feedback_i.groups:
+
+                if date_group.grouped_by.value not in feedback_by_date:
+                    feedback_by_date[date_group.grouped_by.value] = {}
+
+                feedback_by_date[date_group.grouped_by.value][
+                    feedback_values[feedback_value]
+                ] = date_group.properties["feedback"].count
+
+        except AttributeError:
+
+            if date is None:
+                one_object = await feedback_collection.query.fetch_objects(limit=1)
+                date = one_object.objects[0].properties["feedback_date"]
+
+            if date not in feedback_by_date:
+                feedback_by_date[date] = {}
+
+            feedback_by_date[date][feedback_values[feedback_value]] = feedback_by_value[
                 feedback_values[feedback_value]
-            ] = date_group.properties["feedback"].count
+            ]
 
     for date in feedback_by_date:
         for feedback_name in feedback_values.values():
@@ -342,7 +337,6 @@ async def feedback_metadata(client, user_id: str):
 
     agg_feedback = await feedback_collection.aggregate.over_all(
         group_by=GroupByAggregate(prop="feedback_date"),
-        filters=user_id_filter,
         return_metrics=[Metrics("feedback").number(mean=True, count=True)],
     )
 
@@ -356,75 +350,10 @@ async def feedback_metadata(client, user_id: str):
             "feedback"
         ].count
 
-    if user_id != "admin":
-        filters = Filter.all_of(
-            [Filter.by_property("base_lm_avg_time").greater_than(0.0), user_id_filter]
-        )
-    else:
-        filters = Filter.by_property("base_lm_avg_time").greater_than(0.0)
-
-    agg_query_speed_by_base_model = await feedback_collection.aggregate.over_all(
-        group_by=GroupByAggregate(prop="base_lm_used"),
-        filters=filters,
-        return_metrics=[
-            Metrics("base_lm_avg_time").number(mean=True, maximum=True, minimum=True)
-        ],
-    )
-
-    query_speed_by_base_model = {}
-    for model_group in agg_query_speed_by_base_model.groups:
-        query_speed_by_base_model[model_group.grouped_by.value] = {
-            "mean": model_group.properties["base_lm_avg_time"].mean,
-            "maximum": model_group.properties["base_lm_avg_time"].maximum,
-            "minimum": model_group.properties["base_lm_avg_time"].minimum,
-        }
-
-    if user_id != "admin":
-        filters = Filter.all_of(
-            [
-                Filter.by_property("complex_lm_avg_time").greater_than(0.0),
-                user_id_filter,
-            ]
-        )
-    else:
-        filters = Filter.by_property("complex_lm_avg_time").greater_than(0.0)
-
-    agg_query_speed_by_complex_model = await feedback_collection.aggregate.over_all(
-        group_by=GroupByAggregate(prop="complex_lm_used"),
-        filters=filters,
-        return_metrics=[
-            Metrics("complex_lm_avg_time").number(mean=True, maximum=True, minimum=True)
-        ],
-    )
-
-    query_speed_by_complex_model = {}
-    for model_group in agg_query_speed_by_complex_model.groups:
-        query_speed_by_complex_model[model_group.grouped_by.value] = {
-            "mean": model_group.properties["complex_lm_avg_time"].mean,
-            "maximum": model_group.properties["complex_lm_avg_time"].maximum,
-            "minimum": model_group.properties["complex_lm_avg_time"].minimum,
-        }
-
-    agg_full_query_time = await feedback_collection.aggregate.over_all(
-        filters=user_id_filter,
-        return_metrics=[
-            Metrics("time_taken_seconds").number(mean=True, maximum=True, minimum=True)
-        ],
-    )
-
-    full_query_time = {
-        "mean": agg_full_query_time.properties["time_taken_seconds"].mean,
-        "maximum": agg_full_query_time.properties["time_taken_seconds"].maximum,
-        "minimum": agg_full_query_time.properties["time_taken_seconds"].minimum,
-    }
-
     return {
         "total_feedback": total_feedback,
         "feedback_by_value": feedback_by_value,
         "feedback_by_date": feedback_by_date,
-        "call_speed_by_base_model": query_speed_by_base_model,
-        "call_speed_by_complex_model": query_speed_by_complex_model,
-        "full_query_time": full_query_time,
     }
 
 

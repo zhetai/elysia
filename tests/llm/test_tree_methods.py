@@ -86,4 +86,6 @@ class TestTreeMethods:
             context="make it about a man called john",
             num_suggestions=5,
         )
+        if len(suggestions) != 5:
+            print(tree.complex_lm.inspect_history(1))
         assert len(suggestions) == 5
