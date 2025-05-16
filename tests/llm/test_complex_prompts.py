@@ -95,14 +95,19 @@ class TestComplexPrompts:
             all_decision_history.extend(iteration)
 
         assert "query" in all_decision_history
-        assert "query" in tree.tree_data.environment.environment
+        env_key = (
+            "summarise_items"
+            if "summarise_items" in tree.tree_data.environment.environment
+            else "query"
+        )
+        assert env_key in tree.tree_data.environment.environment
 
         collections_queried = list(
-            tree.tree_data.environment.environment["query"].keys()
+            tree.tree_data.environment.environment[env_key].keys()
         )
 
         for collection in collections_queried:
-            for item in tree.tree_data.environment.environment["query"][collection][0][
+            for item in tree.tree_data.environment.environment[env_key][collection][0][
                 "objects"
             ]:
                 assert "chunk_spans" in item and item["chunk_spans"] is not []

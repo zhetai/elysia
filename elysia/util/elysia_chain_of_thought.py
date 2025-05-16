@@ -235,7 +235,9 @@ class ElysiaChainOfThought(Module):
                 "- Highlights specific parameters or logic you just applied "
                 "- Avoids repeating anything from conversation history "
                 "- Speaks directly to them (no 'the user'), gender neutral message "
-                "Just provide the new sentence update, not the full message from the conversation history."
+                "Just provide the new sentence update, not the full message from the conversation history. "
+                "Your response should be based on only the part of the user's request that you can work on. "
+                "It is possible other agents can perform other aspects of the request, so do not respond as if you cannot complete the entire request."
             )
 
             message_update_prefix = "${message_update}"
@@ -252,6 +254,7 @@ class ElysiaChainOfThought(Module):
                 "Given the actions you have available, and the environment/information. "
                 "Is the task impossible to complete? "
                 "I.e., do you wish that you had a different task to perform/choose from and hence should return to the base of the decision tree?"
+                "Do not base this judgement on the entire prompt, as it is possible that other agents can perform other aspects of the request."
             )
             impossible_prefix = "${impossible}"
             impossible_field: bool = dspy.OutputField(

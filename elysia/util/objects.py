@@ -94,33 +94,10 @@ class Tracker:
             else:
                 self.trackers["models"][model_type]["output_tokens"] += output_tokens
 
-            if self.trackers["models"][model_type]["avg_input_tokens"] is None:
-                self.trackers["models"][model_type]["avg_input_tokens"] = (
-                    input_tokens / num_calls
-                )
-            else:
-                self.trackers["models"][model_type]["avg_input_tokens"] += (
-                    input_tokens / num_calls
-                )
-
-            if self.trackers["models"][model_type]["avg_output_tokens"] is None:
-                self.trackers["models"][model_type]["avg_output_tokens"] = (
-                    output_tokens / num_calls
-                )
-            else:
-                self.trackers["models"][model_type]["avg_output_tokens"] += (
-                    output_tokens / num_calls
-                )
-
             if self.trackers["models"][model_type]["cost"] is None:
                 self.trackers["models"][model_type]["cost"] = cost
             else:
                 self.trackers["models"][model_type]["cost"] += cost
-
-            if self.trackers["models"][model_type]["avg_cost"] is None:
-                self.trackers["models"][model_type]["avg_cost"] = cost / num_calls
-            else:
-                self.trackers["models"][model_type]["avg_cost"] += cost / num_calls
 
     def end_tracking(
         self,
@@ -188,13 +165,34 @@ class Tracker:
         return self.trackers["models"][model_type]["cost"]
 
     def get_average_input_tokens(self, model_type: str):
-        return self.trackers["models"][model_type]["avg_input_tokens"]
+        return (
+            (
+                self.trackers["models"][model_type]["input_tokens"]
+                / self.trackers["models"][model_type]["calls"]
+            )
+            if self.trackers["models"][model_type]["input_tokens"] is not None
+            else 0
+        )
 
     def get_average_output_tokens(self, model_type: str):
-        return self.trackers["models"][model_type]["avg_output_tokens"]
+        return (
+            (
+                self.trackers["models"][model_type]["output_tokens"]
+                / self.trackers["models"][model_type]["calls"]
+            )
+            if self.trackers["models"][model_type]["output_tokens"] is not None
+            else 0
+        )
 
     def get_average_cost(self, model_type: str):
-        return self.trackers["models"][model_type]["avg_cost"]
+        return (
+            (
+                self.trackers["models"][model_type]["cost"]
+                / self.trackers["models"][model_type]["calls"]
+            )
+            if self.trackers["models"][model_type]["cost"] is not None
+            else 0
+        )
 
     def reset_trackers(self):
         for tracker in self.trackers:

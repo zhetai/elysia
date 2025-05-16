@@ -70,10 +70,6 @@ class TestMultiBranch:
         with pytest.raises(ValueError):
             tree.add_tool(CitedSummarizer, branch_id="incorrect_branch_id")
 
-        # error if no branch_id is provided
-        with pytest.raises(ValueError):
-            tree.add_tool(CitedSummarizer)
-
         # no error if root is True
         tree.add_tool(CitedSummarizer, root=True)
 

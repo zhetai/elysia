@@ -198,10 +198,11 @@ class TestGenericPrompts:
             all_decision_history.extend(iteration)
         assert "query" in all_decision_history
 
-        if "summarise_items" in all_decision_history:
-            env_key = "summarise_items"
-        else:
-            env_key = "query"
+        env_key = (
+            "summarise_items"
+            if "summarise_items" in tree.tree_data.environment.environment
+            else "query"
+        )
 
         assert (
             "Example_verba_github_issues"
