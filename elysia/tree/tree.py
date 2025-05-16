@@ -570,13 +570,13 @@ class Tree:
 
 
         Example 2:
-            Assume your tree has a root branch with two tools: 'query' and 'aggregate'.
+            Assume your tree has a "search" branch with two tools: 'query' and 'aggregate'.
             You can add a tool, `CheckResult`, after the 'query' tool like this:
             ```python
-            tree.add_tool(CheckResult, from_tool_ids=["query"], root=True)
+            tree.add_tool(CheckResult, branch_id="search", from_tool_ids=["query"])
             ```
-            This will add the `CheckResult` tool to the root branch, after the 'query' tool.
-            So the root branch will still only have two options: 'query' and 'aggregate'.
+            This will add the `CheckResult` tool to the "search" branch, after the 'query' tool.
+            So the "search" branch will still only have two options: 'query' and 'aggregate'.
             But after 'query', there will be a new option for the `CheckResult` tool.
 
         Example 3:
@@ -633,11 +633,8 @@ class Tree:
                 )
             branch_id = self.root
 
-        if branch_id is None and not root:
-            raise ValueError(
-                "`branch_id` is required for non-root tools. "
-                "Set `root=True` to create a root tool."
-            )
+        if branch_id is None:
+            branch_id = self.root
 
         if branch_id not in self.decision_nodes:
             raise ValueError(
@@ -733,11 +730,8 @@ class Tree:
                 )
             branch_id = self.root
 
-        if branch_id is None and not root:
-            raise ValueError(
-                "`branch_id` is required for non-root tools. "
-                "Set `root=True` to remove a root tool."
-            )
+        if branch_id is None:
+            branch_id = self.root
 
         if branch_id not in self.decision_nodes:
             raise ValueError(f"Branch {branch_id} not found.")
@@ -1058,7 +1052,6 @@ class Tree:
             task=decision.function_name,
             num_trees_completed=self.tree_data.num_trees_completed,
             reasoning=decision.reasoning,
-            # retrieved_objects=result.to_json(),
             parsed_info=result.llm_parse(),
             action=True,
         )
@@ -1166,7 +1159,7 @@ class Tree:
                     f"  - Calls: [magenta]{num_calls_base}[/magenta]\n"
                     f"  - Input Tokens: [magenta]{total_input_base}[/magenta] (Avg. [magenta]{int(avg_input_base)}[/magenta] per call)\n"
                     f"  - Output Tokens: [cyan]{total_output_base}[/cyan] (Avg. [cyan]{int(avg_output_base)}[/cyan] per call)\n"
-                    f"  - Total Cost: [yellow]${total_cost_base:.4f}[/yellow] (Avg. [yellow]${avg_cost_base:.3f}[/yellow] per call)\n"
+                    f"  - Total Cost: [yellow]${total_cost_base:.4f}[/yellow] (Avg. [yellow]${avg_cost_base:.4f}[/yellow] per call)\n"
                 )
             else:
                 self.settings.logger.info(
@@ -1178,7 +1171,7 @@ class Tree:
                     f"  - Calls: [magenta]{num_calls_complex}[/magenta]\n"
                     f"  - Input Tokens: [magenta]{total_input_complex}[/magenta] (Avg. [magenta]{int(avg_input_complex)}[/magenta] per call)\n"
                     f"  - Output Tokens: [cyan]{total_output_complex}[/cyan] (Avg. [cyan]{int(avg_output_complex)}[/cyan] per call)\n"
-                    f"  - Total Cost: [yellow]${total_cost_complex:.4f}[/yellow] (Avg. [yellow]${avg_cost_complex:.3f}[/yellow] per call)\n"
+                    f"  - Total Cost: [yellow]${total_cost_complex:.4f}[/yellow] (Avg. [yellow]${avg_cost_complex:.4f}[/yellow] per call)\n"
                 )
             else:
                 self.settings.logger.info(
@@ -1288,10 +1281,10 @@ class Tree:
                 )
 
             init_options = deepcopy(self.tree["options"])
-            for past_decision in self.decision_history[
-                self.tree_data.num_trees_completed
-            ]:
-                init_options = init_options[past_decision]["options"]
+            # for past_decision in self.decision_history[
+            #     self.tree_data.num_trees_completed
+            # ]:
+            #     init_options = init_options[past_decision]["options"]
             successive_actions = self._get_successive_actions(
                 successive_actions={},
                 current_options=init_options,
@@ -1417,6 +1410,14 @@ class Tree:
                 is None
             )
 
+            self.tree_data.update_tasks_completed(
+                prompt=self.user_prompt,
+                task=self.current_decision.function_name,
+                num_trees_completed=self.tree_data.num_trees_completed,
+                reasoning=self.current_decision.reasoning,
+                action=action_fn is not None,
+            )
+
             # evaluate the action if this is not a branch
             if action_fn is not None:
                 self.tracker.start_tracking(self.current_decision.function_name)
@@ -1440,33 +1441,6 @@ class Tree:
                     self.base_lm if not self.low_memory else None,
                     self.complex_lm if not self.low_memory else None,
                 )
-            # if it is a branch, only update tasks completed
-            else:
-                self.tree_data.update_tasks_completed(
-                    prompt=self.user_prompt,
-                    task=self.current_decision.function_name,
-                    num_trees_completed=self.tree_data.num_trees_completed,
-                    reasoning=self.current_decision.reasoning,
-                    action=False,
-                )
-
-            print(f"CURRENT DECISION: {self.current_decision.function_name}")
-            print(
-                f"NEXT DECISION NODE: {current_decision_node.options[self.current_decision.function_name]['next']}"
-            )
-            if (
-                current_decision_node.options[self.current_decision.function_name][
-                    "next"
-                ]
-                is not None
-            ):
-                print(
-                    f"NEXT DECISION NODE ID: {current_decision_node.options[self.current_decision.function_name]['next'].id}"
-                )
-                print(
-                    f"NEXT DECISION NODE OPTIONS: {current_decision_node.options[self.current_decision.function_name]['next'].options.keys()}"
-                )
-            x = 1
 
             # check if the current node is the end of the tree
             if (

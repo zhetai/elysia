@@ -31,6 +31,11 @@ def construct_decision_prompt(
         - Always select from available_tasks list only
         - Prefer tasks that directly progress toward answering the input prompt
         - Consider tree_count to avoid repetitive decisions
+
+        Judge the task's possibility based on the user's prompt, the available actions, the previous errors and future possible actions (successive_actions).
+        You are not designed with completing the prompt now, just choosing actions and later further actions from successive_actions which will complete the request.
+        But you should judge the possibility of the request based on the available actions, previous errors and future possible actions.
+        As you have access the descriptions of the available actions, you should use this to make your judgement.
         """
 
         # Regular input fields

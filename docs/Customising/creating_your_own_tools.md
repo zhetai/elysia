@@ -197,12 +197,23 @@ To add a Tool to be evaluated in the tree, just run `.add_tool`. For example
 ```python
 .add_tool(TextResponse)
 ```
+This will add the `TextResponse` tool to the root branch, by default (the base of the decision tree).
 
-Elysia sometimes has *branches* in the decision tree, which can be created via `add_branch`. If you want to add a tool to a particular branch, specify the `branch_id`,
+Elysia sometimes has *branches* in the decision tree, which can be created via `add_branch`. If you want to add a tool to a particular branch, specify the `branch_id`, e..g if we have a branch called "responses", then
 
 ```python 
-.add_tool(TextResponse, branch_id="base")
+.add_tool(TextResponse, branch_id="responses")
 ```
+
+You can add tools on top of existing tools. Assume that the decision tree has the `multi_branch` structure, so that at the root node there are two options: `search` and `text_response`. The `text_response` option is a single tool, whereas the `search` option is in fact a branch with two options: `query` and `aggregate`.
+
+If you wanted to add a tool called `CheckOutput` to be run *after* the query tool, then you can do:
+```python
+.add_tool(CheckOutput, branch_id="search", from_tool_ids = ["query"])
+```
+which will add the `CheckOutput` tool to the line `search -> query`, resulting in `search -> query -> check_output`.
+
+Note that the `search` branch still has two options, but if the decision LLM chooses to do the `query` tool, then the `check_output` tool is available for choice after querying. Also note that if a tool has no inputs and is alone in a decision node (it is the only option for the LLM to pick), the LLM decision will be skipped and the node will be automatically added. You can add more nodes to after the `query` tool and then the decision LLM will now resume operations at that node.
 
 
 ## Self Healing Errors
