@@ -33,8 +33,12 @@ class TestTreeMethods:
         # check some variables are set
         assert tree.tree_data.num_trees_completed > 0
         assert tree.tree_data.user_prompt == user_prompt
-        assert len(tree.decision_history) > 0
-        assert "query" in tree.decision_history
+
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+        assert len(all_decision_history) > 0
+        assert "query" in all_decision_history
 
         # this should have returned something in the environment
         assert "query" in tree.tree_data.environment.environment
@@ -69,7 +73,11 @@ class TestTreeMethods:
         # these should be reset
         assert tree.tree_data.num_trees_completed == 0
         assert tree.tree_index == 1
-        assert len(tree.decision_history) == 0
+
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+        assert len(all_decision_history) == 0
 
     def test_get_follow_up_suggestions(self):
         tree = self.do_query("What was Edward's last message?")

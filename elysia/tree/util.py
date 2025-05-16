@@ -20,13 +20,49 @@ from elysia.tree.objects import TreeData
 from elysia.util.objects import TrainingUpdate, TreeUpdate
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
+from elysia.util.client import ClientManager
 from elysia.tree.prompt_templates import (
     construct_decision_prompt,
     FollowUpSuggestionsPrompt,
 )
+from elysia.tools.text.prompt_templates import TextResponsePrompt
 
 # Settings
 from elysia.config import Settings, load_base_lm, load_complex_lm
+
+
+class ForcedTextResponse(Tool):
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="final_text_response",
+            description="",
+            status="Writing response...",
+            inputs={},
+            end=True,
+        )
+
+    async def __call__(
+        self,
+        tree_data: TreeData,
+        inputs: dict,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        client_manager: ClientManager | None = None,
+        **kwargs,
+    ):
+        text_response = ElysiaChainOfThought(
+            TextResponsePrompt,
+            tree_data=tree_data,
+            environment=True,
+            tasks_completed=True,
+            message_update=False,
+        )
+
+        output = await text_response.aforward(
+            lm=base_lm,
+        )
+
+        yield Response(text=output.response)
 
 
 class RecursionLimitException(Exception):
@@ -145,6 +181,7 @@ class DecisionNode:
         tree_data: TreeData,
         lm: dspy.LM = None,
         available_tools: list[str] = [],
+        successive_actions: dict = {},
         **kwargs,
     ):
         options = self._options_to_json(available_tools)
@@ -153,56 +190,84 @@ class DecisionNode:
                 "No available tools to call! Make sure you have added some tools to the tree. "
                 "Or the .is_tool_available() method is returning True for at least one tool."
             )
-        for option in options:
-            if options[option]["inputs"] == {}:
-                options[option]["inputs"] = "No inputs are needed for this function."
-
-        decision_executor = ElysiaChainOfThought(
-            construct_decision_prompt(self._get_options()),
-            tree_data=tree_data,
-            environment=True,
-            collection_schemas=self.use_elysia_collections,
-            tasks_completed=True,
-            message_update=True,
-        )
-        # decision_executor = self._load_model(decision_executor)
-        # decision_executor = dspy.asyncify(decision_executor)
 
         if self.logger:
             self.logger.debug(f"Available options: {list(options.keys())}")
 
-        output = await decision_executor.aforward(
-            instruction=self.instruction,
-            tree_count=tree_data.tree_count_string(),
-            available_actions=options,
-            lm=lm,
+        one_choice = (
+            all(option["inputs"] == {} for option in options.values())
+            and len(options) == 1
         )
 
-        decision = Decision(
-            output.function_name,
-            output.function_inputs,
-            output.reasoning,
-            output.impossible,
-            output.end_actions and self.options[output.function_name]["end"],
-        )
+        for option in options:
+            if options[option]["inputs"] == {}:
+                options[option]["inputs"] = "No inputs are needed for this function."
 
-        results = [
-            TrainingUpdate(
-                model="decision",
-                inputs=tree_data.to_json(),
-                outputs={k: v for k, v in output.__dict__["_store"].items()},
-            ),
-            TreeUpdate(
-                from_node=self.id,
-                to_node=output.function_name,
-                reasoning=output.reasoning,
-                last_in_branch=True,
-            ),
-            Status(self.options[output.function_name]["status"]),
-        ]
+        if not one_choice:
+            decision_executor = ElysiaChainOfThought(
+                construct_decision_prompt(self._get_options()),
+                tree_data=tree_data,
+                environment=True,
+                collection_schemas=self.use_elysia_collections,
+                tasks_completed=True,
+                message_update=True,
+            )
 
-        if output.function_name != "text_response":
-            results.append(Response(output.message_update))
+            output = await decision_executor.aforward(
+                instruction=self.instruction,
+                tree_count=tree_data.tree_count_string(),
+                available_actions=options,
+                successive_actions=successive_actions,
+                lm=lm,
+            )
+
+            decision = Decision(
+                output.function_name,
+                output.function_inputs,
+                output.reasoning,
+                output.impossible,
+                output.end_actions and self.options[output.function_name]["end"],
+            )
+
+            results = [
+                TrainingUpdate(
+                    model="decision",
+                    inputs=tree_data.to_json(),
+                    outputs={k: v for k, v in output.__dict__["_store"].items()},
+                ),
+                TreeUpdate(
+                    from_node=self.id,
+                    to_node=output.function_name,
+                    reasoning=output.reasoning,
+                    last_in_branch=True,
+                ),
+                Status(self.options[output.function_name]["status"]),
+            ]
+
+            if output.function_name != "text_response":
+                results.append(Response(output.message_update))
+
+        else:
+            decision = Decision(
+                function_name=list(options.keys())[0],
+                reasoning=f"Only one option available: {list(options.keys())[0]} (and no function inputs are needed).",
+                impossible=False,
+                function_inputs={},
+                end_actions=(
+                    self.options[list(options.keys())[0]]["end"]
+                    and self.options[list(options.keys())[0]]["next"] is None
+                ),
+            )
+
+            results = [
+                TreeUpdate(
+                    from_node=self.id,
+                    to_node=list(options.keys())[0],
+                    reasoning=decision.reasoning,
+                    last_in_branch=True,
+                ),
+                Status(self.options[list(options.keys())[0]]["status"]),
+            ]
 
         return decision, results
 
@@ -256,9 +321,6 @@ class DecisionNode:
         return memory_usage
 
 
-# TODO: move these methods to the main tree, perhaps?
-#       and each of these methods could do the auxiliary tasks e.g. updating environment, conversation history, etc.
-# TODO: but could we also clean up the tree by moving things to different classes?
 class TreeReturner:
     """
     Class to parse the output of the tree to the frontend.
@@ -299,35 +361,6 @@ class TreeReturner:
                 self.tree_index,
                 last_in_tree,
             )
-
-
-class BranchVisitor(ast.NodeVisitor):
-    def __init__(self):
-        self.branches = []
-
-    def _evaluate_constant(self, node):
-        """Convert AST Constant node to its actual value."""
-        return node.value
-
-    def _evaluate_dict(self, node):
-        """Convert AST Dict node to a regular Python dictionary."""
-        if isinstance(node, ast.Dict):
-            return {
-                self._evaluate_constant(key): self._evaluate_constant(value)
-                for key, value in zip(node.keys, node.values)
-            }
-        return None
-
-    def visit_Call(self, node):
-        # Check if the call is creating a Branch object
-        if isinstance(node.func, ast.Name) and node.func.id == "Branch":
-            # Extract the updates dictionary from the Branch constructor
-            if node.args:
-                dict_node = node.args[0]
-                evaluated_dict = self._evaluate_dict(dict_node)
-                if evaluated_dict:
-                    self.branches.append(evaluated_dict)
-        self.generic_visit(node)
 
 
 async def get_follow_up_suggestions(

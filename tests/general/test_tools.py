@@ -7,13 +7,48 @@ from elysia.objects import Result
 from copy import deepcopy
 from elysia import Tool
 from elysia.tree.objects import TreeData
+from elysia.objects import Response
 from elysia.config import Settings, configure
 from elysia.tree.tree import Tree
 from elysia.tools.text.text import TextResponse
 from elysia.util.client import ClientManager
-
+from elysia.tools.retrieval.query import Query
+from elysia.tools.retrieval.aggregate import Aggregate
 
 configure(logging_level="CRITICAL")
+
+
+class CheckResult(Tool):
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="check_result",
+            description="Check the result of the previous tool.",
+        )
+
+    async def __call__(
+        self, tree_data, inputs, base_lm, complex_lm, client_manager, **kwargs
+    ):
+        yield Response("Looks good to me!")
+
+
+class SendEmail(Tool):
+    def __init__(self, **kwargs):
+        super().__init__(
+            name="send_email",
+            description="Send an email.",
+            inputs={
+                "email_address": {
+                    "type": str,
+                    "description": "The email address to send the email to.",
+                    "required": True,
+                }
+            },
+        )
+
+    async def __call__(
+        self, tree_data, inputs, base_lm, complex_lm, client_manager, **kwargs
+    ):
+        yield Response(f"Email sent to {inputs['email_address']}!")
 
 
 class RunIfTrueFalseTool(Tool):
@@ -328,8 +363,11 @@ class TestTools:
     async def test_tool_available(self):
 
         tree = await self.run_tree("Hello", [], [ToolAvailable], remove_tools=True)
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
 
-        assert "always_pick_this_tool" in tree.decision_history
+        assert "always_pick_this_tool" in all_decision_history
 
     def test_incorrect_tool_initialisation(self):
         with pytest.raises(TypeError):
@@ -363,3 +401,123 @@ class TestTools:
                 settings=Settings.from_default(),
             )
             tree.add_tool(IncorrectToolInitialisation_call_non_async_generator)
+
+    @pytest.mark.asyncio
+    async def test_add_tool_with_stem_tool(self):
+        tree = Tree(
+            low_memory=False,
+            branch_initialisation="empty",
+            settings=Settings.from_default(),
+        )
+
+        tree.add_branch(
+            branch_id="search",
+            instruction="Search for information",
+            description="Search for information",
+            root=False,
+            from_branch_id="base",
+        )
+
+        tree.add_tool(Query, branch_id="search")
+        tree.add_tool(Aggregate, branch_id="search")
+
+        # no query in base branch
+        with pytest.raises(ValueError):
+            tree.add_tool(CheckResult, branch_id="base", from_tool_ids=["query"])
+
+        # random_text is not a tool
+        with pytest.raises(ValueError):
+            tree.add_tool(CheckResult, branch_id="base", from_tool_ids=["random_text"])
+
+        # query is in search branch, should not error
+        tree.add_tool(CheckResult, branch_id="search", from_tool_ids=["query"])
+        assert "check_result" in tree.tools
+
+        # query (from search) should now be a decision node
+        assert "search.query" in tree.decision_nodes
+
+        # must specify all from_tool_ids or it will error
+        with pytest.raises(ValueError):
+            tree.add_tool(SendEmail, branch_id="search", from_tool_ids=["check_result"])
+
+        # correct usage, should not error
+        tree.add_tool(
+            SendEmail, branch_id="search", from_tool_ids=["query", "check_result"]
+        )
+
+        assert "send_email" in tree.tools
+        assert "search.query.check_result" in tree.decision_nodes
+
+        # check the tree.tree is correct
+        assert (
+            "check_result"
+            in tree.tree["options"]["search"]["options"]["query"]["options"]
+        )
+        assert (
+            "send_email"
+            in tree.tree["options"]["search"]["options"]["query"]["options"][
+                "check_result"
+            ]["options"]
+        )
+
+        # remove with the wrong from_tool_ids
+        with pytest.raises(ValueError):
+            tree.remove_tool(
+                tool_name="send_email",
+                branch_id="search",
+                from_tool_ids=["query"],
+            )
+
+        # remove from the wrong branch
+        with pytest.raises(ValueError):
+            tree.remove_tool(
+                tool_name="send_email",
+                branch_id="base",
+                from_tool_ids=["query", "check_result"],
+            )
+
+        # remove with the correct from_tool_ids
+        tree.remove_tool(
+            tool_name="send_email",
+            branch_id="search",
+            from_tool_ids=["query", "check_result"],
+        )
+
+        assert "send_email" not in tree.tools
+        assert "search.query.check_result" not in tree.decision_nodes
+
+        # check the tree.tree is correct
+        assert (
+            "send_email"
+            not in tree.tree["options"]["search"]["options"]["query"]["options"][
+                "check_result"
+            ]["options"]
+        )
+
+        # add the tool back in
+        tree.add_tool(
+            SendEmail, branch_id="search", from_tool_ids=["query", "check_result"]
+        )
+
+        # remove the tool that this tool stems from
+        tree.remove_tool(
+            tool_name="check_result",
+            branch_id="search",
+            from_tool_ids=["query"],
+        )
+
+        # check that the tool is removed
+        assert "check_result" not in tree.tools
+        assert "search.query" not in tree.decision_nodes
+
+        # check that the stemmed tool is removed from the decision nodes
+        assert "search.query.check_result" not in tree.decision_nodes
+
+        # but the tool is still in the tree
+        assert "send_email" in tree.tools
+
+        # check the tree.tree is correct
+        assert (
+            "check_result"
+            not in tree.tree["options"]["search"]["options"]["query"]["options"]
+        )

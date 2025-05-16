@@ -232,12 +232,12 @@ class TreeUpdate:
         last_in_branch: bool = False,
     ):
         """
-        from_node: The node that is being updated from.
-        to_node: The node that is being updated to.
-        reasoning: The reasoning for the update.
-        tree_index: The index of the tree being updated.
-        last_in_branch: Whether this is the last update in the branch (whether the tree is complete after this - hardcoded)
-              e.g. in query tool, sometimes the query is the end of the tree and sometimes summarise objects is
+        Args:
+            from_node (str): The node that is being updated from.
+            to_node (str): The node that is being updated to.
+            reasoning (str): The reasoning for the update.
+            last_in_branch (bool): Whether this is the last update in the branch (whether the tree is complete after this - hardcoded)
+                e.g. in query tool, sometimes the query is the end of the tree and sometimes summarise objects is
         """
         self.from_node = from_node
         self.to_node = to_node

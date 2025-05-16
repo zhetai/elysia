@@ -71,7 +71,10 @@ class TestGenericPrompts:
         assert "weaviate_blogs" in collection_names_to_test
         assert "weaviate_documentation" in collection_names_to_test
 
-        assert "query" in tree.decision_history
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+        assert "query" in all_decision_history
 
         deepeval_metric = metrics.TaskCompletionMetric(
             threshold=0.5, model="gpt-4o-mini", include_reason=True
@@ -111,7 +114,10 @@ class TestGenericPrompts:
             ],
         )
 
-        assert "aggregate" in tree.decision_history
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+        assert "aggregate" in all_decision_history
 
         # Test with deepeval
         deepeval_metric = metrics.TaskCompletionMetric(
@@ -150,7 +156,10 @@ class TestGenericPrompts:
             ],
         )
 
-        assert "text_response" in tree.decision_history
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+        assert "text_response" in all_decision_history
 
         # Test with deepeval
         deepeval_metric = metrics.TaskCompletionMetric(
@@ -184,14 +193,23 @@ class TestGenericPrompts:
             ],
         )
 
-        assert "query" in tree.decision_history
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+        assert "query" in all_decision_history
+
+        if "summarise_items" in all_decision_history:
+            env_key = "summarise_items"
+        else:
+            env_key = "query"
+
         assert (
             "Example_verba_github_issues"
-            in tree.tree_data.environment.environment["query"]
+            in tree.tree_data.environment.environment[env_key]
         )
         assert (
-            "cited_summarize" in tree.decision_history
-            or tree.decision_history[-1] == "text_response"
+            "cited_summarize" in all_decision_history
+            or all_decision_history[-1] == "text_response"
         )
 
         task_metric = metrics.TaskCompletionMetric(
@@ -212,7 +230,7 @@ class TestGenericPrompts:
 
         environment = [
             json.dumps(obj)
-            for obj in tree.tree_data.environment.environment["query"][
+            for obj in tree.tree_data.environment.environment[env_key][
                 "Example_verba_github_issues"
             ][0]["objects"]
         ]
@@ -249,12 +267,15 @@ class TestGenericPrompts:
             ],
         )
 
-        assert "query" in tree.decision_history
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+        assert "query" in all_decision_history
         assert (
             "Example_verba_slack_conversations"
-            in tree.tree_data.environment.environment["query"]
+            in tree.tree_data.environment.environment["summarise_items"]
         )
-        for item in tree.tree_data.environment.environment["query"][
+        for item in tree.tree_data.environment.environment["summarise_items"][
             "Example_verba_slack_conversations"
         ][0]["objects"]:
             assert "ELYSIA_SUMMARY" in item.keys() and len(item["ELYSIA_SUMMARY"]) > 0

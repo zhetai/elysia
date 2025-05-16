@@ -28,6 +28,7 @@ class EpicGenericRetrieval(EpicGeneric, Retrieval):
         objects: list[dict],
         metadata: dict,
         mapping: dict | None = None,
+        **kwargs,
     ):
         # EpicGeneric.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
@@ -36,6 +37,7 @@ class EpicGenericRetrieval(EpicGeneric, Retrieval):
             payload_type="epic_generic",
             metadata=metadata,
             mapping=mapping,
+            **kwargs,
         )
 
 
@@ -45,6 +47,7 @@ class BoringGenericRetrieval(BoringGeneric, Retrieval):
         objects: list[dict],
         metadata: dict,
         mapping: dict | None = None,
+        **kwargs,
     ):
         # BoringGeneric.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
@@ -53,6 +56,7 @@ class BoringGenericRetrieval(BoringGeneric, Retrieval):
             payload_type="boring_generic",
             metadata=metadata,
             mapping=mapping,
+            **kwargs,
         )
 
 
@@ -62,6 +66,7 @@ class EcommerceRetrieval(Ecommerce, Retrieval):
         objects: list[dict],
         metadata: dict,
         mapping: dict | None = None,
+        **kwargs,
     ):
         # Ecommerce.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
@@ -70,6 +75,7 @@ class EcommerceRetrieval(Ecommerce, Retrieval):
             payload_type="ecommerce",
             metadata=metadata,
             mapping=mapping,
+            **kwargs,
         )
 
 
@@ -79,6 +85,7 @@ class TicketRetrieval(Ticket, Retrieval):
         objects: list[dict],
         metadata: dict,
         mapping: dict | None = None,
+        **kwargs,
     ):
         # Ticket.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
@@ -87,6 +94,7 @@ class TicketRetrieval(Ticket, Retrieval):
             payload_type="ticket",
             metadata=metadata,
             mapping=mapping,
+            **kwargs,
         )
 
 
@@ -96,6 +104,7 @@ class MessageRetrieval(Message, Retrieval):
         objects: list[dict],
         metadata: dict,
         mapping: dict | None = None,
+        **kwargs,
     ):
         for obj in objects:
             obj["relevant"] = False
@@ -108,6 +117,7 @@ class MessageRetrieval(Message, Retrieval):
             metadata=metadata,
             mapping=mapping,
             unmapped_keys=["uuid", "summary", "collection_name", "relevant"],
+            **kwargs,
         )
 
 
@@ -117,6 +127,7 @@ class ConversationRetrieval(Conversation, Retrieval):
         objects: list[dict],
         metadata: dict,
         mapping: dict | None = None,
+        **kwargs,
     ):
         # Conversation.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
@@ -126,6 +137,7 @@ class ConversationRetrieval(Conversation, Retrieval):
             metadata=metadata,
             mapping=mapping,
             unmapped_keys=["uuid", "summary", "collection_name", "relevant"],
+            **kwargs,
         )
         self.async_init_completed = False
 
@@ -232,6 +244,7 @@ class DocumentRetrieval(Document, Retrieval):
         objects: list[dict],
         metadata: dict,
         mapping: dict | None = None,
+        **kwargs,
     ):
         assert (
             "collection_name" in metadata
@@ -259,6 +272,7 @@ class DocumentRetrieval(Document, Retrieval):
                 "chunk_spans",
                 "chunk_uuid",
             ],
+            **kwargs,
         )
         self.async_init_completed = False
 
@@ -400,6 +414,7 @@ class Aggregation(Retrieval):
         objects: list[dict],
         metadata: dict = {},
         name: str | None = None,
+        **kwargs,
     ):
         if name is None and "collection_name" in metadata:
             name = metadata["collection_name"]
@@ -418,6 +433,7 @@ class Aggregation(Retrieval):
             payload_type="aggregation",
             metadata=metadata,
             name=name,
+            **kwargs,
         )
 
     def llm_parse(self):

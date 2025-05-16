@@ -57,6 +57,7 @@ class EpicGeneric(Result):
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
+        **kwargs,
     ):
         Result.__init__(
             self,
@@ -67,6 +68,7 @@ class EpicGeneric(Result):
             mapping=mapping,
             llm_message=llm_message,
             unmapped_keys=unmapped_keys,
+            **kwargs,
         )
 
 
@@ -91,6 +93,7 @@ class Document(Result):
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
+        **kwargs,
     ):
         Result.__init__(
             self,
@@ -101,6 +104,7 @@ class Document(Result):
             mapping=mapping,
             llm_message=llm_message,
             unmapped_keys=unmapped_keys,
+            **kwargs,
         )
 
 
@@ -131,6 +135,7 @@ class Ticket(Result):
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
+        **kwargs,
     ):
         Result.__init__(
             self,
@@ -141,6 +146,7 @@ class Ticket(Result):
             mapping=mapping,
             llm_message=llm_message,
             unmapped_keys=unmapped_keys,
+            **kwargs,
         )
 
 
@@ -175,6 +181,7 @@ class Ecommerce(Result):
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
+        **kwargs,
     ):
         Result.__init__(
             self,
@@ -185,6 +192,7 @@ class Ecommerce(Result):
             mapping=mapping,
             llm_message=llm_message,
             unmapped_keys=unmapped_keys,
+            **kwargs,
         )
 
 
@@ -209,6 +217,7 @@ class Message(Result):
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
+        **kwargs,
     ):
         Result.__init__(
             self,
@@ -219,6 +228,7 @@ class Message(Result):
             mapping=mapping,
             llm_message=llm_message,
             unmapped_keys=unmapped_keys,
+            **kwargs,
         )
 
 
@@ -245,6 +255,7 @@ class Conversation(Result):
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],
+        **kwargs,
     ):
         Result.__init__(
             self,
@@ -255,4 +266,5 @@ class Conversation(Result):
             mapping=mapping,
             llm_message=llm_message,
             unmapped_keys=unmapped_keys,
+            **kwargs,
         )

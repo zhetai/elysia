@@ -8,8 +8,7 @@ from rich.panel import Panel
 import dspy
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.util.reference import create_reference
-from elysia.objects import Branch, Reasoning, Response, Status, Tool, Warning, Error
+from elysia.objects import Reasoning, Response, Status, Tool, Error
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
 from elysia.tools.retrieval.objects import (
     BoringGenericRetrieval,
@@ -21,7 +20,6 @@ from elysia.tools.retrieval.objects import (
     TicketRetrieval,
 )
 from elysia.tools.retrieval.prompt_templates import (
-    ObjectSummaryPrompt,
     QueryCreatorPrompt,
 )
 from elysia.tools.retrieval.util import execute_weaviate_query
@@ -31,7 +29,9 @@ from elysia.util.objects import TrainingUpdate, TreeUpdate
 
 
 class Query(Tool):
-    def __init__(self, logger: Logger | None = None, **kwargs):
+    def __init__(
+        self, logger: Logger | None = None, summariser_in_tree: bool = False, **kwargs
+    ):
         super().__init__(
             name="query",
             description="""
@@ -54,6 +54,7 @@ class Query(Tool):
         )
 
         self.logger = logger
+        self.summariser_in_tree = summariser_in_tree
         # print("LOGGER LEVEL: ", self.logger.level)
         self.retrieval_map = {
             "conversation": ConversationRetrieval,
@@ -155,26 +156,6 @@ class Query(Tool):
         Chunking creates a parallel quantized collection of chunks with cross references to the original collection.
         When filtering on the parallel chunked collection, filters are applied to the original collection by cross referencing.
         """
-
-        # Create branches
-        Branch(
-            {
-                "name": "Query Executor",
-                "description": "Write and execute a query via an LLM.",
-            }
-        )
-        Branch(
-            {
-                "name": "Chunker",
-                "description": "Chunk collections that are too large to vectorise effectively.",
-            }
-        )
-        Branch(
-            {
-                "name": "Object Summariser",
-                "description": "Summarise retrieved objects.",
-            }
-        )
 
         if self.logger:
             self.logger.debug("Query Tool called!")
@@ -495,7 +476,7 @@ class Query(Tool):
                 metadata = {
                     "collection_name": collection_name,
                     "display_type": display_type,
-                    "summarise_items": summarise_items,
+                    "needs_summarising": summarise_items,
                     "query_text": query_output.search_query,
                     "query_type": query_output.search_type,
                     "chunked": self._evaluate_needs_chunking(
@@ -522,56 +503,19 @@ class Query(Tool):
                 if display_type == "document" or display_type == "conversation":
                     await output.async_init(client_manager)
 
-                if summarise_items:
-                    if self.logger:
-                        self.logger.debug(
-                            f"{collection_name} will have itemised summaries."
-                        )
-
-                    object_summariser = dspy.ChainOfThought(ObjectSummaryPrompt)
-                    object_summariser = dspy.asyncify(object_summariser)
-                    yield Status(
-                        f"Summarising {len(objects)} objects from {collection_name}..."
-                    )
-
-                    summariser = await object_summariser(
-                        objects=output.to_json(), lm=base_lm
-                    )
-
-                    if self.logger:
-                        self.logger.debug(f"Summarisation complete.")
-
-                    if not summarise_status_sent:
-                        yield TreeUpdate(
-                            from_node="query_executor",
-                            to_node="object_summariser",
-                            reasoning=summariser.reasoning,
-                            last_in_branch=True,
-                        )
-                        summarise_status_sent = True
-
-                    output.add_summaries(summariser.summaries)
+                if summarise_items and self.summariser_in_tree:
+                    if (
+                        "items_to_summarise"
+                        not in tree_data.environment.hidden_environment
+                    ):
+                        tree_data.environment.hidden_environment[
+                            "items_to_summarise"
+                        ] = []
+                    tree_data.environment.hidden_environment[
+                        "items_to_summarise"
+                    ].append(output)
                 else:
-                    output.add_summaries([])
-
-                # Yield the output object
-                yield output
-
-        if not chunking_status_sent:
-            yield TreeUpdate(
-                from_node="query_executor",
-                to_node="chunker",
-                reasoning="This step was skipped because no chunking was needed for the collections queried.",
-                last_in_branch=True,
-            )
-
-        if not summarise_status_sent:
-            yield TreeUpdate(
-                from_node="query_executor",
-                to_node="object_summariser",
-                reasoning="This step was skipped because the LLM determined that no output types were summaries.",
-                last_in_branch=True,
-            )
+                    yield output
 
         if self.logger:
             self.logger.debug("Query Tool finished!")

@@ -14,17 +14,18 @@ class TextWithCitation(BaseModel):
 
 
 class TextWithTitle(Text):
-    def __init__(self, text: str, title: str):
+    def __init__(self, text: str, title: str, **kwargs):
         Text.__init__(
             self,
             "text_with_title",
             [{"text": text}],
             metadata={"title": title},
+            **kwargs,
         )
 
 
 class TextWithCitations(Text):
-    def __init__(self, cited_texts: List[TextWithCitation], title: str):
+    def __init__(self, cited_texts: List[TextWithCitation], title: str, **kwargs):
         Text.__init__(
             self,
             "text_with_citations",
@@ -36,4 +37,5 @@ class TextWithCitations(Text):
                 for cited_text_item in cited_texts
             ],
             metadata={"title": title},
+            **kwargs,
         )

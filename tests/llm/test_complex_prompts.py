@@ -55,8 +55,13 @@ class TestComplexPrompts:
         """
         user_prompt = "What was the maximum weather in 2015? Then, what was the weather like in the surrounding week of that maximum?"
         tree = await self.run_tree(user_prompt, ["Weather"])
-        assert "aggregate" in tree.decision_history
-        assert "query" in tree.decision_history
+
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+
+        assert "aggregate" in all_decision_history
+        assert "query" in all_decision_history
 
         # -- DeepEval tests --
         deepeval_metric = metrics.TaskCompletionMetric(
@@ -84,7 +89,12 @@ class TestComplexPrompts:
         tree = await self.run_tree(
             user_prompt, ["Weaviate_documentation", "Weaviate_blogs"]
         )
-        assert "query" in tree.decision_history
+
+        all_decision_history = []
+        for iteration in tree.decision_history:
+            all_decision_history.extend(iteration)
+
+        assert "query" in all_decision_history
         assert "query" in tree.tree_data.environment.environment
 
         collections_queried = list(
