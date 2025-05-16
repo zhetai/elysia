@@ -524,7 +524,9 @@ class Tree:
             "num_trees_completed": self.tree_data.num_trees_completed,
             "tree_data": deepcopy(self.tree_data),
             "action_information": deepcopy(self.action_information),
-            "decision_history": deepcopy(self.decision_history),
+            "decision_history": [
+                item for sublist in deepcopy(self.decision_history) for item in sublist
+            ],
             "base_lm_used": self.settings.BASE_MODEL,
             "complex_lm_used": self.settings.COMPLEX_MODEL,
             "time_taken_seconds": time_taken_seconds,

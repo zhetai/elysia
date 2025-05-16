@@ -138,7 +138,11 @@ class Aggregate(Tool):
         yield Reasoning(reasoning=aggregation.reasoning)
         yield TrainingUpdate(
             model="aggregate",
-            inputs=tree_data.to_json(),
+            inputs={
+                **tree_data.to_json(),
+                "available_collections": collection_names,
+                "previous_aggregation_queries": previous_aggregations,
+            },
             outputs=aggregation.__dict__["_store"],
         )
 
