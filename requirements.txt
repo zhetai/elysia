@@ -11,7 +11,7 @@ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0
 # app dependencies
 fastapi[standard]==0.115.11
 httpx==0.28.1
-jwt==2.10.1
+cryptography==44.0.3
 
 # auth
 pympler==1.1
