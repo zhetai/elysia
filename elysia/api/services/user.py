@@ -11,6 +11,7 @@ from elysia.config import Settings
 from elysia.objects import Update
 from elysia.util.client import ClientManager
 from elysia.api.core.log import logger
+from elysia.api.api_types import Config
 
 
 class TreeTimeoutError(Update):
@@ -100,6 +101,22 @@ class UserManager:
     def user_exists(self, user_id: str):
         return user_id in self.users
 
+    def update_config(self, user_id: str, config: Config):
+        pass
+
+    async def update_save_location(
+        self,
+        user_id: str,
+        wcd_url: str | None = None,
+        wcd_api_key: str | None = None,
+    ):
+        local_user = await self.get_user_local(user_id)
+
+        if wcd_url is not None:
+            local_user["wcd_url"] = wcd_url
+        if wcd_api_key is not None:
+            local_user["wcd_api_key"] = wcd_api_key
+
     def add_user_local(
         self,
         user_id: str,
@@ -143,6 +160,10 @@ class UserManager:
             self.users[user_id]["client_manager"] = ClientManager(
                 logger=logger, client_timeout=self.client_timeout
             )
+
+            # initialise save location to env variables
+            self.users[user_id]["wcd_url"] = os.environ.get("WCD_URL", None)
+            self.users[user_id]["wcd_api_key"] = os.environ.get("WCD_API_KEY", None)
 
     async def get_user_local(self, user_id: str):
         """

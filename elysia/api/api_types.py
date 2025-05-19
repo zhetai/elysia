@@ -110,11 +110,11 @@ class FollowUpSuggestionsData(BaseModel):
 
 # TODO: hash the api keys
 class Config(BaseModel):
-    settings: dict[str, Any]
-    style: str
-    agent_description: str
-    end_goal: str
-    branch_initialisation: str
+    settings: Optional[dict[str, Any]] = None
+    style: Optional[str] = None
+    agent_description: Optional[str] = None
+    end_goal: Optional[str] = None
+    branch_initialisation: Optional[str] = None
     config_id: Optional[str] = None
 
 
@@ -135,65 +135,21 @@ class InitialiseUserData(BaseModel):
     )
 
 
-class DefaultModelsUserData(BaseModel):
-    user_id: str
-
-
-class DefaultModelsTreeData(BaseModel):
-    user_id: str
-    conversation_id: str
-
-
-class EnvironmentSettingsUserData(BaseModel):
-    user_id: str
-
-
-class ChangeConfigUserData(BaseModel):
-    user_id: str
-    settings: Optional[dict[str, Any]] = None
-    style: Optional[str] = None
-    agent_description: Optional[str] = None
-    end_goal: Optional[str] = None
-    branch_initialisation: Optional[str] = None
-
-
-class ChangeConfigTreeData(BaseModel):
-    user_id: str
-    conversation_id: str
-    settings: Optional[dict[str, Any]] = None
-    style: Optional[str] = None
-    agent_description: Optional[str] = None
-    end_goal: Optional[str] = None
-    branch_initialisation: Optional[Literal["one_branch", "multi_branch", "empty"]] = (
-        None
-    )
-
-
 class SaveConfigData(BaseModel):
-    user_id: str
     config_id: str
     config: Config
 
 
-class LoadConfigUserData(BaseModel):
-    user_id: str
+class LoadConfigData(BaseModel):
     config_id: str
     include_atlas: bool
     include_branch_initialisation: bool
     include_settings: bool
 
 
-class LoadConfigTreeData(BaseModel):
-    user_id: str
-    conversation_id: str
-    config_id: str
-    include_atlas: bool
-    include_branch_initialisation: bool
-    include_settings: bool
-
-
-class ListConfigsData(BaseModel):
-    user_id: str
+class UpdateSaveLocationData(BaseModel):
+    wcd_url: Optional[str] = None
+    wcd_api_key: Optional[str] = None
 
 
 # class ChangeAtlasUserData(BaseModel):

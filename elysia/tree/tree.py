@@ -346,11 +346,19 @@ class Tree:
         if "root" not in dir(self):
             raise ValueError("No root decision node found")
 
-    def _construct_tree(self, node_id: str, tree: dict):
+    def _construct_tree(self, node_id: str, tree: dict, branch: bool = True):
         decision_node = self.decision_nodes[node_id]
 
         # Ensure the order of the keys in each option is the same
-        key_order = ["name", "id", "description", "instruction", "reasoning", "options"]
+        key_order = [
+            "name",
+            "id",
+            "description",
+            "instruction",
+            "reasoning",
+            "branch",
+            "options",
+        ]
 
         # Set the base node information
         tree["name"] = node_id.capitalize().replace("_", " ")
@@ -361,6 +369,7 @@ class Tree:
             decision_node.instruction.replace("\n", "")
         )
         tree["reasoning"] = ""
+        tree["branch"] = branch
         tree["options"] = {}
 
         # Order the top-level dictionary
@@ -384,17 +393,21 @@ class Tree:
                 tree["options"][option]["id"] = option
                 tree["options"][option]["instruction"] = ""
                 tree["options"][option]["reasoning"] = ""
+                tree["options"][option]["branch"] = False
                 tree["options"][option]["options"] = {}
 
             elif decision_node.options[option]["next"] is not None:
                 tree["options"][option] = self._construct_tree(
-                    decision_node.options[option]["next"].id, tree["options"][option]
+                    decision_node.options[option]["next"].id,
+                    tree["options"][option],
+                    branch=decision_node.options[option]["action"] is None,
                 )
             else:
                 tree["options"][option]["name"] = option.capitalize().replace("_", " ")
                 tree["options"][option]["id"] = option
                 tree["options"][option]["instruction"] = ""
                 tree["options"][option]["reasoning"] = ""
+                tree["options"][option]["branch"] = True
                 tree["options"][option]["options"] = {}
 
             # Order each option's dictionary
