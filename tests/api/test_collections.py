@@ -6,14 +6,11 @@ import asyncio
 import json
 
 from elysia.api.api_types import (
-    GetObjectData,
     ViewPaginatedCollectionData,
-    UserCollectionsData,
-    CollectionMetadataData,
 )
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.routes.collections import (
-    collections,
+    collections_list,
     view_paginated_collection,
     collection_metadata,
     get_object,
@@ -41,8 +38,8 @@ class TestEndpoints:
                 InitialiseUserData(user_id="test_user", default_models=True),
                 user_manager,
             )
-            basic = await collections(
-                UserCollectionsData(user_id="test_user"), user_manager
+            basic = await collections_list(
+                user_id="test_user", user_manager=user_manager
             )
             basic = read_response(basic)
             assert basic["error"] == ""
@@ -58,11 +55,9 @@ class TestEndpoints:
                 user_manager,
             )
             basic = await collection_metadata(
-                CollectionMetadataData(
-                    user_id="test_user",
-                    collection_name="example_verba_github_issues",
-                ),
-                user_manager,
+                user_id="test_user",
+                collection_name="example_verba_github_issues",
+                user_manager=user_manager,
             )
             basic = read_response(basic)
             assert basic["error"] == ""
@@ -88,12 +83,10 @@ class TestEndpoints:
 
             # test with valid UUID
             basic = await get_object(
-                GetObjectData(
-                    user_id="test_user",
-                    collection_name="example_verba_github_issues",
-                    uuid=uuid,
-                ),
-                user_manager,
+                user_id="test_user",
+                collection_name="example_verba_github_issues",
+                uuid=uuid,
+                user_manager=user_manager,
             )
 
             basic = read_response(basic)
@@ -101,12 +94,10 @@ class TestEndpoints:
 
             # test with invalid UUID
             invalid = await get_object(
-                GetObjectData(
-                    user_id="test_user",
-                    collection_name="example_verba_github_issues",
-                    uuid="invalid",
-                ),
-                user_manager,
+                user_id="test_user",
+                collection_name="example_verba_github_issues",
+                uuid="invalid",
+                user_manager=user_manager,
             )
 
             invalid = read_response(invalid)
@@ -126,25 +117,25 @@ class TestEndpoints:
             )
 
             basic = await view_paginated_collection(
-                ViewPaginatedCollectionData(
-                    user_id="test_user",
-                    collection_name="example_verba_github_issues",
+                user_id="test_user",
+                collection_name="example_verba_github_issues",
+                data=ViewPaginatedCollectionData(
                     page_size=50,
                     page_number=1,
                     sort_on="issue_created_at",
                     ascending=True,
                     filter_config={},
                 ),
-                user_manager,
+                user_manager=user_manager,
             )
             basic = read_response(basic)
             assert basic["error"] == ""
 
             # test with filter
             filter = await view_paginated_collection(
-                ViewPaginatedCollectionData(
-                    user_id="test_user",
-                    collection_name="example_verba_github_issues",
+                user_id="test_user",
+                collection_name="example_verba_github_issues",
+                data=ViewPaginatedCollectionData(
                     page_size=50,
                     page_number=1,
                     sort_on="issue_created_at",
@@ -160,16 +151,16 @@ class TestEndpoints:
                         ],
                     },
                 ),
-                user_manager,
+                user_manager=user_manager,
             )
             filter = read_response(filter)
             assert filter["error"] == ""
 
             # test with out of bounds page number, should return empty list
             out_of_bounds = await view_paginated_collection(
-                ViewPaginatedCollectionData(
-                    user_id="test_user",
-                    collection_name="example_verba_github_issues",
+                user_id="test_user",
+                collection_name="example_verba_github_issues",
+                data=ViewPaginatedCollectionData(
                     page_size=50,
                     page_number=100,
                     sort_on="issue_created_at",
@@ -185,7 +176,7 @@ class TestEndpoints:
                         ],
                     },
                 ),
-                user_manager,
+                user_manager=user_manager,
             )
             out_of_bounds = read_response(out_of_bounds)
             assert out_of_bounds["error"] == ""

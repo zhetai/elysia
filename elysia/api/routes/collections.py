@@ -1,14 +1,8 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-# Tree
-from elysia.tree.objects import CollectionData
-
 # API Types
 from elysia.api.api_types import (
-    CollectionMetadataData,
-    GetObjectData,
-    UserCollectionsData,
     ViewPaginatedCollectionData,
 )
 
@@ -32,16 +26,17 @@ from elysia.util.collection import (
 router = APIRouter()
 
 
-@router.post("/view")
-async def collections(
-    data: UserCollectionsData, user_manager: UserManager = Depends(get_user_manager)
+@router.get("/{user_id}/list")
+async def collections_list(
+    user_id: str, user_manager: UserManager = Depends(get_user_manager)
 ):
     logger.debug(f"/collections API request received")
-    logger.debug(f"User ID: {data.user_id}")
+
+    headers = {"Cache-Control": "no-cache"}
 
     try:
 
-        user_local = await user_manager.get_user_local(data.user_id)
+        user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
 
         async with client_manager.connect_to_async_client() as client:
@@ -157,25 +152,31 @@ async def collections(
                     )
 
             return JSONResponse(
-                content={"collections": metadata, "error": ""}, status_code=200
+                content={"collections": metadata, "error": ""},
+                status_code=200,
+                headers=headers,
             )
 
     except Exception as e:
         logger.exception(f"Error in /collections API")
         return JSONResponse(
-            content={"collections": [], "error": str(e)}, status_code=500
+            content={"collections": [], "error": str(e)},
+            status_code=500,
+            headers=headers,
         )
 
 
-@router.post("/view_paginated")
+@router.post("/{user_id}/view/{collection_name}")
 async def view_paginated_collection(
+    user_id: str,
+    collection_name: str,
     data: ViewPaginatedCollectionData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
 
     logger.debug(f"/view_paginated_collection API request received")
-    logger.debug(f"User ID: {data.user_id}")
-    logger.debug(f"Collection name: {data.collection_name}")
+    logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Collection name: {collection_name}")
     logger.debug(f"Page size: {data.page_size}")
     logger.debug(f"Page number: {data.page_number}")
     logger.debug(f"Sort on: {data.sort_on}")
@@ -183,18 +184,16 @@ async def view_paginated_collection(
     logger.debug(f"Filter config: {data.filter_config}")
 
     try:
-        user_local = await user_manager.get_user_local(data.user_id)
+        user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
         async with client_manager.connect_to_async_client() as client:
             # get collection properties
-            data_types = await async_get_collection_data_types(
-                client, data.collection_name
-            )
+            data_types = await async_get_collection_data_types(client, collection_name)
 
             # obtain paginated results from collection
             items = await paginated_collection(
                 client=client,
-                collection_name=data.collection_name,
+                collection_name=collection_name,
                 page_size=data.page_size,
                 page_number=data.page_number,
                 sort_on=data.sort_on,
@@ -202,7 +201,7 @@ async def view_paginated_collection(
                 filter_config=data.filter_config,
             )
 
-            logger.info(f"Returning collection info for {data.collection_name}")
+            logger.info(f"Returning collection info for {collection_name}")
             return JSONResponse(
                 content={"properties": data_types, "items": items, "error": ""},
                 status_code=200,
@@ -214,106 +213,84 @@ async def view_paginated_collection(
         )
 
 
-# @router.post("/view_paginated_collection_admin")
-# async def view_paginated_collection_admin(
-#     data: ViewPaginatedCollectionData,
-#     user_manager: UserManager = Depends(get_user_manager),
-# ):
-#     client_manager = user_manager.auth_client_manager
-#     async with client_manager.connect_to_async_client() as client:
-#         # get collection properties
-#         data_types = await async_get_collection_data_types(client, data.collection_name)
-
-#         # obtain paginated results from collection
-#         items = await paginated_collection(
-#             client=client,
-#             collection_name=data.collection_name,
-#             page_size=data.page_size,
-#             page_number=data.page_number,
-#             sort_on=data.sort_on,
-#             ascending=data.ascending,
-#             filter_config=data.filter_config,
-#         )
-
-#         logger.info(f"Returning collection info for {data.collection_name}")
-#         return JSONResponse(
-#             content={"properties": data_types, "items": items, "error": ""},
-#             status_code=200,
-#         )
-
-
-# @router.post("/set_collections")
-# async def set_collections(
-#     data: SetCollectionsData, user_manager: UserManager = Depends(get_user_manager)
-# ):
-#     client_manager = user_manager.user_client_manager
-#     tree: Tree = await user_manager.get_tree(data.user_id, data.conversation_id)
-#     await tree.set_collection_names(
-#         data.collection_names,
-#         client_manager=client_manager,
-#     )
-#     return JSONResponse(content={"error": ""}, status_code=200)
-
-
-@router.post("/get_object")
+@router.get("/{user_id}/get_object/{collection_name}/{uuid}")
 async def get_object(
-    data: GetObjectData, user_manager: UserManager = Depends(get_user_manager)
+    user_id: str,
+    collection_name: str,
+    uuid: str,
+    user_manager: UserManager = Depends(get_user_manager),
 ):
     logger.debug(f"/get_object API request received")
-    logger.debug(f"User ID: {data.user_id}")
-    logger.debug(f"Collection name: {data.collection_name}")
-    logger.debug(f"UUID: {data.uuid}")
+    logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Collection name: {collection_name}")
+    logger.debug(f"UUID: {uuid}")
+
+    headers = {"Cache-Control": "max-age=300"}  # cache for 5 minutes
 
     try:
-        user_local = await user_manager.get_user_local(data.user_id)
+        user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
         async with client_manager.connect_to_async_client() as client:
             error = ""
-            collection = client.collections.get(data.collection_name)
+            collection = client.collections.get(collection_name)
 
             try:
-                object = await collection.query.fetch_object_by_id(data.uuid)
+                object = await collection.query.fetch_object_by_id(uuid)
                 object = object.properties
             except Exception as e:
                 logger.error(
-                    f"Error in /get_object API: No object found with UUID {data.uuid} in collection {data.collection_name}"
+                    f"Error in /get_object API: No object found with UUID {uuid} in collection {collection_name}"
                 )
-                error = f"No object found with this UUID: {data.uuid} in collection {data.collection_name}"
+                return JSONResponse(
+                    content={
+                        "properties": [],
+                        "items": [],
+                        "error": f"No object found with UUID {uuid} in collection {collection_name}.",
+                    },
+                    status_code=500,
+                    headers=headers,
+                )
 
-            data_types = await async_get_collection_data_types(
-                client, data.collection_name
-            )
+            data_types = await async_get_collection_data_types(client, collection_name)
             format_dict_to_serialisable(object)
 
-        return JSONResponse(
-            content={"properties": data_types, "items": [object], "error": error},
-            status_code=200,
-        )
     except Exception as e:
         logger.exception(f"Error in /get_object API")
         return JSONResponse(
-            content={"properties": [], "items": [], "error": str(e)}, status_code=500
+            content={"properties": [], "items": [], "error": str(e)},
+            status_code=500,
+            headers=headers,
         )
 
+    return JSONResponse(
+        content={"properties": data_types, "items": [object], "error": error},
+        status_code=200,
+        headers=headers,
+    )
 
-@router.post("/view_metadata")
+
+@router.post("/{user_id}/metadata/{collection_name}")
 async def collection_metadata(
-    data: CollectionMetadataData, user_manager: UserManager = Depends(get_user_manager)
+    user_id: str,
+    collection_name: str,
+    user_manager: UserManager = Depends(get_user_manager),
 ):
     logger.debug(f"/collection_metadata API request received")
-    logger.debug(f"User ID: {data.user_id}")
-    logger.debug(f"Collection name: {data.collection_name}")
+    logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Collection name: {collection_name}")
+
+    headers = {"Cache-Control": "no-cache"}
 
     try:
-        user_local = await user_manager.get_user_local(data.user_id)
+        user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
 
         async with client_manager.connect_to_async_client() as client:
-            metadata_name = f"ELYSIA_METADATA_{data.collection_name.lower()}__"
+            metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
 
             # check if the collection itself exists
-            if not await client.collections.exists(data.collection_name.lower()):
-                raise Exception(f"Collection {data.collection_name} does not exist")
+            if not await client.collections.exists(collection_name.lower()):
+                raise Exception(f"Collection {collection_name} does not exist")
 
             # check if the metadata collection exists
             else:
@@ -321,14 +298,6 @@ async def collection_metadata(
                 metadata = await metadata_collection.query.fetch_objects(limit=1)
                 properties = metadata.objects[0].properties
                 format_dict_to_serialisable(properties)
-
-        return JSONResponse(
-            content={
-                "metadata": properties,
-                "error": "",
-            },
-            status_code=200,
-        )
 
     except Exception as e:
         logger.exception(f"Error in /collection_metadata API")
@@ -338,4 +307,14 @@ async def collection_metadata(
                 "error": str(e),
             },
             status_code=200,
+            headers=headers,
         )
+
+    return JSONResponse(
+        content={
+            "metadata": properties,
+            "error": "",
+        },
+        status_code=200,
+        headers=headers,
+    )
