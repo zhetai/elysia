@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 # API Types
 from elysia.api.api_types import (
     ViewPaginatedCollectionData,
+    UpdateCollectionMetadataData,
 )
 
 # Logging
@@ -23,7 +24,17 @@ from elysia.util.collection import (
     paginated_collection,
 )
 
+from elysia.globals.return_types import specific_return_types, types_dict
+
 router = APIRouter()
+
+
+@router.get("/mapping_types")
+async def mapping_types():
+    return JSONResponse(
+        content={"mapping_types": specific_return_types},
+        status_code=200,
+    )
 
 
 @router.get("/{user_id}/list")
@@ -269,7 +280,7 @@ async def get_object(
     )
 
 
-@router.post("/{user_id}/metadata/{collection_name}")
+@router.get("/{user_id}/metadata/{collection_name}")
 async def collection_metadata(
     user_id: str,
     collection_name: str,
@@ -317,4 +328,91 @@ async def collection_metadata(
         },
         status_code=200,
         headers=headers,
+    )
+
+
+@router.patch("/{user_id}/metadata/{collection_name}")
+async def update_metadata(
+    user_id: str,
+    collection_name: str,
+    data: UpdateCollectionMetadataData,
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    logger.debug(f"/update_metadata API request received")
+    logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Collection name: {collection_name}")
+    logger.debug(f"Data: {data}")
+
+    # retrieve the current metadata
+    try:
+        user_local = await user_manager.get_user_local(user_id)
+        client_manager = user_local["client_manager"]
+
+        async with client_manager.connect_to_async_client() as client:
+            metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
+
+            # check if the collection itself exists
+            if not await client.collections.exists(collection_name.lower()):
+                raise Exception(f"Collection {collection_name} does not exist")
+
+            # check if the metadata collection exists
+            else:
+                metadata_collection = client.collections.get(metadata_name)
+                metadata = await metadata_collection.query.fetch_objects(limit=1)
+                uuid = metadata.objects[0].uuid
+                properties = metadata.objects[0].properties
+
+    except Exception as e:
+        logger.exception(f"Error in /collection_metadata API")
+        return JSONResponse(
+            content={
+                "metadata": {},
+                "error": str(e),
+            },
+            status_code=200,
+        )
+
+    try:
+        # update the named vectors
+        if data.named_vectors is not None:
+            for named_vector in data.named_vectors:
+
+                if named_vector.enabled is not None:
+                    properties["named_vectors"][named_vector.name][
+                        "enabled"
+                    ] = named_vector.enabled
+
+                if named_vector.description is not None:
+                    properties["named_vectors"][named_vector.name][
+                        "description"
+                    ] = named_vector.description
+
+        # update the summary
+        if data.summary is not None:
+            properties["summary"] = data.summary
+
+        # update the mappings
+        if data.mappings is not None:
+            properties["mappings"] = {m: types_dict[m] for m in data.mappings}
+
+        # update the fields
+        if data.fields is not None:
+            for field in data.fields:
+                properties["fields"][field.name]["description"] = field.description
+
+        format_dict_to_serialisable(properties)
+
+        # update the collection
+        await metadata_collection.data.update(uuid=uuid, properties=properties)
+
+    except Exception as e:
+        logger.exception(f"Error in /update_metadata API:")
+        return JSONResponse(
+            content={"metadata": {}, "error": str(e)},
+            status_code=200,
+        )
+
+    return JSONResponse(
+        content={"metadata": properties, "error": ""},
+        status_code=200,
     )

@@ -33,6 +33,24 @@ class InitialiseTreeData(BaseModel):
     settings: Optional[dict[str, Any]] = None
 
 
+class MetadataNamedVectorData(BaseModel):
+    name: str
+    enabled: Optional[bool] = None
+    description: Optional[str] = None
+
+
+class MetadataFieldData(BaseModel):
+    name: str
+    description: str
+
+
+class UpdateCollectionMetadataData(BaseModel):
+    named_vectors: Optional[List[MetadataNamedVectorData]] = None
+    summary: Optional[str] = None
+    mappings: Optional[List[str]] = None
+    fields: Optional[List[MetadataFieldData]] = None
+
+
 class NERData(BaseModel):
     text: str
 
