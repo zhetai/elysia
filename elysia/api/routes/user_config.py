@@ -1,6 +1,5 @@
 import os
-import jwt
-from uuid import uuid4
+from cryptography.fernet import Fernet
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -315,26 +314,24 @@ async def save_config(
             )
 
         # check if an auth key is set in the environment variables
-        if "API_KEY_AUTH_KEY" in os.environ:
-            auth_key = os.environ["API_KEY_AUTH_KEY"]
+        if "FERNET_KEY" in os.environ:
+            auth_key = os.environ["FERNET_KEY"]
         else:  # create one
-            auth_key = str(uuid4())
-            set_key(".env", "API_KEY_AUTH_KEY", auth_key)
+            auth_key = Fernet.generate_key().decode("utf-8")
+            set_key(".env", "FERNET_KEY", auth_key)
 
         # encode all api keys
+        f = Fernet(auth_key.encode("utf-8"))
         if "API_KEYS" in data.config.settings:
             for key in data.config.settings["API_KEYS"]:
-                data.config.settings["API_KEYS"][key] = jwt.encode(
-                    {"key": data.config.settings["API_KEYS"][key]},
-                    auth_key,
-                    algorithm="HS256",
-                )
+                data.config.settings["API_KEYS"][key] = f.encrypt(
+                    data.config.settings["API_KEYS"][key].encode("utf-8")
+                ).decode("utf-8")
+
         if "WCD_API_KEY" in data.config.settings:
-            data.config.settings["WCD_API_KEY"] = jwt.encode(
-                {"key": data.config.settings["WCD_API_KEY"]},
-                auth_key,
-                algorithm="HS256",
-            )
+            data.config.settings["WCD_API_KEY"] = f.encrypt(
+                data.config.settings["WCD_API_KEY"].encode("utf-8")
+            ).decode("utf-8")
 
         async with weaviate.use_async_with_weaviate_cloud(
             cluster_url=user["wcd_url"],
@@ -415,12 +412,14 @@ async def load_config_user(
                 "Please update the save location using the /update_save_location API."
             )
 
-        if "API_KEY_AUTH_KEY" in os.environ:
-            auth_key = os.environ["API_KEY_AUTH_KEY"]
+        if "FERNET_KEY" in os.environ:
+            auth_key = os.environ["FERNET_KEY"]
         else:
             raise Exception(
                 "API key auth key not found, cannot decode API keys in config."
             )
+
+        f = Fernet(auth_key.encode("utf-8"))
 
         # Retrieve the config from the weaviate database
         async with weaviate.use_async_with_weaviate_cloud(
@@ -440,21 +439,17 @@ async def load_config_user(
             and "API_KEYS" in config_item.properties["settings"]
         ):
             for key in config_item.properties["settings"]["API_KEYS"]:
-                config_item.properties["settings"]["API_KEYS"][key] = jwt.decode(
-                    config_item.properties["settings"]["API_KEYS"][key],
-                    auth_key,
-                    algorithms=["HS256"],
-                )["key"]
+                config_item.properties["settings"]["API_KEYS"][key] = f.decrypt(
+                    config_item.properties["settings"]["API_KEYS"][key].encode("utf-8")
+                ).decode("utf-8")
 
         if (
             "settings" in config_item.properties
             and "WCD_API_KEY" in config_item.properties["settings"]
         ):
-            config_item.properties["settings"]["WCD_API_KEY"] = jwt.decode(
-                config_item.properties["settings"]["WCD_API_KEY"],
-                auth_key,
-                algorithms=["HS256"],
-            )["key"]
+            config_item.properties["settings"]["WCD_API_KEY"] = f.decrypt(
+                config_item.properties["settings"]["WCD_API_KEY"].encode("utf-8")
+            ).decode("utf-8")
 
         renamed_config = rename_keys(config_item.properties)
 
