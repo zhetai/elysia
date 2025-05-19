@@ -1,6 +1,10 @@
+import os
+import jwt
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
 from pydantic import BaseModel
 from typing import Optional
@@ -301,6 +305,37 @@ async def save_config(
         # Retrieve the user info
         user = await user_manager.get_user_local(user_id)
 
+        if "wcd_url" not in user or "wcd_api_key" not in user:
+            raise Exception("WCD URL or API key not found.")
+
+        if user["wcd_url"] is None or user["wcd_api_key"] is None:
+            raise Exception(
+                "No valid destination for config save location found. "
+                "Please update the save location using the /update_save_location API."
+            )
+
+        # check if an auth key is set in the environment variables
+        if "API_KEY_AUTH_KEY" in os.environ:
+            auth_key = os.environ["API_KEY_AUTH_KEY"]
+        else:  # create one
+            auth_key = str(uuid4())
+            set_key(".env", "API_KEY_AUTH_KEY", auth_key)
+
+        # encode all api keys
+        if "API_KEYS" in data.config.settings:
+            for key in data.config.settings["API_KEYS"]:
+                data.config.settings["API_KEYS"][key] = jwt.encode(
+                    {"key": data.config.settings["API_KEYS"][key]},
+                    auth_key,
+                    algorithm="HS256",
+                )
+        if "WCD_API_KEY" in data.config.settings:
+            data.config.settings["WCD_API_KEY"] = jwt.encode(
+                {"key": data.config.settings["WCD_API_KEY"]},
+                auth_key,
+                algorithm="HS256",
+            )
+
         async with weaviate.use_async_with_weaviate_cloud(
             cluster_url=user["wcd_url"],
             auth_credentials=Auth.api_key(user["wcd_api_key"]),
@@ -371,6 +406,22 @@ async def load_config_user(
         settings: Settings = tree_manager.settings
         client_manager: ClientManager = user["client_manager"]
 
+        if "wcd_url" not in user or "wcd_api_key" not in user:
+            raise Exception("WCD URL or API key not found.")
+
+        if user["wcd_url"] is None or user["wcd_api_key"] is None:
+            raise Exception(
+                "No valid destination for config load location found. "
+                "Please update the save location using the /update_save_location API."
+            )
+
+        if "API_KEY_AUTH_KEY" in os.environ:
+            auth_key = os.environ["API_KEY_AUTH_KEY"]
+        else:
+            raise Exception(
+                "API key auth key not found, cannot decode API keys in config."
+            )
+
         # Retrieve the config from the weaviate database
         async with weaviate.use_async_with_weaviate_cloud(
             cluster_url=user["wcd_url"],
@@ -382,6 +433,29 @@ async def load_config_user(
 
         # Load the configs to the current user
         format_dict_to_serialisable(config_item.properties)
+
+        # decode all api keys
+        if (
+            "settings" in config_item.properties
+            and "API_KEYS" in config_item.properties["settings"]
+        ):
+            for key in config_item.properties["settings"]["API_KEYS"]:
+                config_item.properties["settings"]["API_KEYS"][key] = jwt.decode(
+                    config_item.properties["settings"]["API_KEYS"][key],
+                    auth_key,
+                    algorithms=["HS256"],
+                )["key"]
+
+        if (
+            "settings" in config_item.properties
+            and "WCD_API_KEY" in config_item.properties["settings"]
+        ):
+            config_item.properties["settings"]["WCD_API_KEY"] = jwt.decode(
+                config_item.properties["settings"]["WCD_API_KEY"],
+                auth_key,
+                algorithms=["HS256"],
+            )["key"]
+
         renamed_config = rename_keys(config_item.properties)
 
         if data.include_settings:
@@ -430,6 +504,19 @@ async def list_configs(
 
     try:
         user = await user_manager.get_user_local(user_id)
+
+        if (
+            "wcd_url" not in user
+            or "wcd_api_key" not in user
+            or user["wcd_url"] is None
+            or user["wcd_api_key"] is None
+        ):
+            logger.warning(
+                "In /list_configs API, "
+                "no valid destination for config location found. "
+                "Returning no error but an empty list of configs."
+            )
+            return JSONResponse(content={"error": "", "configs": []}, headers=headers)
 
         async with weaviate.use_async_with_weaviate_cloud(
             cluster_url=user["wcd_url"],
