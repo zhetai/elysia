@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -13,10 +14,13 @@ from elysia.api.api_types import (
 from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
-from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable
 from elysia.tree.tree import Tree
+
+import weaviate
+import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
+from weaviate.auth import Auth
 
 
 def rename_keys(config_item: dict):
@@ -239,11 +243,22 @@ async def load_config_tree(
         # Retrieve the user info
         user = await user_manager.get_user_local(user_id)
         tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        client_manager: ClientManager = user["client_manager"]
+
+        if "wcd_url" not in user or "wcd_api_key" not in user:
+            raise Exception("WCD URL or API key not found.")
+
+        if user["wcd_url"] is None or user["wcd_api_key"] is None:
+            raise Exception(
+                "No valid destination for config load location found. "
+                "Please update the save location using the /update_save_location API."
+            )
 
         # Retrieve the config from the weaviate database
-        uuid = generate_uuid5(data.config_id)
-        async with client_manager.connect_to_async_client() as client:
+        async with weaviate.use_async_with_weaviate_cloud(
+            cluster_url=user["wcd_url"],
+            auth_credentials=Auth.api_key(user["wcd_api_key"]),
+        ) as client:
+            uuid = generate_uuid5(data.config_id)
             collection = client.collections.get("ELYSIA_CONFIG__")
             config_item = await collection.query.fetch_object_by_id(uuid=uuid)
 

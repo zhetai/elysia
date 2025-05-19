@@ -27,7 +27,8 @@ dependencies = [
     "uvicorn[standard]==0.29.0",
     "weaviate-client>=4.14.0,<5.0.0",
     "nest_asyncio==1.6.0",
-    "psutil==7.0.0"
+    "psutil==7.0.0",
+    "jwt>=2.10.1"
 ]
 
 [project.optional-dependencies]

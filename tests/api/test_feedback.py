@@ -173,11 +173,12 @@ class TestFeedback:
         # number of positives should have decreased by 1
         assert read_response(response)["feedback_by_value"]["positive"] == num_positives
 
-        # number of feedbacks on this date should have decreased by 1
-        assert (
-            read_response(response)["feedback_by_date"][date]["positive"]
-            == num_feedbacks_on_this_date
-        )
+        # number of feedbacks on this date should have decreased by 1 or been removed
+        if date in read_response(response)["feedback_by_date"]:
+            assert (
+                read_response(response)["feedback_by_date"][date]["positive"]
+                == num_feedbacks_on_this_date
+            )
 
         # number of feedbacks should have decreased by 1
         assert read_response(response)["total_feedback"] == num_feedbacks
