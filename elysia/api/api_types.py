@@ -14,8 +14,6 @@ class QueryData(BaseModel):
 
 
 class ViewPaginatedCollectionData(BaseModel):
-    user_id: str
-    collection_name: str
     page_size: int
     page_number: int
     sort_on: Optional[str] = None
@@ -45,12 +43,6 @@ class TitleData(BaseModel):
     text: str
 
 
-class GetObjectData(BaseModel):
-    user_id: str
-    collection_name: str
-    uuid: str
-
-
 class ObjectRelevanceData(BaseModel):
     user_id: str
     conversation_id: str
@@ -65,15 +57,6 @@ class ProcessCollectionData(BaseModel):
 
 class DebugData(BaseModel):
     conversation_id: str
-    user_id: str
-
-
-class CollectionMetadataData(BaseModel):
-    user_id: str
-    collection_name: str
-
-
-class UserCollectionsData(BaseModel):
     user_id: str
 
 
