@@ -14,11 +14,12 @@ from elysia.api.dependencies.common import get_user_manager
 from elysia.api.middleware.error_handlers import register_error_handlers
 from elysia.api.routes import (
     collections,
-    config,
     feedback,
     init,
     processor,
     query,
+    user_config,
+    tree_config,
     utils,
 )
 from elysia.api.services.user import UserManager
@@ -87,7 +88,8 @@ app.include_router(init.router, prefix="/init", tags=["init"])
 app.include_router(query.router, prefix="/ws", tags=["websockets"])
 app.include_router(processor.router, prefix="/ws", tags=["websockets"])
 app.include_router(collections.router, prefix="/collections", tags=["collections"])
-app.include_router(config.router, prefix="/config", tags=["config"])
+app.include_router(user_config.router, prefix="/user/config", tags=["user config"])
+app.include_router(tree_config.router, prefix="/tree/config", tags=["tree config"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(utils.router, prefix="/util", tags=["utilities"])
 
