@@ -108,11 +108,19 @@ class TestProcessor:
 
         finally:
 
-            # delete the collection
+            # delete the collections
             try:
                 with client_manager.connect_to_client() as client:
+
                     if client.collections.exists(collection_name):
                         client.collections.delete(collection_name)
+
+                    if client.collections.exists(
+                        f"ELYSIA_METADATA_{collection_name.lower()}"
+                    ):
+                        client.collections.delete(
+                            f"ELYSIA_METADATA_{collection_name.lower()}"
+                        )
             except Exception as e:
                 print(f"Can't delete collection: {e}")
                 pass

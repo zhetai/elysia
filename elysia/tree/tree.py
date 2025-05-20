@@ -153,6 +153,7 @@ class Tree:
                 end_goal=end_goal,
             ),
             recursion_limit=5,
+            settings=self.settings,
         )
 
         # initialise the timers
@@ -299,6 +300,7 @@ class Tree:
         Will not affect any settings preceding this (e.g. in TreeManager).
         """
         self.settings = deepcopy(self.settings)
+        self.tree_data.settings = self.settings
         self.settings.configure(**kwargs)
 
     def change_style(self, style: str):
@@ -514,6 +516,9 @@ class Tree:
     def soft_reset(self):
         # conversation history is not reset
         # environment is not reset
+        if self.low_memory:
+            self.history = {}
+
         self.recursion_counter = 0
         self.tree_data.num_trees_completed = 0
         self.decision_history = [[]]
@@ -531,7 +536,6 @@ class Tree:
         training_update = deepcopy(
             [update.to_json() for update in self.training_updates]
         )
-        training_update = json.dumps(training_update)
 
         self.history[query_id] = {
             "num_trees_completed": self.tree_data.num_trees_completed,
@@ -546,7 +550,7 @@ class Tree:
             "training_updates": training_update,
             "initialisation": f"{self.branch_initialisation}",
         }
-        # can remove training updates now
+        # can reset training updates now
         self.training_updates = []
 
     def set_start_time(self):
@@ -1278,7 +1282,7 @@ class Tree:
                 )
 
         base_lm = self.get_lm("base")
-
+        complex_lm = self.get_lm("complex")
         # Start the tree at the root node
         current_decision_node: DecisionNode = self.decision_nodes[self.root]
 
@@ -1345,9 +1349,11 @@ class Tree:
                 self.tree_data.set_current_task("elysia_decision_node")
                 self.current_decision, results = await current_decision_node(
                     tree_data=self.tree_data,
-                    lm=base_lm,
+                    base_lm=base_lm,
+                    complex_lm=complex_lm,
                     available_tools=available_tools,
                     successive_actions=successive_actions,
+                    client_manager=client_manager,
                 )
                 for result in results:
                     action_result = await self._evaluate_result(

@@ -5,6 +5,8 @@ import dspy
 from dspy.primitives.program import Module
 from dspy.signatures.signature import Signature, ensure_signature
 from elysia.tree.objects import TreeData, Atlas
+from elysia.util.retrieve_feedback import retrieve_feedback
+from elysia.util.client import ClientManager
 
 
 class ElysiaChainOfThought(Module):
@@ -282,7 +284,7 @@ class ElysiaChainOfThought(Module):
         # -- Predict --
         self.predict = dspy.Predict(extended_signature, **config)
 
-    def forward(self, **kwargs):
+    def _add_tree_data_inputs(self, kwargs: dict):
 
         # Add the tree data inputs to the kwargs
         kwargs["user_prompt"] = self.tree_data.user_prompt
@@ -309,33 +311,82 @@ class ElysiaChainOfThought(Module):
         if self.tasks_completed:
             kwargs["tasks_completed"] = self.tree_data.tasks_completed_string()
 
+        return kwargs
+
+    def forward(self, **kwargs):
+        kwargs = self._add_tree_data_inputs(kwargs)
         return self.predict(**kwargs)
 
     async def aforward(self, **kwargs):
+        kwargs = self._add_tree_data_inputs(kwargs)
+        return await self.predict.acall(**kwargs)
 
-        # Add the tree data inputs to the kwargs
-        kwargs["user_prompt"] = self.tree_data.user_prompt
-        kwargs["conversation_history"] = self.tree_data.conversation_history
-        kwargs["atlas"] = self.tree_data.atlas
-        kwargs["previous_errors"] = self.tree_data.get_errors()
+    async def aforward_with_feedback_examples(
+        self,
+        feedback_model: str,
+        client_manager: ClientManager,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        num_base_lm_examples: int = 3,
+        return_example_uuids: bool = False,
+        **kwargs,
+    ) -> dspy.Prediction:
+        """
+        Use the forward pass of the module with feedback examples.
+        This will first retrieve examples from the feedback collection, and use those as few-shot examples to run the module.
+        It retrieves based from vectorising and searching on the user's prompt, finding similar prompts from the feedback collection.
+        This is an EXPERIMENTAL feature, and may not work as expected.
 
-        # Add the optional inputs to the kwargs
-        if self.environment:
-            kwargs["environment"] = self.tree_data.environment.to_json()
+        If the number of examples is less than `num_base_lm_examples`, the module will use the complex LM.
+        Otherwise, it will use the base LM. This is so that the less accurate, but faster base LM can be used when guidance is available.
+        However, when there are insufficient examples, the complex LM will be used.
 
-        if self.collection_schemas:
-            if self.collection_names != []:
-                kwargs["collection_schemas"] = (
-                    self.tree_data.output_collection_metadata(
-                        collection_names=self.collection_names, with_mappings=False
-                    )
+        Args:
+            feedback_model (str): The label of the feedback data to use as examples.
+                E.g., "decision" is the default name given to examples for the LM in the decision tree.
+                This is used to retrieve the examples from the feedback collection.
+            client_manager (ClientManager): The client manager to use.
+            base_lm (dspy.LM): The base LM to (conditionally) use.
+            complex_lm (dspy.LM): The complex LM to (conditionally) use.
+            num_base_lm_examples (int): The threshold number of examples to use the base LM.
+                When there are fewer examples than this, the complex LM will be used.
+            **kwargs: The keyword arguments to pass to the forward pass.
+                Important: All additional inputs to the DSPy module should be passed here as keyword arguments.
+                Also: Do not include `lm` in the kwargs, as this will be set automatically.
+
+        Returns:
+            (dspy.Prediction): The prediction from the forward pass.
+        """
+
+        examples, uuids = await retrieve_feedback(
+            client_manager, self.tree_data.user_prompt, feedback_model, n=10
+        )
+        if len(examples) > 0:
+            optimizer = dspy.LabeledFewShot(k=10)
+            optimized_module = optimizer.compile(self, trainset=examples)
+        else:
+            if return_example_uuids:
+                return (
+                    await self.aforward(lm=complex_lm, **kwargs),
+                    uuids,
                 )
             else:
-                kwargs["collection_schemas"] = (
-                    self.tree_data.output_collection_metadata(with_mappings=False)
+                return await self.aforward(lm=complex_lm, **kwargs)
+
+        # Select the LM to use based on the number of examples
+        if len(examples) < num_base_lm_examples:
+            if return_example_uuids:
+                return (
+                    await optimized_module.aforward(lm=complex_lm, **kwargs),
+                    uuids,
                 )
-
-        if self.tasks_completed:
-            kwargs["tasks_completed"] = self.tree_data.tasks_completed_string()
-
-        return await self.predict.acall(**kwargs)
+            else:
+                return await optimized_module.aforward(lm=complex_lm, **kwargs)
+        else:
+            if return_example_uuids:
+                return (
+                    await optimized_module.aforward(lm=base_lm, **kwargs),
+                    uuids,
+                )
+            else:
+                return await optimized_module.aforward(lm=base_lm, **kwargs)

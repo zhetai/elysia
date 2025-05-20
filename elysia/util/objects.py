@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Any
 from elysia.util.parsing import format_dict_to_serialisable
 from logging import Logger
+from elysia.objects import Update
 
 
 class Tracker:
@@ -268,17 +269,18 @@ class TreeUpdate:
 
 class TrainingUpdate:
     """
-    Sent from the tree to create a DSPy example for the action taken at that step.
+    Record a training example for a module.
+    Keep track of the inputs and outputs of the module, and the module name.
     """
 
     def __init__(
         self,
-        model: str,
+        module_name: str,
         inputs: dict,
         outputs: dict,
         extra_inputs: dict = {},
     ):
-        self.model = model
+        self.module_name = module_name
 
         # Format datetime in inputs and outputs
         format_dict_to_serialisable(inputs)
@@ -309,4 +311,24 @@ class TrainingUpdate:
             return value
 
     def to_json(self):
-        return {"model": self.model, "inputs": self.inputs, "outputs": self.outputs}
+        return {
+            "module_name": self.module_name,
+            "inputs": self.inputs,
+            "outputs": self.outputs,
+        }
+
+
+class FewShotExamples(Update):
+    """
+    A set of few shot examples for a module.
+    """
+
+    def __init__(self, uuids: list[str]):
+        self.uuids = uuids
+        Update.__init__(
+            self,
+            "fewshot_examples",
+            {
+                "uuids": self.uuids,
+            },
+        )

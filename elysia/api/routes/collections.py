@@ -32,7 +32,7 @@ router = APIRouter()
 @router.get("/mapping_types")
 async def mapping_types():
     return JSONResponse(
-        content={"mapping_types": specific_return_types},
+        content={"mapping_types": types_dict},
         status_code=200,
     )
 
@@ -393,7 +393,7 @@ async def update_metadata(
 
         # update the mappings
         if data.mappings is not None:
-            properties["mappings"] = {m: types_dict[m] for m in data.mappings}
+            properties["mappings"] = data.mappings
 
         # update the fields
         if data.fields is not None:

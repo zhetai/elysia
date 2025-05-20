@@ -3,6 +3,8 @@ from logging import Logger
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+from elysia.config import Settings
+from elysia.config import settings as environment_settings
 from elysia.objects import Result
 from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable, remove_whitespace
@@ -517,7 +519,12 @@ class TreeData:
         tasks_completed: list[dict] | None = None,
         num_trees_completed: int | None = None,
         recursion_limit: int | None = None,
+        settings: Settings | None = None,
     ):
+        if settings is None:
+            self.settings = environment_settings
+        else:
+            self.settings = settings
 
         # -- Base Data --
         if user_prompt is None:
