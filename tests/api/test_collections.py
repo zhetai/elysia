@@ -230,7 +230,13 @@ class TestEndpoints:
             ]
 
             new_summary = "This is a test summary."
-            new_mappings = ["ecommerce"]
+            new_mappings = {
+                "ecommerce": {
+                    "name": "issue_title",
+                    "category": "issue_state",
+                    "description": "issue_content",
+                }
+            }
             new_fields = [
                 MetadataFieldData(
                     name="issue_title",
@@ -283,7 +289,6 @@ class TestEndpoints:
             midway_fields = metadata["fields"]
 
             # only update a portion of the metadata
-            new_mappings2 = ["conversation", "message", "ticket"]
             new_fields2 = [
                 MetadataFieldData(
                     name="issue_updated_at",
@@ -300,7 +305,6 @@ class TestEndpoints:
                 user_id=user_id,
                 collection_name="example_verba_github_issues",
                 data=UpdateCollectionMetadataData(
-                    mappings=new_mappings2,
                     fields=new_fields2,
                 ),
                 user_manager=user_manager,
@@ -319,9 +323,6 @@ class TestEndpoints:
             metadata = metadata["metadata"]
 
             # check the values have been updated
-            assert "conversation" in metadata["mappings"]
-            assert "message" in metadata["mappings"]
-            assert "ticket" in metadata["mappings"]
             assert (
                 metadata["fields"]["issue_updated_at"]["description"]
                 == new_fields2[0].description
@@ -334,6 +335,7 @@ class TestEndpoints:
             # check that the other values are unchanged
             assert metadata["named_vectors"] == midway_named_vectors
             assert metadata["summary"] == midway_summary
+            assert metadata["mappings"] == midway_mappings
 
             old_named_vectors_data = [
                 MetadataNamedVectorData(
@@ -350,7 +352,7 @@ class TestEndpoints:
                 )
                 for field in old_fields
             ]
-            old_mappings_data = list(old_mappings.keys())
+            old_mappings_data = old_mappings
 
             # change back to the original values
             update_metadata3_response = await update_metadata(
@@ -367,7 +369,7 @@ class TestEndpoints:
             update_metadata3_response = read_response(update_metadata3_response)
             assert update_metadata3_response["error"] == ""
 
-        finally:
+        except Exception as e:
             from rich import print
 
             print(
@@ -376,4 +378,6 @@ class TestEndpoints:
                 "The metadata was being edited in this test, but the test did not finish successfully and it was not reset.\n"
                 "The collection needs reprocessing to return to a working state.\n"
             )
+            raise e
+        finally:
             await user_manager.close_all_clients()

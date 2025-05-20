@@ -47,7 +47,7 @@ class MetadataFieldData(BaseModel):
 class UpdateCollectionMetadataData(BaseModel):
     named_vectors: Optional[List[MetadataNamedVectorData]] = None
     summary: Optional[str] = None
-    mappings: Optional[List[str]] = None
+    mappings: Optional[dict[str, dict[str, str]]] = None
     fields: Optional[List[MetadataFieldData]] = None
 
 

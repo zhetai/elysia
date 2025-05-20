@@ -25,7 +25,7 @@ from elysia.tools.retrieval.prompt_templates import (
 from elysia.tools.retrieval.util import execute_weaviate_query
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
-from elysia.util.objects import TrainingUpdate, TreeUpdate
+from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
 
 
 class Query(Tool):
@@ -219,13 +219,28 @@ class Query(Tool):
 
         # Generate query with LLM
         try:
-            query = await query_generator.aforward(
-                available_collections=collection_names,
-                previous_queries=previous_queries,
-                collection_display_types=display_types,
-                searchable_fields=searchable_fields,
-                lm=complex_lm,
-            )
+            if tree_data.settings.USE_FEEDBACK:
+                query, example_uuids = (
+                    await query_generator.aforward_with_feedback_examples(
+                        feedback_model="query",
+                        client_manager=client_manager,
+                        base_lm=base_lm,
+                        complex_lm=complex_lm,
+                        available_collections=collection_names,
+                        previous_queries=previous_queries,
+                        collection_display_types=display_types,
+                        searchable_fields=searchable_fields,
+                        num_base_lm_examples=6,
+                        return_example_uuids=True,
+                    )
+                )
+            else:
+                query = await query_generator.aforward(
+                    lm=complex_lm,
+                    available_collections=collection_names,
+                    previous_queries=previous_queries,
+                    collection_display_types=display_types,
+                )
 
         except Exception as e:
             yield Error(str(e))
@@ -238,7 +253,7 @@ class Query(Tool):
         yield Response(text=query.message_update)
         yield Reasoning(reasoning=query.reasoning)
         yield TrainingUpdate(
-            model="query",
+            module_name="query",
             inputs={
                 "available_collections": collection_names,
                 "previous_queries": previous_queries,
@@ -248,6 +263,8 @@ class Query(Tool):
             },
             outputs=query.__dict__["_store"],
         )
+        if tree_data.settings.USE_FEEDBACK:
+            yield FewShotExamples(uuids=example_uuids)
 
         yield TreeUpdate(
             from_node="query",

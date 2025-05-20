@@ -1,5 +1,10 @@
 from datetime import datetime, timedelta
+import json
 
+from weaviate.collections.classes.aggregate import (
+    AggregateReturn,
+    AggregateGroupByReturn,
+)
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Filter, Metrics
 from weaviate.util import generate_uuid5
@@ -33,6 +38,11 @@ async def create_feedback_collection(client):
             wc.Property(
                 name="feedback",
                 data_type=wc.DataType.NUMBER,
+            ),
+            # track which models were used
+            wc.Property(
+                name="modules_used",
+                data_type=wc.DataType.TEXT_ARRAY,
             ),
             # Tree data (except available_information)
             wc.Property(
@@ -159,7 +169,16 @@ async def create_feedback_collection(client):
             # dump training_updates as string
             wc.Property(name="training_updates", data_type=wc.DataType.TEXT),
         ],
-        vectorizer_config=wvc.config.Configure.Vectorizer.none(),
+        vectorizer_config=[
+            wc.Configure.NamedVectors.text2vec_openai(
+                name="user_prompt",
+                model="text-embedding-3-small",
+                source_properties=["user_prompt"],
+                vector_index_config=wc.Configure.VectorIndex.hnsw(
+                    quantizer=wc.Configure.VectorIndex.Quantizer.sq(),
+                ),
+            ),
+        ],
     )
     logger.info("Feedback collection (ELYSIA_FEEDBACK__) created!")
 
@@ -201,6 +220,9 @@ async def create_feedback(
         "conversation_id": conversation_id,
         "query_id": query_id,
         "feedback": int(feedback),
+        "modules_used": list(
+            set([h["module_name"] for h in history["training_updates"]])
+        ),
         "user_prompt": history["tree_data"].user_prompt,
         "conversation_history": history["tree_data"].conversation_history,
         "tasks_completed": history["tree_data"].tasks_completed,
@@ -213,8 +235,10 @@ async def create_feedback(
             tree.complex_lm.model if not tree.low_memory else tree.complex_lm
         ),
         "feedback_datetime": format_datetime(date_now),
-        "feedback_date": date_now.strftime("%Y-%m-%d"),
-        "training_updates": history["training_updates"],
+        "feedback_date": format_datetime(
+            date_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        ),
+        "training_updates": json.dumps(history["training_updates"]),
         "initialisation": history["initialisation"],
     }
 
@@ -277,61 +301,73 @@ async def remove_feedback(user_id: str, conversation_id: str, query_id: str, cli
 
 
 async def feedback_metadata(client, user_id: str):
+
+    if not await client.collections.exists("ELYSIA_FEEDBACK__"):
+        return {
+            "error": "",
+            "total_feedback": 0,
+            "feedback_by_value": {
+                "negative": 0,
+                "positive": 0,
+                "superpositive": 0,
+            },
+            "feedback_by_date": {},
+        }
+
     feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
 
     all_aggregate = await feedback_collection.aggregate.over_all(total_count=True)
     total_feedback = all_aggregate.total_count
 
     feedback_values = {
-        0.0: "negative",
-        1.0: "positive",
-        2.0: "superpositive",
+        "negative": 0.0,
+        "positive": 1.0,
+        "superpositive": 2.0,
     }
 
     feedback_by_date = {}
     feedback_by_value = {}
-    date = None
-    for feedback_value in [0.0, 1.0, 2.0]:
+    for feedback_name, feedback_value in feedback_values.items():
+
         filters = Filter.by_property("feedback").equal(feedback_value)
 
+        # by value
+        agg_feedback_count_i = await feedback_collection.aggregate.over_all(
+            filters=filters, return_metrics=[Metrics("feedback").integer(count=True)]
+        )
+        feedback_by_value[feedback_name] = agg_feedback_count_i.properties[
+            "feedback"
+        ].count
+
+        # by date
         agg_feedback_i = await feedback_collection.aggregate.over_all(
             group_by=GroupByAggregate(prop="feedback_date"),
             filters=filters,
             return_metrics=[Metrics("feedback").number(count=True)],
         )
 
-        agg_feedback_count_i = await feedback_collection.aggregate.over_all(
-            filters=filters, return_metrics=[Metrics("feedback").integer(count=True)]
-        )
-        feedback_by_value[feedback_values[feedback_value]] = (
-            agg_feedback_count_i.properties["feedback"].count
-        )
+        # if there is a property
+        if isinstance(agg_feedback_i, AggregateGroupByReturn):
 
-        try:
             for date_group in agg_feedback_i.groups:
 
-                if date_group.grouped_by.value not in feedback_by_date:
-                    feedback_by_date[date_group.grouped_by.value] = {}
+                date_val = datetime.fromisoformat(date_group.grouped_by.value).strftime(
+                    "%Y-%m-%d"
+                )
 
-                feedback_by_date[date_group.grouped_by.value][
-                    feedback_values[feedback_value]
-                ] = date_group.properties["feedback"].count
+                if date_val not in feedback_by_date:
+                    feedback_by_date[date_val] = {
+                        "negative": 0,
+                        "positive": 0,
+                        "superpositive": 0,
+                    }
 
-        except AttributeError:
-
-            if date is None:
-                one_object = await feedback_collection.query.fetch_objects(limit=1)
-                date = one_object.objects[0].properties["feedback_date"]
-
-            if date not in feedback_by_date:
-                feedback_by_date[date] = {}
-
-            feedback_by_date[date][feedback_values[feedback_value]] = feedback_by_value[
-                feedback_values[feedback_value]
-            ]
+                feedback_by_date[date_val][feedback_name] += date_group.properties[
+                    "feedback"
+                ].count
 
     for date in feedback_by_date:
-        for feedback_name in feedback_values.values():
+        for feedback_name in feedback_values:
             if feedback_name not in feedback_by_date[date]:
                 feedback_by_date[date][feedback_name] = 0
 
@@ -340,15 +376,18 @@ async def feedback_metadata(client, user_id: str):
         return_metrics=[Metrics("feedback").number(mean=True, count=True)],
     )
 
-    for date_group in agg_feedback.groups:
-        if date_group.grouped_by.value not in feedback_by_date:
-            feedback_by_date[date_group.grouped_by.value] = {}
-        feedback_by_date[date_group.grouped_by.value]["mean"] = date_group.properties[
-            "feedback"
-        ].mean
-        feedback_by_date[date_group.grouped_by.value]["count"] = date_group.properties[
-            "feedback"
-        ].count
+    if isinstance(agg_feedback, AggregateGroupByReturn):
+
+        for date_group in agg_feedback.groups:
+
+            date_val = datetime.fromisoformat(date_group.grouped_by.value).strftime(
+                "%Y-%m-%d"
+            )
+
+            feedback_by_date[date_val]["mean"] = date_group.properties["feedback"].mean
+            feedback_by_date[date_val]["count"] = date_group.properties[
+                "feedback"
+            ].count
 
     return {
         "total_feedback": total_feedback,

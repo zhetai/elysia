@@ -17,7 +17,7 @@ from elysia.objects import (
 
 # Objects
 from elysia.tree.objects import TreeData
-from elysia.util.objects import TrainingUpdate, TreeUpdate
+from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
 from elysia.util.client import ClientManager
@@ -29,6 +29,7 @@ from elysia.tools.text.prompt_templates import TextResponsePrompt
 
 # Settings
 from elysia.config import Settings, load_base_lm, load_complex_lm
+from elysia.util.retrieve_feedback import retrieve_feedback
 
 
 class ForcedTextResponse(Tool):
@@ -176,12 +177,30 @@ class DecisionNode:
             route,
         )
 
+    async def load_model_from_examples(
+        self,
+        decision_executor: dspy.Module,
+        client_manager: ClientManager,
+        user_prompt: str,
+    ) -> dspy.Module:
+
+        examples = await retrieve_feedback(client_manager, user_prompt, "decision")
+
+        if len(examples) == 0:
+            return decision_executor
+
+        optimizer = dspy.LabeledFewShot(k=10)
+        compiled_executor = optimizer.compile(decision_executor, trainset=examples)
+        return compiled_executor
+
     async def __call__(
         self,
         tree_data: TreeData,
-        lm: dspy.LM = None,
+        base_lm: dspy.LM = None,
+        complex_lm: dspy.LM = None,
         available_tools: list[str] = [],
         successive_actions: dict = {},
+        client_manager: ClientManager | None = None,
         **kwargs,
     ):
         options = self._options_to_json(available_tools)
@@ -213,13 +232,27 @@ class DecisionNode:
                 message_update=True,
             )
 
-            output = await decision_executor.aforward(
-                instruction=self.instruction,
-                tree_count=tree_data.tree_count_string(),
-                available_actions=options,
-                successive_actions=successive_actions,
-                lm=lm,
-            )
+            if tree_data.settings.USE_FEEDBACK:
+                output, uuids = await decision_executor.aforward_with_feedback_examples(
+                    feedback_model="decision",
+                    client_manager=client_manager,
+                    base_lm=base_lm,
+                    complex_lm=complex_lm,
+                    instruction=self.instruction,
+                    tree_count=tree_data.tree_count_string(),
+                    available_actions=options,
+                    successive_actions=successive_actions,
+                    num_base_lm_examples=3,
+                    return_example_uuids=True,
+                )
+            else:
+                output = await decision_executor.aforward(
+                    instruction=self.instruction,
+                    tree_count=tree_data.tree_count_string(),
+                    available_actions=options,
+                    successive_actions=successive_actions,
+                    lm=base_lm,
+                )
 
             decision = Decision(
                 output.function_name,
@@ -231,7 +264,7 @@ class DecisionNode:
 
             results = [
                 TrainingUpdate(
-                    model="decision",
+                    module_name="decision",
                     inputs=tree_data.to_json(),
                     outputs={k: v for k, v in output.__dict__["_store"].items()},
                 ),
@@ -246,6 +279,9 @@ class DecisionNode:
 
             if output.function_name != "text_response":
                 results.append(Response(output.message_update))
+
+            if tree_data.settings.USE_FEEDBACK and len(uuids) > 0:
+                results.append(FewShotExamples(uuids))
 
         else:
             decision = Decision(

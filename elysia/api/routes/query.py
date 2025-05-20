@@ -58,19 +58,19 @@ async def process(data: dict, websocket: WebSocket, user_manager: UserManager):
         logger.exception(f"Error in /query API")
 
         if "conversation_id" in data:
-            error_payload = error_payload(
+            error = error_payload(
                 text=f"{str(e)}",
                 conversation_id=data["conversation_id"],
                 query_id=data["query_id"],
             )
-            await websocket.send_json(error_payload)
+            await websocket.send_json(error)
         else:
-            error_payload = error_payload(
+            error = error_payload(
                 text=f"{str(e)}",
                 conversation_id="",
                 query_id="",
             )
-            await websocket.send_json(error_payload)
+            await websocket.send_json(error)
 
 
 # Process endpoint

@@ -67,6 +67,9 @@ class Settings:
         self.LOGGING_LEVEL = "INFO"
         self.LOGGING_LEVEL_INT = 20
 
+        # Experimental features
+        self.USE_FEEDBACK = False
+
     def setup_app_logger(self, logger: Logger):
         """
         Override existing logger with the app-level logger.
@@ -189,6 +192,11 @@ class Settings:
             wcd_url: The Weaviate cloud URL to use (str).
             wcd_api_key: The Weaviate cloud API key to use (str).
             logging_level: The logging level to use (str). e.g. "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+            use_feedback (bool): EXPERIMENTAL. Whether to use feedback from previous runs of the tree.
+                If True, the tree will use TrainingUpdate objects that have been saved in previous runs of the decision tree.
+                These are implemented via few-shot examples for the decision node.
+                They are collected in the 'feedback' collection (ELYSIA_FEEDBACK__).
+                Relevant examples are retrieved from the collection based on searching the collection via the user's prompt.
             **kwargs: Additional API keys to set. E.g. `openai_apikey="..."`
         """
 
@@ -288,6 +296,10 @@ class Settings:
         if "settings_id" in kwargs:
             self.SETTINGS_ID = kwargs["settings_id"]
             kwargs.pop("settings_id")
+
+        if "use_feedback" in kwargs:
+            self.USE_FEEDBACK = kwargs["use_feedback"]
+            kwargs.pop("use_feedback")
 
         if "api_keys" in kwargs and isinstance(kwargs["api_keys"], dict):
             for key, value in kwargs["api_keys"].items():

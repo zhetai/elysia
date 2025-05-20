@@ -13,7 +13,7 @@ from elysia.tools.retrieval.prompt_templates import AggregationPrompt
 from elysia.tools.retrieval.util import execute_weaviate_aggregation
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
-from elysia.util.objects import TrainingUpdate, TreeUpdate
+from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
 from elysia.util.parsing import format_aggregation_response
 
 
@@ -124,11 +124,25 @@ class Aggregate(Tool):
 
         # Generate query with LLM
         try:
-            aggregation = await aggregate_generator.aforward(
-                available_collections=collection_names,
-                previous_aggregation_queries=previous_aggregations,
-                lm=complex_lm,
-            )
+            if tree_data.settings.USE_FEEDBACK:
+                aggregation, example_uuids = (
+                    await aggregate_generator.aforward_with_feedback_examples(
+                        feedback_model="aggregate",
+                        client_manager=client_manager,
+                        base_lm=base_lm,
+                        complex_lm=complex_lm,
+                        available_collections=collection_names,
+                        previous_aggregation_queries=previous_aggregations,
+                        num_base_lm_examples=6,
+                        return_example_uuids=True,
+                    )
+                )
+            else:
+                aggregation = await aggregate_generator.aforward(
+                    lm=complex_lm,
+                    available_collections=collection_names,
+                    previous_aggregation_queries=previous_aggregations,
+                )
         except Exception as e:
             yield Error(str(e))
             return
@@ -137,7 +151,7 @@ class Aggregate(Tool):
         yield Response(text=aggregation.message_update)
         yield Reasoning(reasoning=aggregation.reasoning)
         yield TrainingUpdate(
-            model="aggregate",
+            module_name="aggregate",
             inputs={
                 **tree_data.to_json(),
                 "available_collections": collection_names,
@@ -145,6 +159,9 @@ class Aggregate(Tool):
             },
             outputs=aggregation.__dict__["_store"],
         )
+
+        if tree_data.settings.USE_FEEDBACK:
+            yield FewShotExamples(uuids=example_uuids)
 
         # Return if model deems aggregation impossible
         if aggregation.impossible or aggregation.aggregation_queries is None:
