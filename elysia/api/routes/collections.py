@@ -242,7 +242,6 @@ async def get_object(
         user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
         async with client_manager.connect_to_async_client() as client:
-            error = ""
             collection = client.collections.get(collection_name)
 
             try:
@@ -274,7 +273,7 @@ async def get_object(
         )
 
     return JSONResponse(
-        content={"properties": data_types, "items": [object], "error": error},
+        content={"properties": data_types, "items": [object], "error": ""},
         status_code=200,
         headers=headers,
     )

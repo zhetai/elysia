@@ -18,7 +18,6 @@ from elysia.api.routes.feedback import (
 
 from elysia.api.api_types import (
     AddFeedbackData,
-    FeedbackMetadataData,
     RemoveFeedbackData,
 )
 
@@ -88,11 +87,8 @@ class TestFeedback:
         )
 
         response = await run_feedback_metadata(
-            FeedbackMetadataData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-            ),
-            user_manager,
+            user_id=user_id,
+            user_manager=user_manager,
         )
 
         assert read_response(response)["error"] == ""
@@ -125,11 +121,8 @@ class TestFeedback:
         assert read_response(response)["error"] == ""
 
         response = await run_feedback_metadata(
-            FeedbackMetadataData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-            ),
-            user_manager,
+            user_id=user_id,
+            user_manager=user_manager,
         )
 
         assert read_response(response)["error"] == ""
@@ -161,11 +154,8 @@ class TestFeedback:
         assert read_response(response)["error"] == ""
 
         response = await run_feedback_metadata(
-            FeedbackMetadataData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-            ),
-            user_manager,
+            user_id=user_id,
+            user_manager=user_manager,
         )
 
         assert read_response(response)["error"] == ""
