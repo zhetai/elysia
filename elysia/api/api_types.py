@@ -95,10 +95,6 @@ class GetUserRequestsData(BaseModel):
     user_id: str
 
 
-class FeedbackMetadataData(BaseModel):
-    user_id: str
-
-
 class InstantReplyData(BaseModel):
     user_id: str
     user_prompt: str

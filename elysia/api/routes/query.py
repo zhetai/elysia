@@ -53,6 +53,7 @@ async def process(data: dict, websocket: WebSocket, user_manager: UserManager):
                 break
             # Add a small delay between messages to prevent overwhelming
             await asyncio.sleep(0.005)
+            # logger.debug(f"Sent message to client: {yielded_result}")
 
     except Exception as e:
         logger.exception(f"Error in /query API")
