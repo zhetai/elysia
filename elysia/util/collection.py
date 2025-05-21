@@ -96,12 +96,6 @@ def convert_weaviate_list(list_object: list):
 
 def convert_weaviate_object(dict_object: dict):
     for key, value in dict_object.items():
-        if key == "date":
-            x = 1
-
-        # if isinstance(value, str) and value.startswith("[") and value.endswith("]"):
-        #     print(f"key: {key}, value: {value}")
-        #     value = eval(value, {}, {})
 
         if isinstance(value, datetime.datetime):
             dict_object[key] = format_datetime(value)
@@ -207,4 +201,12 @@ async def paginated_collection(
                 offset=page_size * (page_number - 1),
             )
 
-    return [convert_weaviate_object(o.properties) for o in response.objects]
+    objects = [
+        {
+            **convert_weaviate_object(o.properties),
+            "uuid": str(o.uuid),
+        }
+        for o in response.objects
+    ]
+
+    return objects
