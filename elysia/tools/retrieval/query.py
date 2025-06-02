@@ -240,6 +240,7 @@ class Query(Tool):
                     available_collections=collection_names,
                     previous_queries=previous_queries,
                     collection_display_types=display_types,
+                    searchable_fields=searchable_fields,
                 )
 
         except Exception as e:
