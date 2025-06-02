@@ -1,24 +1,6 @@
 import dspy
 
 
-class TitleCreatorPrompt(dspy.Signature):
-    """
-    You are an expert at creating a title for a given text.
-    Your goal is not to answer the question or do anything else, just to create a title for what the ensuing conversation is about.
-    """
-
-    text = dspy.InputField(
-        description="""
-        The text to create a title for. This is usually a prompt from the user, which you will use to create a title of a conversation.
-        """.strip()
-    )
-    title = dspy.OutputField(
-        description="""
-        The title for the text. This is a single, short, succinct summary that describes the topic of the conversation.
-        """.strip()
-    )
-
-
 class ObjectRelevancePrompt(dspy.Signature):
     """
     You are an expert at determining the relevance of a set of retrieved objects to a user's query.

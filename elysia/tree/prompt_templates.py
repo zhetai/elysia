@@ -223,3 +223,31 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
         ),
         format=list,
     )
+
+
+class TitleCreatorPrompt(dspy.Signature):
+    """
+    You are an expert at creating a title for a given conversation.
+    The conversation could be a single user prompt, or a series of user prompts and assistant responses.
+    Create a meaningful but punctual title for the conversation.
+    """
+
+    conversation: list[dict] = dspy.InputField(
+        description="""
+        The conversation to create a title for.
+        This is a list of dictionaries, with each dictionary containing a `role` and `content` key.
+        The `role` key can be either `user` or `assistant`.
+        The `content` key contains the message content.
+        """.strip(),
+        format=list,
+    )
+    title: str = dspy.OutputField(
+        description="""
+        The title for the conversation. This is a single, short, succinct summary that describes the topic of the conversation.
+        Base it primarily on the user's request, but also include should be a general summary of the entire conversation.
+        It should not start with a verb, and should be a single sentence.
+        It should be no more than 10 words.
+        It should be a single sentence, not a question.
+        Remember, this is a title, an extremely succinct summary of the whole conversation.
+        """.strip()
+    )
