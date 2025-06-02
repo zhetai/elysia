@@ -115,17 +115,6 @@ class Settings:
         self.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
 
     @classmethod
-    def from_dict(cls, settings: dict):
-        settings = cls()
-        for item in settings:
-            setattr(settings, item, settings[item])
-        settings.logger = logging.getLogger("rich")
-        settings.logger.setLevel(settings.LOGGING_LEVEL)
-        settings.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
-
-        return settings
-
-    @classmethod
     def from_default(cls):
         settings = cls()
         settings.set_from_env()
@@ -322,20 +311,6 @@ class Settings:
                 "Unknown arguments to configure: " + ", ".join(kwargs.keys())
             )
 
-    @classmethod
-    def inherit_config(cls, settings):
-        """
-        Inherit the settings from another Settings object.
-        """
-        new_settings = cls()
-        for key in dir(settings):
-            if not key.startswith("__"):  # Skip special attributes
-                try:
-                    setattr(new_settings, key, getattr(settings, key))
-                except AttributeError:
-                    pass
-        return new_settings
-
     def __repr__(self) -> str:
         out = ""
         if "BASE_MODEL" in dir(self) and self.BASE_MODEL is not None:
@@ -368,6 +343,17 @@ class Settings:
             and not isinstance(getattr(self, item), Callable)
             and item not in ["BASE_MODEL_LM", "COMPLEX_MODEL_LM", "logger"]
         }
+
+    @classmethod
+    def from_json(cls, json_data: dict):
+        settings = cls()
+        for item in json_data:
+            if item not in ["logger"]:
+                setattr(settings, item, json_data[item])
+
+        settings.logger.setLevel(settings.LOGGING_LEVEL)
+
+        return settings
 
 
 def check_base_lm_settings(settings: Settings):

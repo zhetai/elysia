@@ -107,6 +107,8 @@ class TestComplexPrompts:
         )
 
         for collection in collections_queried:
+            assert collection in tree.tree_data.environment.environment[env_key]
+            assert len(tree.tree_data.environment.environment[env_key][collection]) > 0
             for item in tree.tree_data.environment.environment[env_key][collection][0][
                 "objects"
             ]:

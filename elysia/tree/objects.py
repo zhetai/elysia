@@ -61,13 +61,15 @@ class Environment:
 
     def __init__(
         self,
-        environment: dict[str, dict[str, List[Result]]] | None = None,
+        environment: dict[str, dict[str, Any]] | None = None,
         self_info: bool = True,
+        hidden_environment: dict[str, Any] = {},
     ):
         if environment is None:
             environment = {}
         self.environment = environment
-        self.hidden_environment = {}
+        self.hidden_environment = hidden_environment
+        self.self_info = self_info
         if self_info:
             self.environment["SelfInfo"] = {}
             self.environment["SelfInfo"]["generic"] = [
@@ -306,7 +308,19 @@ class Environment:
         Converts the environment to a JSON serialisable format.
         Used to access specific objects from the environment.
         """
-        return self.environment
+        return {
+            "environment": self.environment,
+            "hidden_environment": self.hidden_environment,
+            "self_info": self.self_info,
+        }
+
+    @classmethod
+    def from_json(cls, json_data: dict):
+        return cls(
+            environment=json_data["environment"],
+            hidden_environment=json_data["hidden_environment"],
+            self_info=json_data["self_info"],
+        )
 
 
 def datetime_reference():
@@ -352,9 +366,14 @@ class CollectionData:
     (Such as via the `output_full_metadata` method.)
     """
 
-    def __init__(self, collection_names: list[str], logger: Logger | None = None):
+    def __init__(
+        self,
+        collection_names: list[str],
+        metadata: dict[str, Any] = {},
+        logger: Logger | None = None,
+    ):
         self.collection_names = collection_names
-        self.metadata = {}
+        self.metadata = metadata
         self.logger = logger
 
     async def set_collection_names(
@@ -469,6 +488,20 @@ class CollectionData:
             for collection_name in self.collection_names
         }
 
+    def to_json(self):
+        return {
+            "collection_names": self.collection_names,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_json(cls, json_data: dict, logger: Logger | None = None):
+        return cls(
+            collection_names=json_data["collection_names"],
+            metadata=json_data["metadata"],
+            logger=logger,
+        )
+
 
 class TreeData:
     """
@@ -542,11 +575,6 @@ class TreeData:
         else:
             self.environment = environment
 
-        if hidden_environment is None:
-            self.hidden_environment = Environment(self_info=False)
-        else:
-            self.hidden_environment = hidden_environment
-
         if tasks_completed is None:
             self.tasks_completed = []
         else:
@@ -572,9 +600,6 @@ class TreeData:
         # -- Errors --
         self.errors = {}
         self.current_task = None
-
-    def to_json(self):
-        return {k: v for k, v in self.__dict__.items()}
 
     def set_property(self, property: str, value: Any):
         self.__dict__[property] = value
@@ -707,9 +732,10 @@ class TreeData:
                 out += f"<task_{i+1}>\n"
 
                 if "action" in task and task["action"]:
-                    out += f"Completed action: {task['task']}\n"
+                    out += f"Chosen action: {task['task']} (this does not mean it has been completed, only that it was chosen) "
+                    out += "(Use the environment to judge if a task is completed)\n"
                 else:
-                    out += f"Chosen subcategory: {task['task']}\n"
+                    out += f"Chosen subcategory: {task['task']} (this action has not been completed, this is only a subcategory)\n"
 
                 for key in task:
                     if key != "task" and key != "action":
@@ -838,10 +864,32 @@ class TreeData:
         }
 
     def to_json(self):
-        return {
-            "user_prompt": self.user_prompt,
-            "conversation_history": self.conversation_history,
-            "environment": self.environment.to_json(),
-            "tasks_completed": self.tasks_completed,
-            "num_trees_completed": self.num_trees_completed,
+        out = {
+            k: v
+            for k, v in self.__dict__.items()
+            if k not in ["collection_data", "atlas", "environment", "settings"]
         }
+        out["collection_data"] = self.collection_data.to_json()
+        out["atlas"] = self.atlas.model_dump()
+        out["environment"] = self.environment.to_json()
+        out["settings"] = self.settings.to_json()
+        return out
+
+    @classmethod
+    def from_json(cls, json_data: dict):
+        settings = Settings.from_json(json_data["settings"])
+        logger = settings.logger
+        collection_data = CollectionData.from_json(json_data["collection_data"], logger)
+        atlas = Atlas.model_validate(json_data["atlas"])
+        environment = Environment.from_json(json_data["environment"])
+
+        tree_data = cls(
+            collection_data=collection_data,
+            atlas=atlas,
+            environment=environment,
+            settings=settings,
+        )
+        for item in json_data:
+            if item not in ["collection_data", "atlas", "environment", "settings"]:
+                tree_data.set_property(item, json_data[item])
+        return tree_data

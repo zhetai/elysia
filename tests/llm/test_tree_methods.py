@@ -82,8 +82,7 @@ class TestTreeMethods:
     def test_get_follow_up_suggestions(self):
         tree = self.do_query("What was Edward's last message?")
         suggestions = tree.get_follow_up_suggestions(
-            model_type="complex",
-            context="make it about a man called john",
+            context="make it about messages specifically",
             num_suggestions=5,
         )
         if len(suggestions) != 5:
