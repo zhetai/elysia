@@ -24,6 +24,7 @@ from elysia.util.client import ClientManager
 from elysia.tree.prompt_templates import (
     construct_decision_prompt,
     FollowUpSuggestionsPrompt,
+    TitleCreatorPrompt,
 )
 from elysia.tools.text.prompt_templates import TextResponsePrompt
 
@@ -399,26 +400,25 @@ class TreeReturner:
             )
 
 
+async def create_conversation_title(conversation: list[dict], lm: dspy.LM):
+    title_creator = dspy.Predict(TitleCreatorPrompt)
+    title = await title_creator.aforward(
+        conversation=conversation,
+        lm=lm,
+    )
+    return title.title
+
+
 async def get_follow_up_suggestions(
     tree_data: TreeData,
     current_suggestions: list[str],
-    config: Settings,
-    model_type: str = "base",
+    lm: dspy.LM,
     num_suggestions: int = 2,
     context: str | None = None,
 ):
 
     # load dspy model for suggestor
     follow_up_suggestor = dspy.Predict(FollowUpSuggestionsPrompt)
-
-    if model_type == "base":
-        lm = load_base_lm(config)
-    elif model_type == "complex":
-        lm = load_complex_lm(config)
-    else:
-        raise ValueError(
-            f"Invalid model type: {model_type}. Must be 'base' or 'complex'."
-        )
 
     if context is None:
         context = (
@@ -445,9 +445,7 @@ async def get_follow_up_suggestions(
             lm=lm,
         )
         suggestions = prediction.suggestions
-        config.logger.debug(f"Follow-up suggestions: {suggestions}")
     except Exception as e:
-        config.logger.error(f"Error getting follow-up suggestions: {e}")
         suggestions = []
 
     return suggestions

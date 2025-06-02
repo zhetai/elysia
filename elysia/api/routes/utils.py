@@ -27,7 +27,6 @@ from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.prompt_templates import (
     InstantReplyPrompt,
     ObjectRelevancePrompt,
-    TitleCreatorPrompt,
 )
 
 # Services
@@ -97,14 +96,10 @@ async def title(data: TitleData, user_manager: UserManager = Depends(get_user_ma
         )
 
     try:
-        settings = user_manager.users[data.user_id]["tree_manager"].settings
-        title_creator = dspy.Predict(TitleCreatorPrompt)
-        title = await title_creator.aforward(
-            text=data.text,
-            lm=load_base_lm(settings),
-        )
+        tree: Tree = await user_manager.get_tree(data.user_id, data.conversation_id)
+        title = await tree.create_conversation_title_async()
         return JSONResponse(
-            content={"title": title.title, "error": ""},
+            content={"title": title, "error": ""},
             status_code=200,
         )
 

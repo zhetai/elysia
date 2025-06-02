@@ -25,6 +25,7 @@ from elysia.tree.util import (
     TreeReturner,
     Decision,
     get_follow_up_suggestions,
+    create_conversation_title,
 )
 from elysia.objects import (
     Completed,
@@ -135,6 +136,7 @@ class Tree:
         self.prompt_to_query_id = {}
         self.retrieved_objects = []
         self.store_retrieved_objects = False
+        self.conversation_title = None
 
         # -- Initialise the tree
         self.set_low_memory(low_memory)
@@ -933,14 +935,36 @@ class Tree:
         self.tree = {}
         self._construct_tree(self.root, self.tree)
 
+    async def create_conversation_title_async(self):
+        """
+        Create a title for the tree (async) using the base LM.
+        Also assigns the `conversation_title` attribute to the tree.
+
+        Returns:
+            (str): The title for the tree.
+        """
+
+        lm = self.get_lm("base")
+
+        self.conversation_title = await create_conversation_title(
+            self.tree_data.conversation_history, lm
+        )
+        return self.conversation_title
+
+    def create_conversation_title(self):
+        """
+        Create a title for the tree using the base LM.
+        Also assigns the `conversation_title` attribute to the tree.
+
+        Returns:
+            (str): The title for the tree.
+        """
+        return asyncio_run(self.create_conversation_title_async())
+
     async def get_follow_up_suggestions_async(
-        self,
-        context: str | None = None,
-        num_suggestions: int = 2,
-        model_type: Literal["base", "complex"] = "base",
+        self, context: str | None = None, num_suggestions: int = 2
     ):
         """
-        Async version of get_follow_up_suggestions.
         Get follow-up suggestions for the current user prompt via a base model LLM call.
 
         E.g., if the user asks "What was the most recent Github Issue?",
@@ -950,19 +974,25 @@ class Tree:
         Args:
             context (str | None): A description of the type of follow-up questions to suggest
             num_suggestions (int): The number of follow-up suggestions to return (length of the list output)
-            model_type (Literal["base", "complex"]): The type of model to use for the follow-up suggestions. Default is "base".
 
         Returns:
             (list[str]): A list of follow-up suggestions
         """
+
+        lm = self.get_lm("base")
+
         suggestions = await get_follow_up_suggestions(
             self.tree_data,
             self.suggestions,
-            self.settings,
+            lm,
             context=context,
             num_suggestions=num_suggestions,
-            model_type=model_type,
         )
+        if suggestions != []:
+            self.settings.logger.debug(f"Follow-up suggestions: {suggestions}")
+        else:
+            self.settings.logger.error("No follow-up suggestions found.")
+
         self.suggestions.extend(suggestions)
         return suggestions
 
@@ -973,7 +1003,7 @@ class Tree:
         model_type: Literal["base", "complex"] = "base",
     ):
         """
-        Get follow-up suggestions for the current user prompt via a base model LLM call.
+        Get follow-up suggestions for the current user prompt via a base model LLM call (sync wrapper for get_follow_up_suggestions_async).
 
         E.g., if the user asks "What was the most recent Github Issue?",
             and the results show a message from 'Jane Doe',
