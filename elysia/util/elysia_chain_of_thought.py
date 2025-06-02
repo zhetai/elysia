@@ -257,6 +257,7 @@ class ElysiaChainOfThought(Module):
                 "Is the task impossible to complete? "
                 "I.e., do you wish that you had a different task to perform/choose from and hence should return to the base of the decision tree?"
                 "Do not base this judgement on the entire prompt, as it is possible that other agents can perform other aspects of the request."
+                "Do not judge impossibility based on if tasks have been completed, only on the current action and environment."
             )
             impossible_prefix = "${impossible}"
             impossible_field: bool = dspy.OutputField(
@@ -294,7 +295,7 @@ class ElysiaChainOfThought(Module):
 
         # Add the optional inputs to the kwargs
         if self.environment:
-            kwargs["environment"] = self.tree_data.environment.to_json()
+            kwargs["environment"] = self.tree_data.environment.environment
 
         if self.collection_schemas:
             if self.collection_names != []:

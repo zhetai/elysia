@@ -31,7 +31,7 @@ class CondenseEnvironment(Tool):
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
         client_manager: ClientManager | None = None,
-        **kwargs
+        **kwargs,
     ):
         # Count number of tokens in the environment
         str_environment = str(tree_data.environment.environment)
@@ -60,7 +60,7 @@ class CondenseEnvironment(Tool):
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
         client_manager: ClientManager | None = None,
-        **kwargs
+        **kwargs,
     ):
         with dspy.context(lm=complex_lm):
             condensed_prediction = self.executor(
@@ -68,7 +68,7 @@ class CondenseEnvironment(Tool):
                 reference=create_reference(),
                 conversation_history=tree_data.conversation_history,
                 tasks_completed=tree_data.tasks_completed,
-                environment=tree_data.environment.to_json(),
+                environment=tree_data.environment.environment,
             )
 
         yield Response(condensed_prediction.reasoning_update_message)

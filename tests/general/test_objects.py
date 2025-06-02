@@ -390,7 +390,7 @@ class TestObjects:
             == "hello"
         )
 
-        json_obj = environment.to_json()
+        json_obj = environment.environment
         assert "test_tool" in json_obj
         assert "test_result" in json_obj["test_tool"]
         assert json_obj["test_tool"]["test_result"][0]["objects"][0]["e"] == 5

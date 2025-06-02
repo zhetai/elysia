@@ -91,3 +91,37 @@ The `end_goal` parameter describes to Elysia what criteria it will use to decide
 ```python
 tree.change_end_goal("The user has been recommended a hotel, travel options as well as activities to do in the local area. Or, you have exhausted all options. Or, you have asked the user for more clarification about their request.")
 ```
+
+## Creating a Title
+
+You can run `tree.create_conversation_title()` to use the base LM in the tree to create a title for the conversation (which uses the conversation history as inspiration). This saves the title as the `tree.conversation_title` attribute, which you can also directly overwrite or access if needed. An async version of this method is available at `tree.create_conversation_title_async()`.
+
+## Loading and Saving Trees
+
+### Locally
+
+You can export a decision tree to a JSON serialisable dictionary object via [`tree.export_to_json()`](Reference/Tree.md#elysia.tree.tree.Tree.export_to_json). This saves certain aspects, including:
+
+- The Tree Data, which includes:
+    - The environment, including all retrieved objects from previous tool runs or otherwise
+    - The collection metadata, if processed
+- Class variables used to initialise the tree
+- The config options, such as the settings (including the model choices) and the style, agent description and end goal.
+- The branch initialisation, which will be re-run when the tree is loaded.
+
+The tree can be loaded from the dictionary via running the [`tree.import_from_json(json_data=...)`](Reference/Tree.md#elysia.tree.tree.Tree.import_from_json) method, passing as the first argument `json_data` which is the output from `tree.export_to_json()`.
+
+**Note that any custom tools or branches added to the decision tree are not saved and need to be manually re-added, in the same way that your tree was originally initialised.**
+
+### With Weaviate
+
+Also included are two similar functions for saving and loading a decision tree within a Weaviate instance. To save a tree in a Weaviate instance, you can use [`tree.export_to_weaviate(collection_name, client_manager)`](Reference/Tree.md#elysia.tree.tree.Tree.export_to_weaviate). You can specify the collection that you will be saving to via the `collection_name` argument. You can specify the Weaviate cluster information by passing a [`ClientManager`](Reference/Client.md#elysia.util.client). If you do not provide a ClientManager, it will automatically create one from the specification set in the environment variables. It will save the tree according to the `conversation_id` used to initialise the tree (which is randomly generated via a UUID if not set).
+
+To load a tree from Weaviate, you can use [`tree.import_from_weaviate(collection_name, conversation_id, client_manager)`](Reference/Tree.md#elysia.tree.tree.Tree.export_to_json). You must use the correct `conversation_id` to load a tree. If you do not know the conversation ID, you can view all available conversation IDs saved to a Weaviate collection via
+```python
+from elysia.tree.util import get_saved_trees_weaviate
+get_saved_trees_weaviate()
+```
+Which will return a dictionary whose keys correspond to the available conversation IDs, and whose values are the titles as strings of the conversations ([if one was created via `tree.create_conversation_title()`](#creating-a-title)).
+
+**Note that any custom tools or branches added to the decision tree are not saved and need to be manually re-added, in the same way that your tree was originally initialised.**

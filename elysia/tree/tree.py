@@ -16,10 +16,12 @@ from logging import Logger
 import uuid
 
 # Weaviate
+import weaviate.classes.config as wc
+from weaviate.util import generate_uuid5
+
+# Elysia
 from elysia.config import Settings
 from elysia.config import settings as environment_settings
-
-# globals
 from elysia.tree.util import (
     DecisionNode,
     TreeReturner,
@@ -46,11 +48,7 @@ from elysia.tools.text.text import (
 )
 from elysia.tree.util import ForcedTextResponse
 from elysia.util.async_util import asyncio_run
-
-# Objects
 from elysia.tree.objects import CollectionData, TreeData, Atlas, Environment
-
-# Decision Prompt executors
 from elysia.util.client import ClientManager
 from elysia.config import (
     check_base_lm_settings,
@@ -59,8 +57,6 @@ from elysia.config import (
     load_complex_lm,
 )
 from elysia.util.objects import Tracker, TrainingUpdate, TreeUpdate
-
-# Util
 from elysia.util.parsing import remove_whitespace
 from elysia.util.collection import retrieve_all_collection_names
 
@@ -1000,7 +996,6 @@ class Tree:
         self,
         context: str | None = None,
         num_suggestions: int = 2,
-        model_type: Literal["base", "complex"] = "base",
     ):
         """
         Get follow-up suggestions for the current user prompt via a base model LLM call (sync wrapper for get_follow_up_suggestions_async).
@@ -1012,13 +1007,12 @@ class Tree:
         Args:
             context (str | None): A description of the type of follow-up questions to suggest
             num_suggestions (int): The number of follow-up suggestions to return (length of the list output)
-            model_type (Literal["base", "complex"]): The type of model to use for the follow-up suggestions. Default is "base".
 
         Returns:
             (list[str]): A list of follow-up suggestions
         """
         return asyncio_run(
-            self.get_follow_up_suggestions_async(context, num_suggestions, model_type)
+            self.get_follow_up_suggestions_async(context, num_suggestions)
         )
 
     def _update_conversation_history(self, role: str, message: str):
@@ -1059,12 +1053,12 @@ class Tree:
     def _add_refs(self, objects: list[dict], tool_name: str, name: str):
 
         if (
-            tool_name not in self.tree_data.environment.to_json()
-            or name not in self.tree_data.environment.to_json()[tool_name]
+            tool_name not in self.tree_data.environment.environment
+            or name not in self.tree_data.environment.environment[tool_name]
         ):
             len_objects = 0
         else:
-            len_objects = len(self.tree_data.environment.to_json()[tool_name][name])
+            len_objects = len(self.tree_data.environment.environment[tool_name][name])
 
         for i, obj in enumerate(objects):
             if "_REF_ID" not in obj:
@@ -1708,6 +1702,178 @@ class Tree:
         )
 
         return memory_usage
+
+    def export_to_json(self):
+        """
+        Export the tree to a JSON object, to be used for loading the tree via import_from_json().
+
+        Returns:
+            dict: The JSON object.
+        """
+        try:
+            return {
+                "user_id": self.user_id,
+                "conversation_id": self.conversation_id,
+                "conversation_title": self.conversation_title,
+                "branch_initialisation": self.branch_initialisation,
+                "use_elysia_collections": self.use_elysia_collections,
+                "tree_index": self.tree_index,
+                "store_retrieved_objects": self.store_retrieved_objects,
+                "low_memory": self.low_memory,
+                "tree_data": self.tree_data.to_json(),
+                "settings": self.settings.to_json(),
+                "tool_names": list(self.tools.keys()),
+            }
+        except Exception as e:
+            self.settings.logger.error(f"Error exporting tree to JSON: {e}")
+            return None
+
+    async def export_to_weaviate(
+        self, collection_name: str, client_manager: ClientManager | None = None
+    ):
+        """
+        Export the tree to a Weaviate collection.
+
+        Args:
+            collection_name (str): The name of the collection to export to.
+            client_manager (ClientManager): The client manager to use.
+                If not provided, a new ClientManager will be created from environment variables.
+        """
+        if client_manager is None:
+            client_manager = ClientManager()
+            close_after_use = True
+        else:
+            close_after_use = False
+
+        async with client_manager.connect_to_async_client() as client:
+
+            if not await client.collections.exists(collection_name):
+                await client.collections.create(
+                    collection_name,
+                    vectorizer_config=wc.Configure.Vectorizer.none(),
+                )
+
+            collection = client.collections.get(collection_name)
+            json_data_str = json.dumps(self.export_to_json())
+
+            uuid = generate_uuid5(self.conversation_id)
+
+            if await collection.data.exists(uuid):
+                await collection.data.update(
+                    uuid=uuid,
+                    properties={
+                        "conversation_id": self.conversation_id,
+                        "tree": json_data_str,
+                        "title": self.conversation_title,
+                    },
+                )
+                self.settings.logger.info(
+                    f"Successfully updated existing tree in collection '{collection_name}' with id '{self.conversation_id}'"
+                )
+            else:
+                await collection.data.insert(
+                    uuid=uuid,
+                    properties={
+                        "conversation_id": self.conversation_id,
+                        "tree": json_data_str,
+                        "title": self.conversation_title,
+                    },
+                )
+                self.settings.logger.info(
+                    f"Successfully inserted new tree in collection '{collection_name}' with id '{self.conversation_id}'"
+                )
+
+        if close_after_use:
+            await client_manager.close_clients()
+
+    @classmethod
+    def import_from_json(cls, json_data: dict):
+        """
+        Import a tree from a JSON object, outputted by the export_to_json() method.
+
+        Args:
+            json_data (dict): The JSON object to import the tree from.
+
+        Returns:
+            Tree: The new tree instance loaded from the JSON object.
+        """
+        settings = Settings.from_json(json_data["settings"])
+        logger = settings.logger
+        tree = cls(
+            user_id=json_data["user_id"],
+            conversation_id=json_data["conversation_id"],
+            branch_initialisation=json_data["branch_initialisation"],
+            style=json_data["tree_data"]["atlas"]["style"],
+            agent_description=json_data["tree_data"]["atlas"]["agent_description"],
+            end_goal=json_data["tree_data"]["atlas"]["end_goal"],
+            low_memory=json_data["low_memory"],
+            use_elysia_collections=json_data["use_elysia_collections"],
+            settings=settings,
+        )
+
+        tree.tree_data = TreeData.from_json(json_data["tree_data"])
+        tree.set_branch_initialisation(json_data["branch_initialisation"])
+
+        # check tools
+        for tool_name in json_data["tool_names"]:
+            if tool_name not in tree.tools:
+                logger.warning(
+                    f"In saved tree, custom tool '{tool_name}' found. "
+                    "This will not be loaded in the new tree. "
+                    "You will need to add it to the tree manually."
+                )
+
+        return tree
+
+    @classmethod
+    async def import_from_weaviate(
+        cls,
+        collection_name: str,
+        conversation_id: str,
+        client_manager: ClientManager | None = None,
+    ):
+        """
+        Import a tree from a Weaviate collection.
+
+        Args:
+            collection_name (str): The name of the collection to import from.
+            conversation_id (str): The id of the conversation to import.
+            client_manager (ClientManager): The client manager to use.
+                If not provided, a new ClientManager will be created from environment variables.
+
+        Returns:
+            (Tree): The tree object.
+        """
+
+        if client_manager is None:
+            client_manager = ClientManager()
+            close_after_use = True
+        else:
+            close_after_use = False
+
+        async with client_manager.connect_to_async_client() as client:
+
+            if not await client.collections.exists(collection_name):
+                raise ValueError(
+                    f"Collection '{collection_name}' does not exist in this Weaviate instance."
+                )
+
+            collection = client.collections.get(collection_name)
+            uuid = generate_uuid5(conversation_id)
+            response = await collection.query.fetch_object_by_id(uuid)
+
+        if close_after_use:
+            await client_manager.close_clients()
+
+        if response is None:
+            raise ValueError(
+                f"No tree found for conversation id '{conversation_id}' in collection '{collection_name}'."
+            )
+
+        json_data_str = response.properties["tree"]
+        json_data = json.loads(json_data_str)
+
+        return cls.import_from_json(json_data)
 
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)

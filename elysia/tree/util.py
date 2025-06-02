@@ -437,7 +437,7 @@ async def get_follow_up_suggestions(
             user_prompt=tree_data.user_prompt,
             reference=create_reference(),
             conversation_history=tree_data.conversation_history,
-            environment=tree_data.environment.to_json(),
+            environment=tree_data.environment.environment,
             data_information=tree_data.output_collection_metadata(with_mappings=False),
             old_suggestions=current_suggestions,
             context=context,
@@ -449,3 +449,38 @@ async def get_follow_up_suggestions(
         suggestions = []
 
     return suggestions
+
+
+async def get_saved_trees_weaviate(
+    collection_name: str, client_manager: ClientManager | None = None
+):
+    """
+    Get all saved trees from a Weaviate collection.
+
+    Args:
+        collection_name (str): The name of the collection to get the trees from.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created from environment variables.
+
+    Returns:
+        dict: A dictionary of tree UUIDs and their titles.
+    """
+    if client_manager is None:
+        client_manager = ClientManager()
+
+    async with client_manager.connect_to_async_client() as client:
+
+        collection = client.collections.get(collection_name)
+
+        len_collection = (
+            await collection.aggregate.over_all(total_count=True)
+        ).total_count
+
+        response = await collection.query.fetch_objects(limit=len_collection)
+
+    trees = {
+        obj.properties["conversation_id"]: obj.properties["title"]
+        for obj in response.objects
+    }
+
+    return trees
