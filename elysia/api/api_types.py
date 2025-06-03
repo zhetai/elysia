@@ -14,9 +14,9 @@ class QueryData(BaseModel):
 
 
 class ViewPaginatedCollectionData(BaseModel):
-    query: str
     page_size: int
     page_number: int
+    query: Optional[str] = ""
     sort_on: Optional[str] = None
     ascending: Optional[bool] = False
     filter_config: Optional[dict[str, Any]] = {}
