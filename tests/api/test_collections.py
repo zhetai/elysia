@@ -164,6 +164,7 @@ class TestEndpoints:
                 user_id="test_user",
                 collection_name="example_verba_github_issues",
                 data=ViewPaginatedCollectionData(
+                    query="",
                     page_size=50,
                     page_number=1,
                     sort_on="issue_created_at",
@@ -199,6 +200,31 @@ class TestEndpoints:
             )
             filter = read_response(filter)
             assert filter["error"] == ""
+
+            # test with query
+            query = await view_paginated_collection(
+                user_id="test_user",
+                collection_name="example_verba_github_issues",
+                data=ViewPaginatedCollectionData(
+                    query="hello",
+                    page_size=50,
+                    page_number=1,
+                    ascending=True,
+                    filter_config={
+                        "type": "all",
+                        "filters": [
+                            {
+                                "field": "issue_state",
+                                "operator": "equal",
+                                "value": "open",
+                            }
+                        ],
+                    },
+                ),
+                user_manager=user_manager,
+            )
+            query = read_response(query)
+            assert query["error"] == ""
 
             # test with out of bounds page number, should return empty list
             out_of_bounds = await view_paginated_collection(

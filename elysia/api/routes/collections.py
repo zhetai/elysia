@@ -206,6 +206,7 @@ async def view_paginated_collection(
             items = await paginated_collection(
                 client=client,
                 collection_name=collection_name,
+                query=data.query,
                 page_size=data.page_size,
                 page_number=data.page_number,
                 sort_on=data.sort_on,
