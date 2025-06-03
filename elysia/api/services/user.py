@@ -12,6 +12,7 @@ from elysia.objects import Update
 from elysia.util.client import ClientManager
 from elysia.api.core.log import logger
 from elysia.api.api_types import Config
+from elysia.tree.tree import Tree
 
 
 class TreeTimeoutError(Update):
@@ -165,6 +166,14 @@ class UserManager:
             self.users[user_id]["wcd_url"] = os.environ.get("WCD_URL", None)
             self.users[user_id]["wcd_api_key"] = os.environ.get("WCD_API_KEY", None)
 
+            # client manager for the save locations
+            self.users[user_id]["save_location_client_manager"] = ClientManager(
+                wcd_url=self.users[user_id]["wcd_url"],
+                wcd_api_key=self.users[user_id]["wcd_api_key"],
+                logger=logger,
+                client_timeout=self.client_timeout,
+            )
+
     async def get_user_local(self, user_id: str):
         """
         Return a local user object.
@@ -309,6 +318,28 @@ class UserManager:
             low_memory,
         )
         return tree_manager.get_tree(conversation_id)
+
+    async def save_tree(self, user_id: str, conversation_id: str):
+        local_user = await self.get_user_local(user_id)
+        tree_manager: TreeManager = local_user["tree_manager"]
+        return await tree_manager.save_tree_weaviate(
+            conversation_id, local_user["save_location_client_manager"]
+        )
+
+    async def load_tree(self, user_id: str, conversation_id: str):
+        local_user = await self.get_user_local(user_id)
+        tree_manager: TreeManager = local_user["tree_manager"]
+        return await tree_manager.load_tree_weaviate(
+            conversation_id, local_user["save_location_client_manager"]
+        )
+
+    async def delete_tree(self, user_id: str, conversation_id: str):
+        local_user = await self.get_user_local(user_id)
+        tree_manager: TreeManager = local_user["tree_manager"]
+        await tree_manager.delete_tree_weaviate(
+            conversation_id, local_user["save_location_client_manager"]
+        )
+        tree_manager.delete_tree_local(conversation_id)
 
     async def update_user_last_request(self, user_id: str):
         self.users[user_id]["last_request"] = datetime.datetime.now()

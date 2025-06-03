@@ -6,6 +6,8 @@ import dspy
 from pympler import asizeof
 from logging import Logger
 
+from weaviate.util import generate_uuid5
+
 # globals
 from elysia.objects import (
     Response,
@@ -372,9 +374,13 @@ class TreeReturner:
         self.user_id = user_id
         self.conversation_id = conversation_id
         self.tree_index = tree_index
+        self.store = []
 
     def set_tree_index(self, tree_index: int):
         self.tree_index = tree_index
+
+    def clear_store(self):
+        self.store = []
 
     async def __call__(
         self,
@@ -383,21 +389,27 @@ class TreeReturner:
         last_in_tree: bool = False,
     ):
         if isinstance(result, Update):
-            return await result.to_frontend(self.conversation_id, query_id)
+            payload = await result.to_frontend(self.conversation_id, query_id)
+            self.store.append(payload)
+            return payload
 
         if isinstance(result, Return):
-            return await result.to_frontend(
+            payload = await result.to_frontend(
                 self.user_id, self.conversation_id, query_id
             )
+            self.store.append(payload)
+            return payload
 
         if isinstance(result, TreeUpdate):
-            return await result.to_frontend(
+            payload = await result.to_frontend(
                 self.user_id,
                 self.conversation_id,
                 query_id,
                 self.tree_index,
                 last_in_tree,
             )
+            self.store.append(payload)
+            return payload
 
 
 async def create_conversation_title(conversation: list[dict], lm: dspy.LM):
@@ -467,6 +479,9 @@ async def get_saved_trees_weaviate(
     """
     if client_manager is None:
         client_manager = ClientManager()
+        close_after_use = True
+    else:
+        close_after_use = False
 
     async with client_manager.connect_to_async_client() as client:
 
@@ -478,9 +493,26 @@ async def get_saved_trees_weaviate(
 
         response = await collection.query.fetch_objects(limit=len_collection)
 
+    if close_after_use:
+        client_manager.close_clients()
+
     trees = {
         obj.properties["conversation_id"]: obj.properties["title"]
         for obj in response.objects
     }
 
     return trees
+
+
+async def delete_tree_from_weaviate(
+    conversation_id: str,
+    collection_name: str,
+    client_manager: ClientManager | None = None,
+):
+    if client_manager is None:
+        client_manager = ClientManager()
+
+    async with client_manager.connect_to_async_client() as client:
+        collection = client.collections.get(collection_name)
+        uuid = generate_uuid5(conversation_id)
+        await collection.data.delete_by_id(uuid)
