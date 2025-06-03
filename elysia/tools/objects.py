@@ -17,7 +17,7 @@ class BoringGeneric(Result):
         metadata: dict = {},
         name: str = "generic",
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
     ):
         Result.__init__(
             self,
@@ -56,7 +56,7 @@ class EpicGeneric(Result):
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
         **kwargs,
     ):
         Result.__init__(
@@ -92,7 +92,7 @@ class Document(Result):
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
         **kwargs,
     ):
         Result.__init__(
@@ -134,7 +134,7 @@ class Ticket(Result):
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
         **kwargs,
     ):
         Result.__init__(
@@ -180,7 +180,7 @@ class Ecommerce(Result):
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
         **kwargs,
     ):
         Result.__init__(
@@ -216,7 +216,7 @@ class Message(Result):
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
         **kwargs,
     ):
         Result.__init__(
@@ -254,7 +254,7 @@ class Conversation(Result):
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
         **kwargs,
     ):
         Result.__init__(

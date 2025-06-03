@@ -116,7 +116,7 @@ class MessageRetrieval(Message, Retrieval):
             payload_type="message",
             metadata=metadata,
             mapping=mapping,
-            unmapped_keys=["uuid", "summary", "collection_name", "relevant"],
+            unmapped_keys=["uuid", "summary", "collection_name", "relevant", "_REF_ID"],
             **kwargs,
         )
 
@@ -136,7 +136,7 @@ class ConversationRetrieval(Conversation, Retrieval):
             payload_type="conversation",
             metadata=metadata,
             mapping=mapping,
-            unmapped_keys=["uuid", "summary", "collection_name", "relevant"],
+            unmapped_keys=["uuid", "summary", "collection_name", "relevant", "_REF_ID"],
             **kwargs,
         )
         self.async_init_completed = False
@@ -271,6 +271,7 @@ class DocumentRetrieval(Document, Retrieval):
                 "collection_name",
                 "chunk_spans",
                 "chunk_uuid",
+                "_REF_ID",
             ],
             **kwargs,
         )

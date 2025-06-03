@@ -302,7 +302,7 @@ class Result(Return):
         name: str = "generic",
         mapping: dict | None = None,
         llm_message: str | None = None,
-        unmapped_keys: list[str] = [],
+        unmapped_keys: list[str] = ["_REF_ID"],
         display: bool = True,
     ):
         """
@@ -494,7 +494,7 @@ class Retrieval(Result):
         name: str | None = None,
         metadata: dict = {},
         mapping: dict | None = None,
-        unmapped_keys: list[str] = ["uuid", "summary", "collection_name"],
+        unmapped_keys: list[str] = ["uuid", "summary", "collection_name", "_REF_ID"],
         display: bool = True,
     ):
         if name is None and "collection_name" in metadata:

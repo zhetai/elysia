@@ -1056,7 +1056,6 @@ class Tree:
         """
 
         # add to environment (store of retrieved/called objects)
-        self._add_refs(result.to_json(), decision.function_name, result.name)
         self.tree_data.environment.add(decision.function_name, result)
 
         # make note of which objects were retrieved _this session_ (for returning)
@@ -1097,6 +1096,7 @@ class Tree:
     ):
 
         if isinstance(result, Result):
+            self._add_refs(result.objects, decision.function_name, result.name)
             self._update_environment(result, decision)
 
         if isinstance(result, TrainingUpdate):
