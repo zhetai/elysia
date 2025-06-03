@@ -157,13 +157,18 @@ class TreeManager:
     ):
         """
         Load a tree from Weaviate.
+        The conversation ID from the loaded tree is placed into the tree manager
+        (possibly overwriting an existing tree with the same conversation ID).
+        Then the tree itself is not returned - instead the list of frontend payloads
+        that were yielded to the frontend by the tree is returned.
 
         Args:
             conversation_id (str): The conversation ID which contains the tree.
             client_manager (ClientManager): The client manager to use for the tree.
 
         Returns:
-            (Tree): The tree associated with the conversation ID.
+            (list): A list of dictionaries, each containing a frontend payload that was used to generate the tree.
+            The list is ordered by the time the payload was originally sent to the frontend (at the time it was saved).
         """
         tree = await Tree.import_from_weaviate(
             "ELYSIA_TREES__", conversation_id, client_manager
@@ -177,7 +182,7 @@ class TreeManager:
         self, conversation_id: str, client_manager: ClientManager
     ):
         """
-        Delete a tree from Weaviate.
+        Delete a tree from the stored trees in Weaviate.
 
         Args:
             conversation_id (str): The conversation ID of the tree to be deleted.

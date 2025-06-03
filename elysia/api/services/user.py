@@ -309,13 +309,33 @@ class UserManager:
         return tree_manager.get_tree(conversation_id)
 
     async def save_tree(self, user_id: str, conversation_id: str):
+        """
+        Save a tree to a Weaviate instance (set in the frontend config).
+        This is a wrapper for the TreeManager.save_tree_weaviate() method.
+
+        Args:
+            user_id (str): Required. The unique identifier for the user stored in the UserManager.
+            conversation_id (str): Required. The unique identifier for the conversation for the user.
+        """
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
-        return await tree_manager.save_tree_weaviate(
+        await tree_manager.save_tree_weaviate(
             conversation_id, local_user["frontend_config"].save_location_client_manager
         )
 
     async def load_tree(self, user_id: str, conversation_id: str):
+        """
+        Load a tree from a Weaviate instance (set in the frontend config).
+        This is a wrapper for the TreeManager.load_tree_weaviate() method.
+
+        Args:
+            user_id (str): Required. The unique identifier for the user stored in the UserManager.
+            conversation_id (str): Required. The unique identifier for the conversation for the user.
+
+        Returns:
+            (list): A list of dictionaries, each containing a frontend payload that was used to generate the tree.
+            The list is ordered by the time the payload was originally sent to the frontend (at the time it was saved).
+        """
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
         return await tree_manager.load_tree_weaviate(
@@ -323,6 +343,15 @@ class UserManager:
         )
 
     async def delete_tree(self, user_id: str, conversation_id: str):
+        """
+        Delete a saved tree from a Weaviate instance (set in the frontend config).
+        Also delete the tree from the local tree manager.
+        This is a wrapper for the TreeManager.delete_tree_weaviate() method and the TreeManager.delete_tree_local() method.
+
+        Args:
+            user_id (str): Required. The unique identifier for the user stored in the UserManager.
+            conversation_id (str): Required. The unique identifier for the conversation for the user.
+        """
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
         await tree_manager.delete_tree_weaviate(
