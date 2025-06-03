@@ -133,11 +133,9 @@ class Tree:
         self.retrieved_objects = []
         self.store_retrieved_objects = False
         self.conversation_title = None
-
-        # -- Initialise the tree
-        self.set_low_memory(low_memory)
-
-        # define the collection data
+        self.low_memory = low_memory
+        self._base_lm = None
+        self._complex_lm = None
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
@@ -192,9 +190,23 @@ class Tree:
                 f"  - [magenta]{decision_node.id}[/magenta]: {list(decision_node.options.keys())}"
             )
 
-    def get_tree_lms(self):
-        self.base_lm = self.get_lm("base", True) if not self.low_memory else None
-        self.complex_lm = self.get_lm("complex", True) if not self.low_memory else None
+    @property
+    def base_lm(self):
+        if self.low_memory:
+            return load_base_lm(self.settings)
+        else:
+            if self._base_lm is None:
+                self._base_lm = load_base_lm(self.settings)
+            return self._base_lm
+
+    @property
+    def complex_lm(self):
+        if self.low_memory:
+            return load_complex_lm(self.settings)
+        else:
+            if self._complex_lm is None:
+                self._complex_lm = load_complex_lm(self.settings)
+            return self._complex_lm
 
     def multi_branch_init(self):
         self.add_branch(
@@ -282,11 +294,6 @@ class Tree:
 
         self.branch_initialisation = initialisation
 
-    def set_low_memory(self, low_memory: bool):
-        self.low_memory = low_memory
-        self.base_lm = self.get_lm("base", True) if not low_memory else None
-        self.complex_lm = self.get_lm("complex", True) if not low_memory else None
-
     def default_models(self):
         self.settings = deepcopy(self.settings)
         self.settings.default_models()
@@ -309,31 +316,6 @@ class Tree:
 
     def change_end_goal(self, end_goal: str):
         self.tree_data.atlas.end_goal = end_goal
-
-    def get_lm(self, model_type: str, force_load: bool = False):
-        """
-        Return the LMs used by the tree.
-        If low_memory is True, the LMs will be loaded in this method.
-        Otherwise, the LMs are already loaded in the tree.
-        If force_load is True, the LMs will be loaded regardless of the low_memory setting.
-
-        Args:
-            model_type (str): The type of model to load.
-                Can be "base" or "complex".
-            force_load (bool): Whether to force the loading of the LMs.
-                Defaults to False.
-
-        Returns:
-            (dspy.LM): The LM object.
-        """
-        if not self.low_memory and not force_load:
-            return self.base_lm if model_type == "base" else self.complex_lm
-        else:
-            return (
-                load_base_lm(self.settings)
-                if model_type == "base"
-                else load_complex_lm(self.settings)
-            )
 
     def _get_root(self):
         for decision_node in self.decision_nodes.values():
@@ -474,8 +456,8 @@ class Tree:
             return {}
 
     async def _check_rules(self, branch_id: str, client_manager: ClientManager):
-        base_lm = self.get_lm("base")
-        complex_lm = self.get_lm("complex")
+        base_lm = self.base_lm
+        complex_lm = self.complex_lm
 
         branch = self.decision_nodes[branch_id]
         nodes_with_rules_met = []
@@ -940,7 +922,7 @@ class Tree:
             (str): The title for the tree.
         """
 
-        lm = self.get_lm("base")
+        lm = self.base_lm
 
         self.conversation_title = await create_conversation_title(
             self.tree_data.conversation_history, lm
@@ -975,7 +957,7 @@ class Tree:
             (list[str]): A list of follow-up suggestions
         """
 
-        lm = self.get_lm("base")
+        lm = self.base_lm
 
         suggestions = await get_follow_up_suggestions(
             self.tree_data,
@@ -1162,8 +1144,8 @@ class Tree:
                 tool
             ].is_tool_available(
                 tree_data=self.tree_data,
-                base_lm=self.get_lm("base"),
-                complex_lm=self.get_lm("complex"),
+                base_lm=self.base_lm,
+                complex_lm=self.complex_lm,
                 client_manager=client_manager,
             ):
                 available_tools.append(tool)
@@ -1305,8 +1287,8 @@ class Tree:
                     )
                 )
 
-        base_lm = self.get_lm("base")
-        complex_lm = self.get_lm("complex")
+        base_lm = self.base_lm
+        complex_lm = self.complex_lm
         # Start the tree at the root node
         current_decision_node: DecisionNode = self.decision_nodes[self.root]
 
@@ -1344,8 +1326,8 @@ class Tree:
                     async for result in self.tools[rule](
                         tree_data=self.tree_data,
                         inputs=rule_tool_inputs[rule],
-                        base_lm=self.get_lm("base"),
-                        complex_lm=self.get_lm("complex"),
+                        base_lm=self.base_lm,
+                        complex_lm=self.complex_lm,
                         client_manager=client_manager,
                     ):
                         action_result = await self._evaluate_result(
@@ -1470,8 +1452,8 @@ class Tree:
                 async for result in action_fn(
                     tree_data=self.tree_data,
                     inputs=self.current_decision.function_inputs,
-                    base_lm=self.get_lm("base"),
-                    complex_lm=self.get_lm("complex"),
+                    base_lm=self.base_lm,
+                    complex_lm=self.complex_lm,
                     client_manager=client_manager,
                 ):
                     action_result = await self._evaluate_result(
@@ -1516,8 +1498,8 @@ class Tree:
                 async for result in self.tools["forced_text_response"](
                     tree_data=self.tree_data,
                     inputs={},
-                    base_lm=self.get_lm("base"),
-                    complex_lm=self.get_lm("complex"),
+                    base_lm=self.base_lm,
+                    complex_lm=self.complex_lm,
                 ):
                     action_result = await self._evaluate_result(
                         result, self.current_decision

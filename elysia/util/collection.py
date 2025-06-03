@@ -8,6 +8,21 @@ from weaviate.types import UUID
 
 from elysia.util.parsing import format_datetime
 
+data_mapping = {
+    "text": DataType.TEXT,
+    "int": DataType.INT,
+    "number": DataType.NUMBER,
+    "bool": DataType.BOOL,
+    "date": DataType.DATE,
+    "object": DataType.OBJECT,
+    "text[]": DataType.TEXT_ARRAY,
+    "int[]": DataType.INT_ARRAY,
+    "number[]": DataType.NUMBER_ARRAY,
+    "bool[]": DataType.BOOL_ARRAY,
+    "date[]": DataType.DATE_ARRAY,
+    "object[]": DataType.OBJECT_ARRAY,
+}
+
 
 async def retrieve_all_collection_names(client):
     all_collections = await client.collections.list_all()
@@ -32,39 +47,11 @@ async def async_get_collection_data_types(client, collection_name: str):
 
 def get_collection_weaviate_data_types(client, collection_name: str):
     data_types = get_collection_data_types(client, collection_name)
-    data_mapping = {
-        "text": DataType.TEXT,
-        "int": DataType.INT,
-        "number": DataType.NUMBER,
-        "bool": DataType.BOOL,
-        "date": DataType.DATE,
-        "object": DataType.OBJECT,
-        "text[]": DataType.TEXT_ARRAY,
-        "int[]": DataType.INT_ARRAY,
-        "number[]": DataType.NUMBER_ARRAY,
-        "bool[]": DataType.BOOL_ARRAY,
-        "date[]": DataType.DATE_ARRAY,
-        "object[]": DataType.OBJECT_ARRAY,
-    }
     return {k: data_mapping[v] for k, v in data_types.items()}
 
 
 async def async_get_collection_weaviate_data_types(client, collection_name: str):
     data_types = await async_get_collection_data_types(client, collection_name)
-    data_mapping = {
-        "text": DataType.TEXT,
-        "int": DataType.INT,
-        "number": DataType.NUMBER,
-        "bool": DataType.BOOL,
-        "date": DataType.DATE,
-        "object": DataType.OBJECT,
-        "text[]": DataType.TEXT_ARRAY,
-        "int[]": DataType.INT_ARRAY,
-        "number[]": DataType.NUMBER_ARRAY,
-        "bool[]": DataType.BOOL_ARRAY,
-        "date[]": DataType.DATE_ARRAY,
-        "object[]": DataType.OBJECT_ARRAY,
-    }
     return {k: data_mapping[v] for k, v in data_types.items()}
 
 

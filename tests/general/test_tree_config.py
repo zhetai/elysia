@@ -58,8 +58,8 @@ class TestTreeConfig:
 
         # should raise an error, no models set
         with pytest.raises(ValueError):
-            tree.get_lm("base")
-            tree.get_lm("complex")
+            tree.base_lm
+            tree.complex_lm
 
         # change the models by global configure
         configure(
@@ -69,10 +69,10 @@ class TestTreeConfig:
             complex_provider="openai",
         )
 
-        # should still error
+        # should still error because the tree doesnt use global configure
         with pytest.raises(ValueError):
-            tree.get_lm("base")
-            tree.get_lm("complex")
+            tree.base_lm
+            tree.complex_lm
 
         # change the models by local configure
         settings.configure(
@@ -83,13 +83,13 @@ class TestTreeConfig:
         )
 
         # should now be no errors
-        base_lm_loaded_in_tree = tree.get_lm("base")
+        base_lm_loaded_in_tree = tree.base_lm
         assert isinstance(base_lm_loaded_in_tree, dspy.LM)
         assert base_lm_loaded_in_tree.model == "openai/gpt-4o-mini"
         assert tree.settings.BASE_MODEL == "gpt-4o-mini"
         assert tree.settings.BASE_PROVIDER == "openai"
 
-        complex_lm_loaded_in_tree = tree.get_lm("complex")
+        complex_lm_loaded_in_tree = tree.complex_lm
         assert isinstance(complex_lm_loaded_in_tree, dspy.LM)
         assert complex_lm_loaded_in_tree.model == "openai/gpt-4o"
         assert tree.settings.COMPLEX_MODEL == "gpt-4o"
@@ -103,9 +103,8 @@ class TestTreeConfig:
         """
         settings = Settings()
 
-        # create a Tree with local settings obj, should error as cant load models
-        with pytest.raises(ValueError):
-            tree = Tree(settings=settings, low_memory=False)
+        # create a Tree with local settings obj, should not error
+        tree = Tree(settings=settings, low_memory=False)
 
         # change the models by global configure
         settings.configure(
@@ -119,21 +118,16 @@ class TestTreeConfig:
         # should now be changed (no error)
         tree = Tree(settings=settings, low_memory=False)
 
-        base_lm_loaded_in_tree = tree.get_lm("base")
+        base_lm_loaded_in_tree = tree.base_lm
         assert isinstance(base_lm_loaded_in_tree, dspy.LM)
         assert base_lm_loaded_in_tree.model == "openai/gpt-4o-mini"
         assert tree.settings.BASE_MODEL == "gpt-4o-mini"
         assert tree.settings.BASE_PROVIDER == "openai"
 
-        complex_lm_loaded_in_tree = tree.get_lm("complex")
+        complex_lm_loaded_in_tree = tree.complex_lm
         assert isinstance(complex_lm_loaded_in_tree, dspy.LM)
         assert complex_lm_loaded_in_tree.model == "openai/gpt-4o"
         assert tree.settings.COMPLEX_MODEL == "gpt-4o"
         assert tree.settings.COMPLEX_PROVIDER == "openai"
 
         self.reset_global_settings()
-
-
-if __name__ == "__main__":
-    test = TestTreeConfig()
-    test.test_change_llm_in_tree_global()
