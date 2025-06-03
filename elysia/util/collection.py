@@ -121,6 +121,7 @@ def convert_weaviate_object(dict_object: dict):
 async def paginated_collection(
     client,
     collection_name: str,
+    query: str,
     sort_on: str | None = None,
     ascending: bool = False,
     filter_config: dict[
