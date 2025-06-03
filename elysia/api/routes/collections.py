@@ -187,6 +187,7 @@ async def view_paginated_collection(
 
     logger.debug(f"/view_paginated_collection API request received")
     logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Query: {data.query}")
     logger.debug(f"Collection name: {collection_name}")
     logger.debug(f"Page size: {data.page_size}")
     logger.debug(f"Page number: {data.page_number}")
@@ -303,6 +304,10 @@ async def collection_metadata(
                 raise Exception(f"Collection {collection_name} does not exist")
 
             # check if the metadata collection exists
+            if not await client.collections.exists(metadata_name):
+                raise Exception(
+                    f"Metadata collection for {collection_name} does not exist"
+                )
             else:
                 metadata_collection = client.collections.get(metadata_name)
                 metadata = await metadata_collection.query.fetch_objects(limit=1)
@@ -355,6 +360,11 @@ async def update_metadata(
                 raise Exception(f"Collection {collection_name} does not exist")
 
             # check if the metadata collection exists
+            if not await client.collections.exists(metadata_name):
+                raise Exception(
+                    f"Metadata collection for {collection_name} does not exist"
+                )
+
             else:
                 metadata_collection = client.collections.get(metadata_name)
                 metadata = await metadata_collection.query.fetch_objects(limit=1)
@@ -415,3 +425,41 @@ async def update_metadata(
         content={"metadata": properties, "error": ""},
         status_code=200,
     )
+
+
+@router.delete("/{user_id}/metadata/{collection_name}")
+async def delete_metadata(
+    user_id: str,
+    collection_name: str,
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    logger.debug(f"/delete_metadata API request received")
+    logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Collection name: {collection_name}")
+
+    # retrieve the current metadata
+    try:
+        user_local = await user_manager.get_user_local(user_id)
+        client_manager = user_local["client_manager"]
+
+        async with client_manager.connect_to_async_client() as client:
+            metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
+
+            # check if the collection itself exists
+            if not await client.collections.exists(collection_name.lower()):
+                raise Exception(f"Collection {collection_name} does not exist")
+
+            # check if the metadata collection exists
+            if not await client.collections.exists(metadata_name):
+                raise Exception(
+                    f"Metadata collection for {collection_name} does not exist"
+                )
+
+            else:
+                await client.collections.delete(metadata_name)
+
+                return JSONResponse(content={"error": ""}, status_code=200)
+
+    except Exception as e:
+        logger.exception(f"Error in /delete_metadata API")
+        return JSONResponse(content={"error": str(e)}, status_code=200)

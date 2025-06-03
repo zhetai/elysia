@@ -1,5 +1,5 @@
 import pytest
-
+import random
 from fastapi.responses import JSONResponse
 
 import asyncio
@@ -19,13 +19,52 @@ from elysia.api.routes.collections import (
     get_object,
     mapping_types,
     update_metadata,
+    delete_metadata,
 )
 from elysia.api.routes.init import initialise_user
 from elysia.api.api_types import InitialiseUserData
-
 from elysia.api.core.log import logger, set_log_level
+from elysia.preprocess.collection import preprocess_async
+from elysia.util.client import ClientManager
 
 set_log_level("CRITICAL")
+
+from weaviate.classes.config import Configure
+
+
+def create_collection(client_manager: ClientManager):
+    """
+    Create a new collection for testing.
+    """
+
+    r = random.randint(0, 1000)
+    collection_name = f"test_elysia_collection_{r}"
+
+    # create the collection
+    vectorizer = Configure.Vectorizer.text2vec_openai(model="text-embedding-3-small")
+
+    with client_manager.connect_to_client() as client:
+        client.collections.create(
+            collection_name,
+            vectorizer_config=vectorizer,
+        )
+
+    lorem_ipsum = [
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+        "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+        "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+        "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    ]
+
+    # upload some random data
+    with client_manager.connect_to_client() as client:
+        collection = client.collections.get(collection_name)
+        for i in range(4):
+            collection.data.insert(
+                {"name": f"test_object_{i}", "description": lorem_ipsum[i]}
+            )
+
+    return collection_name
 
 
 def read_response(response: JSONResponse):
@@ -379,5 +418,64 @@ class TestEndpoints:
                 "The collection needs reprocessing to return to a working state.\n"
             )
             raise e
+        finally:
+            await user_manager.close_all_clients()
+
+    @pytest.mark.asyncio
+    async def test_delete_metadata(self):
+        try:
+            user_id = "test_user_delete_metadata"
+            user_manager = get_user_manager()
+            await initialise_user(
+                InitialiseUserData(user_id=user_id, default_models=True),
+                user_manager,
+            )
+
+            user_local = await user_manager.get_user_local(user_id)
+            client_manager = user_local["client_manager"]
+            settings = user_local["tree_manager"].settings
+
+            # create a collection
+            collection_name = create_collection(client_manager)
+
+            # preprocess the collection
+            await preprocess_async(
+                collection_names=[collection_name],
+                client_manager=client_manager,
+                force=False,
+                settings=settings,
+            )
+
+            # check the metadata has been created
+            metadata = await collection_metadata(
+                user_id=user_id,
+                collection_name=collection_name,
+                user_manager=user_manager,
+            )
+            metadata = read_response(metadata)
+            assert metadata["error"] == ""
+            assert metadata["metadata"] is not {} and metadata["metadata"] is not None
+
+            # delete the metadata
+            delete_metadata_response = await delete_metadata(
+                user_id=user_id,
+                collection_name=collection_name,
+                user_manager=user_manager,
+            )
+            delete_metadata_response = read_response(delete_metadata_response)
+            assert delete_metadata_response["error"] == ""
+
+            # check that the metadata has been deleted
+            metadata = await collection_metadata(
+                user_id=user_id,
+                collection_name=collection_name,
+                user_manager=user_manager,
+            )
+            metadata = read_response(metadata)
+            assert (
+                f"Metadata collection for {collection_name} does not exist"
+                in metadata["error"]
+            )
+
         finally:
             await user_manager.close_all_clients()
