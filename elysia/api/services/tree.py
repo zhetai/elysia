@@ -11,6 +11,7 @@ load_dotenv(override=True)
 from elysia.config import Settings
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
+from elysia.tree.util import delete_tree_from_weaviate
 
 # from elysia.tools.fun.dnd import SetTheScene, ActionConsequence, DiceRoll
 
@@ -138,39 +139,62 @@ class TreeManager:
             }
             self.trees[conversation_id]["event"].set()
 
-            # self.trees[conversation_id]["tree"].change_style(
-            #     "Poetic, flamboyant, engaging, you are a dungeon master! Crafting worlds."
-            # )
-            # self.trees[conversation_id]["tree"].change_agent_description(
-            #     """
-            #     You are a dungeon master, crafting a story for the player.
-            #     Your job is to describe what happens in this fantasy world, and interact with the player.
-            #     They may choose actions, or they may require you to prompt them for more information.
-            #     Sometimes, their action may not be descriptive enough, so before choosing any actions, you should ask them to be more specific.
-            #     Then combine these responses to call on the appropriate tools and use them to create stories.
-            #     Do not create anything yourself, you just call the correct tools with the correct arguments.
-            #     """,
-            # )
-            # self.trees[conversation_id]["tree"].change_end_goal(
-            #     "The player/the user's answer has been asked to be more specific, "
-            #     "or all the actions outlined in the `user_prompt` have been completed. "
-            #     "Either the scene has been set, or the story has evolved. "
-            # )
+    async def save_tree_weaviate(
+        self, conversation_id: str, client_manager: ClientManager
+    ):
+        """
+        Save a tree to Weaviate.
 
-            # self.trees[conversation_id]["tree"].add_tool(SetTheScene)
-            # self.trees[conversation_id]["tree"].add_tool(ActionConsequence)
-            # self.trees[conversation_id]["tree"].add_tool(DiceRoll)
-            # self.trees[conversation_id]["tree"].change_agent_description(
-            #     "You are a travel agent. You are given a user prompt and you need to help the user plan their trip. "
-            #     "You should always start by finding the destination before doing anything else. "
-            #     "Once you have the destination, you can find the best hotels and attractions for the user. "
-            #     "When searching for hotels or attractions, you should always use the `destination_id` which matches the original destination you retrieved, "
-            #     "instead of the location itself."
-            # )
-            # self.trees[conversation_id]["tree"].change_end_goal(
-            #     "You have a complete set of hotels and attractions for the user's destination. "
-            #     "You should finish the conversation with a full summary and itenary of the trip. "
-            # )
+        Args:
+            conversation_id (str): The conversation ID which contains the tree.
+            client_manager (ClientManager): The client manager to use for the tree.
+        """
+        tree: Tree = self.get_tree(conversation_id)
+        await tree.export_to_weaviate("ELYSIA_TREES__", client_manager)
+
+    async def load_tree_weaviate(
+        self, conversation_id: str, client_manager: ClientManager
+    ):
+        """
+        Load a tree from Weaviate.
+
+        Args:
+            conversation_id (str): The conversation ID which contains the tree.
+            client_manager (ClientManager): The client manager to use for the tree.
+
+        Returns:
+            (Tree): The tree associated with the conversation ID.
+        """
+        tree = await Tree.import_from_weaviate(
+            "ELYSIA_TREES__", conversation_id, client_manager
+        )
+        self.trees[conversation_id]["tree"] = tree
+        self.trees[conversation_id]["event"].set()
+        self.update_tree_last_request(conversation_id)
+        return tree.returner.store
+
+    async def delete_tree_weaviate(
+        self, conversation_id: str, client_manager: ClientManager
+    ):
+        """
+        Delete a tree from Weaviate.
+
+        Args:
+            conversation_id (str): The conversation ID of the tree to be deleted.
+            client_manager (ClientManager): The client manager pointing to the Weaviate instance containing the tree.
+        """
+        await delete_tree_from_weaviate(
+            conversation_id, "ELYSIA_TREES__", client_manager
+        )
+
+    def delete_tree_local(self, conversation_id: str):
+        """
+        Delete a tree from the TreeManager.
+
+        Args:
+            conversation_id (str): The conversation ID of the tree to be deleted.
+        """
+        del self.trees[conversation_id]
 
     def tree_exists(self, conversation_id: str):
         """

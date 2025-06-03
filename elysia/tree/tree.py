@@ -1723,6 +1723,7 @@ class Tree:
                 "tree_data": self.tree_data.to_json(),
                 "settings": self.settings.to_json(),
                 "tool_names": list(self.tools.keys()),
+                "frontend_rebuild": self.returner.store,
             }
         except Exception as e:
             self.settings.logger.error(f"Error exporting tree to JSON: {e}")
@@ -1811,6 +1812,7 @@ class Tree:
             settings=settings,
         )
 
+        tree.returner.store = json_data["frontend_rebuild"]
         tree.tree_data = TreeData.from_json(json_data["tree_data"])
         tree.set_branch_initialisation(json_data["branch_initialisation"])
 

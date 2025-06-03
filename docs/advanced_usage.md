@@ -109,7 +109,7 @@ You can export a decision tree to a JSON serialisable dictionary object via [`tr
 - The config options, such as the settings (including the model choices) and the style, agent description and end goal.
 - The branch initialisation, which will be re-run when the tree is loaded.
 
-The tree can be loaded from the dictionary via running the [`tree.import_from_json(json_data=...)`](Reference/Tree.md#elysia.tree.tree.Tree.import_from_json) method, passing as the first argument `json_data` which is the output from `tree.export_to_json()`.
+The tree can be loaded from the dictionary via running the [`Tree.import_from_json(json_data=...)`](Reference/Tree.md#elysia.tree.tree.Tree.import_from_json) method, passing as the first argument `json_data` which is the output from `tree.export_to_json()`.
 
 **Note that any custom tools or branches added to the decision tree are not saved and need to be manually re-added, in the same way that your tree was originally initialised.**
 
@@ -117,7 +117,7 @@ The tree can be loaded from the dictionary via running the [`tree.import_from_js
 
 Also included are two similar functions for saving and loading a decision tree within a Weaviate instance. To save a tree in a Weaviate instance, you can use [`tree.export_to_weaviate(collection_name, client_manager)`](Reference/Tree.md#elysia.tree.tree.Tree.export_to_weaviate). You can specify the collection that you will be saving to via the `collection_name` argument. You can specify the Weaviate cluster information by passing a [`ClientManager`](Reference/Client.md#elysia.util.client). If you do not provide a ClientManager, it will automatically create one from the specification set in the environment variables. It will save the tree according to the `conversation_id` used to initialise the tree (which is randomly generated via a UUID if not set).
 
-To load a tree from Weaviate, you can use [`tree.import_from_weaviate(collection_name, conversation_id, client_manager)`](Reference/Tree.md#elysia.tree.tree.Tree.export_to_json). You must use the correct `conversation_id` to load a tree. If you do not know the conversation ID, you can view all available conversation IDs saved to a Weaviate collection via
+To load a tree from Weaviate, you can use the class method [`Tree.import_from_weaviate(collection_name, conversation_id, client_manager)`](Reference/Tree.md#elysia.tree.tree.Tree.import_from_weaviate). You must use the correct `conversation_id` to load a tree. If you do not know the conversation ID, you can view all available conversation IDs saved to a Weaviate collection via
 ```python
 from elysia.tree.util import get_saved_trees_weaviate
 get_saved_trees_weaviate()
