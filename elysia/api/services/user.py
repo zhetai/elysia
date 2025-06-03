@@ -3,6 +3,7 @@ import os
 import random
 
 from dotenv import load_dotenv
+from typing import Any
 
 load_dotenv(override=True)
 
@@ -12,7 +13,7 @@ from elysia.objects import Update
 from elysia.util.client import ClientManager
 from elysia.api.core.log import logger
 from elysia.api.api_types import Config
-from elysia.tree.tree import Tree
+from elysia.api.utils.frontend_config import FrontendConfig
 
 
 class TreeTimeoutError(Update):
@@ -105,18 +106,14 @@ class UserManager:
     def update_config(self, user_id: str, config: Config):
         pass
 
-    async def update_save_location(
+    async def update_frontend_config(
         self,
         user_id: str,
-        wcd_url: str | None = None,
-        wcd_api_key: str | None = None,
+        config: dict[str, Any],
     ):
         local_user = await self.get_user_local(user_id)
-
-        if wcd_url is not None:
-            local_user["wcd_url"] = wcd_url
-        if wcd_api_key is not None:
-            local_user["wcd_api_key"] = wcd_api_key
+        frontend_config: FrontendConfig = local_user["frontend_config"]
+        frontend_config.configure(**config)
 
     def add_user_local(
         self,
@@ -162,16 +159,8 @@ class UserManager:
                 logger=logger, client_timeout=self.client_timeout
             )
 
-            # initialise save location to env variables
-            self.users[user_id]["wcd_url"] = os.environ.get("WCD_URL", None)
-            self.users[user_id]["wcd_api_key"] = os.environ.get("WCD_API_KEY", None)
-
-            # client manager for the save locations
-            self.users[user_id]["save_location_client_manager"] = ClientManager(
-                wcd_url=self.users[user_id]["wcd_url"],
-                wcd_api_key=self.users[user_id]["wcd_api_key"],
-                logger=logger,
-                client_timeout=self.client_timeout,
+            self.users[user_id]["frontend_config"] = FrontendConfig(
+                logger=logger, client_timeout=self.client_timeout
             )
 
     async def get_user_local(self, user_id: str):
@@ -323,21 +312,21 @@ class UserManager:
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
         return await tree_manager.save_tree_weaviate(
-            conversation_id, local_user["save_location_client_manager"]
+            conversation_id, local_user["frontend_config"].save_location_client_manager
         )
 
     async def load_tree(self, user_id: str, conversation_id: str):
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
         return await tree_manager.load_tree_weaviate(
-            conversation_id, local_user["save_location_client_manager"]
+            conversation_id, local_user["frontend_config"].save_location_client_manager
         )
 
     async def delete_tree(self, user_id: str, conversation_id: str):
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
         await tree_manager.delete_tree_weaviate(
-            conversation_id, local_user["save_location_client_manager"]
+            conversation_id, local_user["frontend_config"].save_location_client_manager
         )
         tree_manager.delete_tree_local(conversation_id)
 
@@ -409,3 +398,7 @@ class UserManager:
         ):
             yield yielded_result
             await self.update_user_last_request(user_id)
+
+        frontend_config: FrontendConfig = local_user["frontend_config"]
+        if frontend_config.save_trees_to_weaviate:
+            await self.save_tree(user_id, conversation_id)

@@ -144,9 +144,11 @@ class LoadConfigData(BaseModel):
     include_settings: bool
 
 
-class UpdateSaveLocationData(BaseModel):
-    wcd_url: Optional[str] = None
-    wcd_api_key: Optional[str] = None
+class UpdateFrontendConfigData(BaseModel):
+    config: dict[str, Any]
+    # save_trees_to_weaviate: Optional[bool] = None
+    # save_location_wcd_url: Optional[str] = None
+    # save_location_wcd_api_key: Optional[str] = None
 
 
 # class ChangeAtlasUserData(BaseModel):

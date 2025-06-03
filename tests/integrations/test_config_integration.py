@@ -67,9 +67,14 @@ def test_environment_settings_user():
 
 
 def test_update_save_location():
-    payload = {"wcd_url": "https://example.com", "wcd_api_key": "test_api_key"}
+    payload = {
+        "config": {
+            "save_location_wcd_url": os.getenv("WCD_URL"),
+            "save_location_wcd_api_key": os.getenv("WCD_API_KEY"),
+        }
+    }
     response = requests.patch(
-        f"{USER_CONFIG_URL}/save_location/{TEST_USER}", json=payload
+        f"{USER_CONFIG_URL}/frontend_config/{TEST_USER}", json=payload
     )
     assert response.status_code == 200
     data = response.json()

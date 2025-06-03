@@ -15,7 +15,7 @@ from elysia.api.api_types import (
     SaveConfigData,
     LoadConfigData,
     Config,
-    UpdateSaveLocationData,
+    UpdateFrontendConfigData,
 )
 
 from elysia.api.core.log import logger
@@ -25,7 +25,7 @@ from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable
 from elysia.config import Settings
 from elysia.api.services.tree import TreeManager
-
+from elysia.api.utils.frontend_config import FrontendConfig
 import weaviate
 import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
@@ -54,26 +54,33 @@ def rename_keys(config_item: dict):
 router = APIRouter()
 
 
-@router.patch("/save_location/{user_id}")
-async def update_save_location(
+@router.patch("/frontend_config/{user_id}")
+async def update_frontend_config(
     user_id: str,
-    data: UpdateSaveLocationData,
+    data: UpdateFrontendConfigData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
-    Update a user's save location for the configs.
+    Update a user's frontend config, e.g. whether to save trees to weaviate or not, and the save location.
     """
-    logger.debug(f"/update_save_location API request received")
+    logger.debug(f"/update_frontend_config API request received")
     logger.debug(f"User ID: {user_id}")
-    logger.debug(f"WCD URL: {data.wcd_url}")
-    logger.debug(f"WCD API Key: {data.wcd_api_key}")
+    logger.debug(f"Config: {data.config}")
 
     try:
-        await user_manager.update_save_location(user_id, data.wcd_url, data.wcd_api_key)
+        await user_manager.update_frontend_config(user_id, data.config)
         return JSONResponse(content={"error": ""})
     except Exception as e:
-        logger.exception(f"Error in /update_save_location API")
-        return JSONResponse(content={"error": str(e)})
+
+        if "Could not connect to Weaviate" in str(e):
+            return JSONResponse(
+                content={
+                    "error": "Could not connect to Weaviate. Double check that the WCD_URL and WCD_API_KEY are correct."
+                }
+            )
+        else:
+            logger.exception(f"Error in /update_frontend_config API")
+            return JSONResponse(content={"error": str(e)})
 
 
 @router.get("/{user_id}")
@@ -304,10 +311,17 @@ async def save_config(
         # Retrieve the user info
         user = await user_manager.get_user_local(user_id)
 
-        if "wcd_url" not in user or "wcd_api_key" not in user:
+        if (
+            "frontend_config" not in user
+            or "save_location_wcd_url" not in user["frontend_config"].__dict__
+            or "save_location_wcd_api_key" not in user["frontend_config"].__dict__
+        ):
             raise Exception("WCD URL or API key not found.")
 
-        if user["wcd_url"] is None or user["wcd_api_key"] is None:
+        if (
+            user["frontend_config"].save_location_wcd_url is None
+            or user["frontend_config"].save_location_wcd_api_key is None
+        ):
             raise Exception(
                 "No valid destination for config save location found. "
                 "Please update the save location using the /update_save_location API."
@@ -333,10 +347,9 @@ async def save_config(
                 data.config.settings["WCD_API_KEY"].encode("utf-8")
             ).decode("utf-8")
 
-        async with weaviate.use_async_with_weaviate_cloud(
-            cluster_url=user["wcd_url"],
-            auth_credentials=Auth.api_key(user["wcd_api_key"]),
-        ) as client:
+        async with user[
+            "frontend_config"
+        ].save_location_client_manager.connect_to_async_client() as client:
 
             uuid = generate_uuid5(data.config_id)
 
@@ -403,10 +416,17 @@ async def load_config_user(
         settings: Settings = tree_manager.settings
         client_manager: ClientManager = user["client_manager"]
 
-        if "wcd_url" not in user or "wcd_api_key" not in user:
+        if (
+            "frontend_config" not in user
+            or "save_location_wcd_url" not in user["frontend_config"].__dict__
+            or "save_location_wcd_api_key" not in user["frontend_config"].__dict__
+        ):
             raise Exception("WCD URL or API key not found.")
 
-        if user["wcd_url"] is None or user["wcd_api_key"] is None:
+        if (
+            user["frontend_config"].save_location_wcd_url is None
+            or user["frontend_config"].save_location_wcd_api_key is None
+        ):
             raise Exception(
                 "No valid destination for config load location found. "
                 "Please update the save location using the /update_save_location API."
@@ -422,10 +442,9 @@ async def load_config_user(
         f = Fernet(auth_key.encode("utf-8"))
 
         # Retrieve the config from the weaviate database
-        async with weaviate.use_async_with_weaviate_cloud(
-            cluster_url=user["wcd_url"],
-            auth_credentials=Auth.api_key(user["wcd_api_key"]),
-        ) as client:
+        async with user[
+            "frontend_config"
+        ].save_location_client_manager.connect_to_async_client() as client:
             uuid = generate_uuid5(data.config_id)
             collection = client.collections.get("ELYSIA_CONFIG__")
             config_item = await collection.query.fetch_object_by_id(uuid=uuid)
@@ -501,10 +520,11 @@ async def list_configs(
         user = await user_manager.get_user_local(user_id)
 
         if (
-            "wcd_url" not in user
-            or "wcd_api_key" not in user
-            or user["wcd_url"] is None
-            or user["wcd_api_key"] is None
+            "frontend_config" not in user
+            or "save_location_wcd_url" not in user["frontend_config"].__dict__
+            or "save_location_wcd_api_key" not in user["frontend_config"].__dict__
+            or user["frontend_config"].save_location_wcd_url is None
+            or user["frontend_config"].save_location_wcd_api_key is None
         ):
             logger.warning(
                 "In /list_configs API, "
@@ -513,10 +533,9 @@ async def list_configs(
             )
             return JSONResponse(content={"error": "", "configs": []}, headers=headers)
 
-        async with weaviate.use_async_with_weaviate_cloud(
-            cluster_url=user["wcd_url"],
-            auth_credentials=Auth.api_key(user["wcd_api_key"]),
-        ) as client:
+        async with user[
+            "frontend_config"
+        ].save_location_client_manager.connect_to_async_client() as client:
 
             collection = client.collections.get("ELYSIA_CONFIG__")
 
