@@ -10,7 +10,7 @@ from elysia.api.api_types import (
     InitialiseTreeData,
     Config,
     LoadConfigData,
-    UpdateSaveLocationData,
+    UpdateFrontendConfigData,
 )
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.routes.init import initialise_tree, initialise_user
@@ -21,7 +21,7 @@ from elysia.api.routes.user_config import (
     default_models_user,
     environment_settings_user,
     list_configs,
-    update_save_location,
+    update_frontend_config,
 )
 from elysia.api.routes.tree_config import (
     load_config_tree,
@@ -160,41 +160,52 @@ class TestConfig:
 
             # the user should have a save location
             user = await self.user_manager.get_user_local(user_id)
-            assert user["wcd_url"] == os.getenv("WCD_URL")
-            assert user["wcd_api_key"] == os.getenv("WCD_API_KEY")
+            assert user["frontend_config"].save_location_wcd_url == os.getenv("WCD_URL")
+            assert user["frontend_config"].save_location_wcd_api_key == os.getenv(
+                "WCD_API_KEY"
+            )
 
-            # update the save location
-            response = await update_save_location(
+            # update the save location to an invalid one
+            response = await update_frontend_config(
                 user_id=user_id,
-                data=UpdateSaveLocationData(
-                    wcd_url="test_wcd_url",
-                    wcd_api_key="test_wcd_api_key",
+                data=UpdateFrontendConfigData(
+                    config={
+                        "save_location_wcd_url": "test_wcd_url",
+                        "save_location_wcd_api_key": "test_wcd_api_key",
+                    },
                 ),
                 user_manager=self.user_manager,
             )
             response = read_response(response)
-            assert response["error"] == ""
+            assert "Could not connect to Weaviate" in response["error"]
 
-            # the user should have a save location
+            # but the user should have a new save location
             user = await self.user_manager.get_user_local(user_id)
-            assert user["wcd_url"] == "test_wcd_url"
-            assert user["wcd_api_key"] == "test_wcd_api_key"
+            assert user["frontend_config"].save_location_wcd_url == "test_wcd_url"
+            assert (
+                user["frontend_config"].save_location_wcd_api_key == "test_wcd_api_key"
+            )
 
             # just update one
-            response = await update_save_location(
+            response = await update_frontend_config(
                 user_id=user_id,
-                data=UpdateSaveLocationData(
-                    wcd_api_key="test_wcd_api_key_2",
+                data=UpdateFrontendConfigData(
+                    config={
+                        "save_location_wcd_api_key": "test_wcd_api_key_2",
+                    },
                 ),
                 user_manager=self.user_manager,
             )
             response = read_response(response)
-            assert response["error"] == ""
+            assert "Could not connect to Weaviate" in response["error"]
 
             # the user should have a save location
             user = await self.user_manager.get_user_local(user_id)
-            assert user["wcd_url"] == "test_wcd_url"
-            assert user["wcd_api_key"] == "test_wcd_api_key_2"
+            assert user["frontend_config"].save_location_wcd_url == "test_wcd_url"
+            assert (
+                user["frontend_config"].save_location_wcd_api_key
+                == "test_wcd_api_key_2"
+            )
 
         finally:
             await self.user_manager.close_all_clients()
