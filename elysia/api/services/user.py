@@ -399,7 +399,7 @@ class UserManager:
         if self.check_user_timeout(user_id):
             user_timeout_error = UserTimeoutError()
             error_payload = await user_timeout_error.to_frontend(
-                conversation_id, query_id
+                user_id, conversation_id, query_id
             )
             yield error_payload
             return
@@ -407,7 +407,7 @@ class UserManager:
         if self.check_tree_timeout(user_id, conversation_id):
             tree_timeout_error = TreeTimeoutError()
             error_payload = await tree_timeout_error.to_frontend(
-                conversation_id, query_id
+                user_id, conversation_id, query_id
             )
             yield error_payload
             return
