@@ -116,8 +116,7 @@ class TestObjects:
             "this is a test",
         )
         frontend_result = await result.to_frontend(
-            "user_id",
-            "conversation_id",
+            "user_id", "conversation_id", "query_id"
         )
         assert frontend_result["type"] == object_name
         assert isinstance(frontend_result["payload"], dict)
