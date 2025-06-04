@@ -237,21 +237,31 @@ async def _handle_search(
                 sort=sort,
             )
         else:
-            # if not filter only, build search function
             if tool_args["search_type"] == "hybrid":
-                search = collection.query.hybrid
-            elif tool_args["search_type"] == "keyword":
-                search = collection.query.bm25
-            elif tool_args["search_type"] == "vector":
-                search = collection.query.near_text
+                response = await collection.query.hybrid(
+                    query=tool_args["search_query"],
+                    limit=tool_args["limit"],
+                    filters=combined_filter,
+                    return_references=reference,
+                    target_vector=named_vector_fields[collection.name],
+                )
 
-            response = await search(
-                query=tool_args["search_query"],
-                limit=tool_args["limit"],
-                filters=combined_filter,
-                return_references=reference,
-                target_vector=named_vector_fields[collection.name],
-            )
+            elif tool_args["search_type"] == "vector":
+                response = await collection.query.near_text(
+                    query=tool_args["search_query"],
+                    limit=tool_args["limit"],
+                    filters=combined_filter,
+                    return_references=reference,
+                    target_vector=named_vector_fields[collection.name],
+                )
+
+            elif tool_args["search_type"] == "keyword":
+                response = await collection.query.bm25(
+                    query=tool_args["search_query"],
+                    limit=tool_args["limit"],
+                    filters=combined_filter,
+                    return_references=reference,
+                )
 
         str_response = _construct_string_search_query(tool_args, combined_filter)
         responses.append(response)
