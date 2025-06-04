@@ -60,13 +60,21 @@ def find_tool_metadata() -> Dict[str, Dict[str, str]]:
 
 @router.get("/available")
 async def get_available_tools():
+    headers = {"Cache-Control": "no-cache"}
+
     try:
         return JSONResponse(
-            content={"tools": find_tool_metadata(), "error": ""}, status_code=200
+            content={"tools": find_tool_metadata(), "error": ""},
+            status_code=200,
+            headers=headers,
         )
     except Exception as e:
         logger.error(f"Error getting available tools: {str(e)}")
-        return JSONResponse(content={"tools": {}, "error": str(e)}, status_code=500)
+        return JSONResponse(
+            content={"tools": {}, "error": str(e)},
+            status_code=500,
+            headers=headers,
+        )
 
 
 @router.post("/{user_id}/add/{conversation_id}")
@@ -113,49 +121,6 @@ async def remove_tool_from_tree(
         return JSONResponse(content={"tree": tree.tree, "error": ""}, status_code=200)
     except Exception as e:
         logger.error(f"Error removing tool from tree: {str(e)}")
-        return JSONResponse(content={"tree": {}, "error": str(e)}, status_code=500)
-
-
-@router.post("/{user_id}/add_branch/{conversation_id}")
-async def add_branch_to_tree(
-    user_id: str,
-    conversation_id: str,
-    data: AddBranchToTreeData,
-    user_manager: UserManager = Depends(get_user_manager),
-):
-    try:
-        # get tree and add branch
-        tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        tree.add_branch(
-            branch_id=data.id,
-            instruction=data.instruction,
-            description=data.description,
-            from_branch_id=data.from_branch_id,
-            status=data.status,
-            root=data.root,
-        )
-
-        return JSONResponse(content={"tree": tree.tree, "error": ""}, status_code=200)
-    except Exception as e:
-        logger.error(f"Error adding branch to tree: {str(e)}")
-        return JSONResponse(content={"tree": {}, "error": str(e)}, status_code=500)
-
-
-@router.post("/{user_id}/remove_branch/{conversation_id}")
-async def remove_branch_from_tree(
-    user_id: str,
-    conversation_id: str,
-    data: RemoveBranchFromTreeData,
-    user_manager: UserManager = Depends(get_user_manager),
-):
-    try:
-        # get tree and remove branch
-        tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        tree.remove_branch(data.id)
-
-        return JSONResponse(content={"tree": tree.tree, "error": ""}, status_code=200)
-    except Exception as e:
-        logger.error(f"Error removing branch from tree: {str(e)}")
         return JSONResponse(content={"tree": {}, "error": str(e)}, status_code=500)
 
 
