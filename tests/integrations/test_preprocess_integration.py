@@ -130,7 +130,7 @@ async def test_preprocess_integration():
                         f"ELYSIA_METADATA_{collection_name.lower()}"
                     )
         except Exception as e:
-            print(f"Can't delete collection: {e}")
+            print(f"Can't delete collection: {str(e)}")
             pass
 
         await client_manager.close_clients()

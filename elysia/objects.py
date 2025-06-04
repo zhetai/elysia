@@ -1,13 +1,104 @@
 import uuid
-
+import inspect
+import ast
 from elysia.util.parsing import format_dict_to_serialisable
 from typing import Any, AsyncGenerator
 
 
-class Tool:
+class ToolMeta(type):
+    """Metaclass that extracts tool metadata from __init__ method."""
+
+    @staticmethod
+    def _convert_ast_dict(ast_dict: ast.Dict) -> dict:
+        out = {}
+        for k, v in zip(ast_dict.keys, ast_dict.values):
+            if isinstance(v, ast.Dict):
+                out[k.value] = ToolMeta._convert_ast_dict(v)
+            elif isinstance(v, ast.List):
+                out[k.value] = ToolMeta._convert_ast_list(v)
+            elif isinstance(v, ast.Constant):
+                out[k.value] = v.value
+        return out
+
+    @staticmethod
+    def _convert_ast_list(ast_list: ast.List) -> list:
+        out = []
+        for v in ast_list.values:
+            if isinstance(v, ast.Dict):
+                out.append(ToolMeta._convert_ast_dict(v))
+            elif isinstance(v, ast.List):
+                out.append(ToolMeta._convert_ast_list(v))
+            elif isinstance(v, ast.Constant):
+                out.append(v.value)
+        return out
+
+    def __new__(cls, name, bases, namespace):
+        new_class = super().__new__(cls, name, bases, namespace)
+
+        # Skip the base Tool class itself
+        if name == "Tool":
+            return new_class
+
+        # Extract metadata from __init__ method if it exists
+        if "__init__" in namespace:
+            try:
+                init_method = namespace["__init__"]
+                source = inspect.getsource(init_method)
+                tree = ast.parse(source.strip())
+
+                # Find the super().__init__() call and extract arguments
+                for node in ast.walk(tree):
+                    if (
+                        isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "__init__"
+                        and isinstance(node.func.value, ast.Call)
+                        and isinstance(node.func.value.func, ast.Name)
+                        and node.func.value.func.id == "super"
+                    ):
+
+                        # Extract keyword arguments
+                        for keyword in node.keywords:
+                            if keyword.arg == "name" and isinstance(
+                                keyword.value, ast.Constant
+                            ):
+                                new_class._tool_name = keyword.value.value
+                            elif keyword.arg == "description" and isinstance(
+                                keyword.value, ast.Constant
+                            ):
+                                new_class._tool_description = keyword.value.value
+                            elif keyword.arg == "inputs" and isinstance(
+                                keyword.value, ast.Dict
+                            ):
+                                new_class._tool_inputs = ToolMeta._convert_ast_dict(
+                                    keyword.value
+                                )
+                            elif keyword.arg == "end" and isinstance(
+                                keyword.value, ast.Constant
+                            ):
+                                new_class._tool_end = keyword.value.value
+                        break
+            except Exception as e:
+                # If parsing fails, just continue without setting class attributes
+                pass
+
+        return new_class
+
+
+class Tool(metaclass=ToolMeta):
     """
     The generic Tool class, which will be a superclass of any tools used by Elysia.
     """
+
+    @classmethod
+    def get_metadata(cls) -> dict[str, str | bool | dict | None]:
+        """Get tool metadata without instantiation."""
+        return {
+            "name": getattr(cls, "_tool_name", None),
+            "description": getattr(cls, "_tool_description", None),
+            "inputs": getattr(cls, "_tool_inputs", None),
+            "end": getattr(cls, "_tool_end", False),
+        }
 
     def __init__(
         self,
@@ -16,7 +107,6 @@ class Tool:
         status: str = "",
         inputs: dict = {},
         end: bool = False,
-        rule: bool = False,
         **kwargs,
     ):
         """
@@ -36,13 +126,11 @@ class Tool:
                 }
                 ```
             end (bool): Whether the tool is an end tool. Optional, defaults to False.
-            rule (bool): Whether the tool is a rule tool. Optional, defaults to False.
         """
         self.name = name
         self.description = description
         self.inputs = inputs
         self.end = end
-        self.rule = rule
 
         if status == "":
             self.status = f"Running {self.name}..."

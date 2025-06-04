@@ -819,19 +819,23 @@ class Tree:
         description: str = "",
         root: bool = False,
         from_branch_id: str = "",
+        from_tool_ids: list[str] = [],
         status: str = "",
     ):
         """
         Add a branch to the tree.
 
         args:
-            branch_id (str): The id of the branch being added
+            branch_id (str): The id of the branch being added.
             instruction (str): The general instruction for the branch, what is this branch containing?
                 What kind of tools or actions are being decided on this branch?
-            description (str): A description of the branch, if it is chosen from a previous branch
-            root (bool): Whether this is the root branch, i.e. the beginning of the tree
-            from_branch_id (str): The id of the branch that this branch is stemming from
-            status (str): The status message to be displayed when this branch is chosen
+                Only displayed to the decision maker when this branch is chosen.
+            description (str): A description of the branch, if it is to be chosen from a previous branch.
+                How does the model know whether to choose this branch or not?
+            root (bool): Whether this is the root branch, i.e. the beginning of the tree.
+            from_branch_id (str): The id of the branch that this branch is stemming from.
+            from_tool_ids (list[str]): The ids of the tools that precede this branch being added (after the `from_branch_id` branch).
+            status (str): The status message to be displayed when this branch is chosen.
         """
         if not root and description == "":
             raise ValueError("Description is required for non-root branches.")
@@ -866,15 +870,65 @@ class Tree:
         self.decision_nodes[branch_id] = decision_node
 
         if not root:
-            self.decision_nodes[from_branch_id].add_option(
-                id=branch_id,
-                description=description,
-                inputs={},
-                action=None,
-                end=False,
-                status=status,
-                next=self.decision_nodes[branch_id],
-            )
+
+            if from_tool_ids == []:
+                self.decision_nodes[from_branch_id].add_option(
+                    id=branch_id,
+                    description=description,
+                    inputs={},
+                    action=None,
+                    end=False,
+                    status=status,
+                    next=self.decision_nodes[branch_id],
+                )
+
+            else:
+
+                current_decision_node = self.decision_nodes[from_branch_id]
+                for from_tool_id in from_tool_ids:
+                    if from_tool_id not in current_decision_node.options:
+                        raise ValueError(
+                            f"Tool '{from_tool_id}' not found in branch '{from_branch_id}'. "
+                            f"Available options are: {list(current_decision_node.options.keys())}"
+                        )
+                    current_decision_node = current_decision_node.options[from_tool_id][
+                        "next"
+                    ]
+
+                new_branch_id = from_branch_id
+                for from_tool_id in from_tool_ids:
+                    new_branch_id += f".{from_tool_id}"
+
+                # only create a new decision node if one doesn't exist here
+                if new_branch_id not in self.decision_nodes:
+                    decision_node = DecisionNode(
+                        id=new_branch_id,
+                        instruction=f"Choose one of the actions based on their descriptions and the user prompt.",
+                        options={},
+                        root=False,
+                        logger=self.settings.logger,
+                        use_elysia_collections=self.use_elysia_collections,
+                    )
+                    self.decision_nodes[new_branch_id] = decision_node
+
+                    prev_branch_id = branch_id
+                    for from_tool_id in from_tool_ids[:-1]:
+                        prev_branch_id += f".{from_tool_id}"
+
+                    self.decision_nodes[prev_branch_id].options[from_tool_ids[-1]][
+                        "next"
+                    ] = self.decision_nodes[new_branch_id]
+
+                # add the tool to the new decision node
+                self.decision_nodes[new_branch_id].add_option(
+                    id=branch_id,
+                    description=description,
+                    inputs={},
+                    action=None,
+                    end=False,
+                    status=status,
+                    next=self.decision_nodes[branch_id],
+                )
 
         # reconstruct tree
         self._get_root()
@@ -1708,7 +1762,7 @@ class Tree:
                 "frontend_rebuild": self.returner.store,
             }
         except Exception as e:
-            self.settings.logger.error(f"Error exporting tree to JSON: {e}")
+            self.settings.logger.error(f"Error exporting tree to JSON: {str(e)}")
             return None
 
     async def export_to_weaviate(

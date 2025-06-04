@@ -153,17 +153,29 @@ class LoadConfigTreeData(BaseModel):
 
 class UpdateFrontendConfigData(BaseModel):
     config: dict[str, Any]
-    # save_trees_to_weaviate: Optional[bool] = None
-    # save_location_wcd_url: Optional[str] = None
-    # save_location_wcd_api_key: Optional[str] = None
 
 
-# class ChangeAtlasUserData(BaseModel):
-#     user_id: str
-#     atlas: dict[str, str]
+class AddToolToTreeData(BaseModel):
+    tool_name: str
+    branch_id: str
+    from_tool_ids: list[str]
 
 
-# class ChangeAtlasTreeData(BaseModel):
-#     user_id: str
-#     conversation_id: str
-#     atlas: dict[str, str]
+class RemoveToolFromTreeData(BaseModel):
+    tool_name: str
+    branch_id: str
+    from_tool_ids: list[str]
+
+
+class AddBranchToTreeData(BaseModel):
+    id: str
+    description: str
+    instruction: str
+    from_branch_id: str
+    from_tool_ids: list[str]
+    status: str
+    root: bool
+
+
+class RemoveBranchFromTreeData(BaseModel):
+    id: str

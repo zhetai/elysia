@@ -56,7 +56,6 @@ class RunIfTrueFalseTool(Tool):
         super().__init__(
             name="run_if_true_false_tool",
             description="Always returns False",
-            rule=True,
         )
 
     async def is_tool_available(self, tree_data, base_lm, complex_lm, client_manager):
@@ -97,7 +96,6 @@ class RunIfTrueTrueTool(Tool):
         super().__init__(
             name="run_if_true_true_tool",
             description="Always returns True",
-            rule=True,
         )
 
     async def is_tool_available(self, tree_data, base_lm, complex_lm, client_manager):
@@ -138,7 +136,6 @@ class RunIfTrueTrueWithInputsTool(Tool):
         super().__init__(
             name="run_if_true_true_tool",
             description="Always returns True",
-            rule=True,
             inputs={
                 "message": {
                     "type": "string",
@@ -190,7 +187,6 @@ class ToolNotAvailable(Tool):
         super().__init__(
             name="always_pick_this_tool",
             description="No matter what, always pick this tool, and END the conversation.",
-            rule=True,
             end=True,
         )
 
@@ -214,7 +210,6 @@ class ToolAvailable(Tool):
         super().__init__(
             name="always_pick_this_tool",
             description="No matter what, always pick this tool, and END the conversation.",
-            rule=True,
             end=True,
         )
 

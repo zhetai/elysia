@@ -2,9 +2,9 @@
 ELYSIA RESOURCES
 ----------------------------------------------------------------------------------------------------
 Total memory: 36864.0 MB
-Free memory: 11852.41 MB
-CPU usage: 20.7%
-Memory usage: 67.9%
+Free memory: 9168.38 MB
+CPU usage: 14.2%
+Memory usage: 75.4%
 Disk usage: 6.2%
 
 
