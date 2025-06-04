@@ -21,7 +21,7 @@ from elysia.api.routes import (
     user_config,
     tree_config,
     utils,
-    # tools,
+    tools,
     db,
 )
 from elysia.api.services.user import UserManager
@@ -94,7 +94,7 @@ app.include_router(user_config.router, prefix="/user/config", tags=["user config
 app.include_router(tree_config.router, prefix="/tree/config", tags=["tree config"])
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(utils.router, prefix="/util", tags=["utilities"])
-# app.include_router(tools.router, prefix="/tools", tags=["tools"])
+app.include_router(tools.router, prefix="/tools", tags=["tools"])
 app.include_router(db.router, prefix="/db", tags=["db"])
 
 
