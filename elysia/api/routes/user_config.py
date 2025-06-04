@@ -385,11 +385,26 @@ async def save_config(
             else:
                 await collection.data.insert(config_item, uuid=uuid)
 
-            return JSONResponse(content={"error": "", "config": config_item})
+            return JSONResponse(
+                content={
+                    "error": "",
+                    "config": {
+                        "settings": settings_dict,
+                        "style": style,
+                        "agent_description": agent_description,
+                        "end_goal": end_goal,
+                        "branch_initialisation": branch_initialisation,
+                        "config_id": data.config_id,
+                    },
+                    "frontend_config": user["frontend_config"].config,
+                }
+            )
 
     except Exception as e:
         logger.exception(f"Error in /save_config API")
-        return JSONResponse(content={"error": str(e), "config": {}})
+        return JSONResponse(
+            content={"error": str(e), "config": {}, "frontend_config": {}}
+        )
 
 
 @router.post("/{user_id}/load")
@@ -508,9 +523,17 @@ async def load_config_user(
 
     except Exception as e:
         logger.exception(f"Error in /load_config API")
-        return JSONResponse(content={"error": str(e), "config": {}})
+        return JSONResponse(
+            content={"error": str(e), "config": {}, "frontend_config": {}}
+        )
 
-    return JSONResponse(content={"error": "", "config": renamed_config})
+    return JSONResponse(
+        content={
+            "error": "",
+            "config": renamed_config,
+            "frontend_config": frontend_config.config,
+        }
+    )
 
 
 @router.get("/{user_id}/list")
