@@ -34,7 +34,7 @@ async def get_saved_trees(
         )
 
 
-@router.websocket("/{user_id}/load_tree/{conversation_id}")
+@router.get("/{user_id}/load_tree/{conversation_id}")
 async def load_tree(
     user_id: str,
     conversation_id: str,
