@@ -95,7 +95,7 @@ app.include_router(tree_config.router, prefix="/tree/config", tags=["tree config
 app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(utils.router, prefix="/util", tags=["utilities"])
 # app.include_router(tools.router, prefix="/tools", tags=["tools"])
-app.include_router(db.router, prefix="/tools", tags=["tools"])
+app.include_router(db.router, prefix="/db", tags=["db"])
 
 
 # Health check endpoint (kept in main app.py due to its simplicity)
