@@ -228,7 +228,18 @@ class Aggregate(Tool):
                         )
                     )
 
-                objects = [{collection_name: format_aggregation_response(response)}]
+                objects = [
+                    {
+                        "num_items": (
+                            response.total_count
+                            if "total_count" in dir(response)
+                            else None
+                        ),
+                        "collections": [
+                            {collection_name: format_aggregation_response(response)}
+                        ],
+                    }
+                ]
                 metadata = {
                     "collection_name": collection_name,
                     "aggregation_output": aggregation_output.model_dump(),
