@@ -429,5 +429,5 @@ class UserManager:
             await self.update_user_last_request(user_id)
 
         frontend_config: FrontendConfig = local_user["frontend_config"]
-        if frontend_config.save_trees_to_weaviate:
+        if frontend_config.config["save_trees_to_weaviate"]:
             await self.save_tree(user_id, conversation_id)

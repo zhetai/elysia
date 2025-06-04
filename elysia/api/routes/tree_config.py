@@ -7,7 +7,7 @@ load_dotenv(override=True)
 
 # API Types
 from elysia.api.api_types import (
-    LoadConfigData,
+    LoadConfigTreeData,
     Config,
 )
 
@@ -210,7 +210,7 @@ async def change_config_tree(
 async def load_config_tree(
     user_id: str,
     conversation_id: str,
-    data: LoadConfigData,
+    data: LoadConfigTreeData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
@@ -221,7 +221,7 @@ async def load_config_tree(
     It will NOT update the ClientManager to use the new API keys.
 
     Args:
-        data (LoadConfigData): A class with the following attributes:
+        data (LoadConfigTreeData): A class with the following attributes:
             user_id (str): The user ID.
             conversation_id (str): The conversation ID.
             config_id (str): The ID of the config to load. Can be found in the /list_configs API.
