@@ -389,7 +389,9 @@ class TreeReturner:
         last_in_tree: bool = False,
     ):
         if isinstance(result, Update):
-            payload = await result.to_frontend(self.conversation_id, query_id)
+            payload = await result.to_frontend(
+                self.user_id, self.conversation_id, query_id
+            )
             self.store.append(payload)
             return payload
 

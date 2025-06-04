@@ -246,9 +246,10 @@ class Update(Return):
     def to_json(self):
         return self.object
 
-    async def to_frontend(self, conversation_id: str, query_id: str):
+    async def to_frontend(self, user_id: str, conversation_id: str, query_id: str):
         return {
             "type": self.frontend_type,
+            "user_id": user_id,
             "conversation_id": conversation_id,
             "query_id": query_id,
             "id": self.frontend_type[:3] + "-" + str(uuid.uuid4()),
