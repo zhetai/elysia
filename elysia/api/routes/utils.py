@@ -175,7 +175,7 @@ async def follow_up_suggestions(
         )
         return JSONResponse(
             content={"suggestions": [], "error": "Conversation has timed out"},
-            status_code=401,
+            status_code=408,
         )
 
     try:

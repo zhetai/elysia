@@ -11,7 +11,9 @@ class FrontendConfig:
         self.logger = logger
         self.client_timeout = client_timeout
 
-        self.save_trees_to_weaviate: bool = True
+        self.config: dict = {
+            "save_trees_to_weaviate": True,
+        }
         self.save_location_wcd_url: str | None = os.getenv("WCD_URL", None)
         self.save_location_wcd_api_key: str | None = os.getenv("WCD_API_KEY", None)
         self.save_location_client_manager: ClientManager = ClientManager(
@@ -25,9 +27,6 @@ class FrontendConfig:
         self.save_location_wcd_url = wcd_url
         self.save_location_wcd_api_key = wcd_api_key
 
-    def update_save_trees_to_weaviate(self, save_trees_to_weaviate: bool):
-        self.save_trees_to_weaviate = save_trees_to_weaviate
-
     def get_save_location(self):
         return self.save_location_wcd_url, self.save_location_wcd_api_key
 
@@ -38,7 +37,7 @@ class FrontendConfig:
         if "save_location_wcd_api_key" in kwargs:
             self.save_location_wcd_api_key = kwargs["save_location_wcd_api_key"]
         if "save_trees_to_weaviate" in kwargs:
-            self.save_trees_to_weaviate = kwargs["save_trees_to_weaviate"]
+            self.config["save_trees_to_weaviate"] = kwargs["save_trees_to_weaviate"]
 
         self.save_location_client_manager = ClientManager(
             wcd_url=self.save_location_wcd_url,

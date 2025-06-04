@@ -13,7 +13,7 @@ load_dotenv(override=True)
 # API Types
 from elysia.api.api_types import (
     SaveConfigData,
-    LoadConfigData,
+    LoadConfigUserData,
     Config,
     UpdateFrontendConfigData,
 )
@@ -220,7 +220,7 @@ async def change_config_user(
     Args:
         user_id (str): Required. The user ID.
         data (Config): Required. Containing the following attributes:
-            settings(dict): Optional. A dictionary of config values to set, follows the same format as the Settings.configure() method.
+            settings (dict): Optional. A dictionary of config values to set, follows the same format as the Settings.configure() method.
             style (str): Optional. The writing style of the agent.
             agent_description (str): Optional. The description of the agent.
             end_goal (str): Optional. The end goal of the agent.
@@ -293,7 +293,6 @@ async def save_config(
         user_id (str): The user ID.
         data (SaveConfigData): A class with the following attributes:
             config_id (str): Required. The ID of the config to save. Can be a user submitted name.
-            config (Config): Required. The config to save.
         user_manager (UserManager): The user manager instance.
 
     Returns:
@@ -305,11 +304,18 @@ async def save_config(
     logger.debug(f"/save_config API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Config ID: {data.config_id}")
-    logger.debug(f"Config: {data.config}")
 
     try:
         # Retrieve the user info
         user = await user_manager.get_user_local(user_id)
+        settings: Settings = user["tree_manager"].settings
+        settings_dict = settings.to_json()
+
+        # extract style, agent_description, end_goal, branch_initialisation from user
+        style = user["tree_manager"].style
+        agent_description = user["tree_manager"].agent_description
+        end_goal = user["tree_manager"].end_goal
+        branch_initialisation = user["tree_manager"].branch_initialisation
 
         if (
             "frontend_config" not in user
@@ -336,15 +342,15 @@ async def save_config(
 
         # encode all api keys
         f = Fernet(auth_key.encode("utf-8"))
-        if "API_KEYS" in data.config.settings:
-            for key in data.config.settings["API_KEYS"]:
-                data.config.settings["API_KEYS"][key] = f.encrypt(
-                    data.config.settings["API_KEYS"][key].encode("utf-8")
+        if "API_KEYS" in settings_dict:
+            for key in settings_dict["API_KEYS"]:
+                settings_dict["API_KEYS"][key] = f.encrypt(
+                    settings_dict["API_KEYS"][key].encode("utf-8")
                 ).decode("utf-8")
 
-        if "WCD_API_KEY" in data.config.settings:
-            data.config.settings["WCD_API_KEY"] = f.encrypt(
-                data.config.settings["WCD_API_KEY"].encode("utf-8")
+        if "WCD_API_KEY" in settings_dict:
+            settings_dict["WCD_API_KEY"] = f.encrypt(
+                settings_dict["WCD_API_KEY"].encode("utf-8")
             ).decode("utf-8")
 
         async with user[
@@ -362,25 +368,34 @@ async def save_config(
                     vectorizer_config=wc.Configure.Vectorizer.none(),
                 )
 
-            config_item = data.config.model_dump()
-            format_dict_to_serialisable(config_item)
+            format_dict_to_serialisable(settings_dict)
+
+            config_item = {
+                "settings": settings_dict,
+                "style": style,
+                "agent_description": agent_description,
+                "end_goal": end_goal,
+                "branch_initialisation": branch_initialisation,
+                "frontend_config": user["frontend_config"].config,
+                "config_id": data.config_id,
+            }
 
             if await collection.data.exists(uuid=uuid):
                 await collection.data.update(properties=config_item, uuid=uuid)
             else:
                 await collection.data.insert(config_item, uuid=uuid)
 
+            return JSONResponse(content={"error": "", "config": config_item})
+
     except Exception as e:
         logger.exception(f"Error in /save_config API")
         return JSONResponse(content={"error": str(e), "config": {}})
-
-    return JSONResponse(content={"error": "", "config": config_item})
 
 
 @router.post("/{user_id}/load")
 async def load_config_user(
     user_id: str,
-    data: LoadConfigData,
+    data: LoadConfigUserData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
@@ -393,11 +408,12 @@ async def load_config_user(
 
     Args:
         user_id (str): The user ID.
-        data (LoadConfigData): A class with the following attributes:
+        data (LoadConfigUserData): A class with the following attributes:
             config_id (str): The ID of the config to load. Can be found in the /config/list API.
             include_atlas (bool): Whether to include the atlas (style, agent_description, end_goal) in the config.
             include_branch_initialisation (bool): Whether to include the branch initialisation in the config.
             include_settings (bool): Whether to include the settings (LM choice, etc.) in the config.
+            include_frontend_config (bool): Whether to include the frontend config in the config.
         user_manager (UserManager): The user manager instance.
 
     Returns:
@@ -415,6 +431,7 @@ async def load_config_user(
         tree_manager: TreeManager = user["tree_manager"]
         settings: Settings = tree_manager.settings
         client_manager: ClientManager = user["client_manager"]
+        frontend_config: FrontendConfig = user["frontend_config"]
 
         if (
             "frontend_config" not in user
@@ -485,6 +502,9 @@ async def load_config_user(
             tree_manager.change_branch_initialisation(
                 renamed_config["branch_initialisation"]
             )
+
+        if data.include_frontend_config:
+            frontend_config.config = renamed_config["frontend_config"]
 
     except Exception as e:
         logger.exception(f"Error in /load_config API")

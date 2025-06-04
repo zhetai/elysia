@@ -106,7 +106,6 @@ class FollowUpSuggestionsData(BaseModel):
     conversation_id: str
 
 
-# TODO: hash the api keys
 class Config(BaseModel):
     settings: Optional[dict[str, Any]] = None
     style: Optional[str] = None
@@ -135,10 +134,17 @@ class InitialiseUserData(BaseModel):
 
 class SaveConfigData(BaseModel):
     config_id: str
-    config: Config
 
 
-class LoadConfigData(BaseModel):
+class LoadConfigUserData(BaseModel):
+    config_id: str
+    include_atlas: bool
+    include_branch_initialisation: bool
+    include_settings: bool
+    include_frontend_config: bool
+
+
+class LoadConfigTreeData(BaseModel):
     config_id: str
     include_atlas: bool
     include_branch_initialisation: bool
