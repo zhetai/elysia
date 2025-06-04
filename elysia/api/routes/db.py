@@ -28,7 +28,7 @@ async def get_saved_trees(
         )
 
     except Exception as e:
-        logger.error(f"Error getting saved trees: {e}")
+        logger.error(f"Error getting saved trees: {str(e)}")
         return JSONResponse(
             content={"trees": {}, "error": str(e)}, status_code=500, headers=headers
         )
@@ -51,7 +51,7 @@ async def load_tree(
             headers=headers,
         )
     except Exception as e:
-        logger.error(f"Error loading tree: {e}")
+        logger.error(f"Error loading tree: {str(e)}")
         return JSONResponse(
             content={"rebuild": [], "error": str(e)},
             status_code=500,
@@ -69,7 +69,7 @@ async def save_tree(
         await user_manager.save_tree(user_id, conversation_id)
         return JSONResponse(content={"error": ""}, status_code=200)
     except Exception as e:
-        logger.error(f"Error saving tree: {e}")
+        logger.error(f"Error saving tree: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -83,5 +83,5 @@ async def delete_tree(
         await user_manager.delete_tree(user_id, conversation_id)
         return JSONResponse(content={"error": ""}, status_code=200)
     except Exception as e:
-        logger.error(f"Error deleting tree: {e}")
+        logger.error(f"Error deleting tree: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)

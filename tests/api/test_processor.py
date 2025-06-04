@@ -122,7 +122,7 @@ class TestProcessor:
                             f"ELYSIA_METADATA_{collection_name.lower()}"
                         )
             except Exception as e:
-                print(f"Can't delete collection: {e}")
+                print(f"Can't delete collection: {str(e)}")
                 pass
 
             await user_manager.close_all_clients()
