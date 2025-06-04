@@ -443,13 +443,15 @@ class Aggregation(Retrieval):
             out += f"\nAggregated collection: '{self.metadata['collection_name']}'"
 
             count = {}
-            if len(self.objects) > 0:
-                for metric in self.objects[0][self.metadata["collection_name"]]:
+            if len(self.objects[0]["collections"]) > 0:
+                for metric in self.objects[0]["collections"][0][
+                    self.metadata["collection_name"]
+                ]:
                     if metric != "ELYSIA_NUM_ITEMS":
                         num_values = len(
-                            self.objects[0][self.metadata["collection_name"]][metric][
-                                "values"
-                            ]
+                            self.objects[0]["collections"][0][
+                                self.metadata["collection_name"]
+                            ][metric]["values"]
                         )
                         count[metric] = num_values
 
