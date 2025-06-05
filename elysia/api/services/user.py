@@ -323,6 +323,23 @@ class UserManager:
             conversation_id, local_user["frontend_config"].save_location_client_manager
         )
 
+    async def check_tree_exists_weaviate(self, user_id: str, conversation_id: str):
+        """
+        Check if a tree exists in a Weaviate instance (set in the frontend config).
+
+        Args:
+            user_id (str): Required. The unique identifier for the user stored in the UserManager.
+            conversation_id (str): Required. The unique identifier for the conversation for the user.
+
+        Returns:
+            (bool): True if the tree exists in the Weaviate instance, False otherwise.
+        """
+        local_user = await self.get_user_local(user_id)
+        tree_manager: TreeManager = local_user["tree_manager"]
+        return await tree_manager.check_tree_exists_weaviate(
+            conversation_id, local_user["frontend_config"].save_location_client_manager
+        )
+
     async def load_tree(self, user_id: str, conversation_id: str):
         """
         Load a tree from a Weaviate instance (set in the frontend config).
@@ -405,12 +422,15 @@ class UserManager:
             return
 
         if self.check_tree_timeout(user_id, conversation_id):
-            tree_timeout_error = TreeTimeoutError()
-            error_payload = await tree_timeout_error.to_frontend(
-                user_id, conversation_id, query_id
-            )
-            yield error_payload
-            return
+            if await self.check_tree_exists_weaviate(user_id, conversation_id):
+                await self.load_tree(user_id, conversation_id)
+            else:
+                tree_timeout_error = TreeTimeoutError()
+                error_payload = await tree_timeout_error.to_frontend(
+                    user_id, conversation_id, query_id
+                )
+                yield error_payload
+                return
 
         local_user = await self.get_user_local(user_id)
         await self.update_user_last_request(user_id)

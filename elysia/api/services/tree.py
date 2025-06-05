@@ -4,6 +4,7 @@ import os
 import uuid
 from copy import deepcopy
 from dotenv import load_dotenv
+from weaviate.util import generate_uuid5
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -151,6 +152,27 @@ class TreeManager:
         """
         tree: Tree = self.get_tree(conversation_id)
         await tree.export_to_weaviate("ELYSIA_TREES__", client_manager)
+
+    async def check_tree_exists_weaviate(
+        self, conversation_id: str, client_manager: ClientManager
+    ):
+        """
+        Check if a tree exists in a Weaviate instance.
+
+        Args:
+            conversation_id (str): The conversation ID which contains the tree.
+            client_manager (ClientManager): The client manager to use for the tree.
+
+        Returns:
+            (bool): True if the tree exists in the Weaviate instance, False otherwise.
+        """
+        async with client_manager.connect_to_async_client() as client:
+            if not await client.collections.exists("ELYSIA_TREES__"):
+                return False
+
+            collection = client.collections.get("ELYSIA_TREES__")
+            uuid = generate_uuid5(conversation_id)
+            return await collection.data.exists(uuid)
 
     async def load_tree_weaviate(
         self, conversation_id: str, client_manager: ClientManager

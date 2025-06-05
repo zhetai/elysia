@@ -245,3 +245,83 @@ class TestSaveLoad:
         assert "test_conversation_automatic_save_load_cycle" not in list(
             read_response(response)["trees"].keys()
         )
+
+    @pytest.mark.asyncio
+    async def test_automatic_load_on_tree_timeout(self):
+
+        user_id = "test_user_automatic_load_on_tree_timeout"
+        conversation_id = "test_conversation_automatic_load_on_tree_timeout"
+        query_id = "test_query_automatic_load_on_tree_timeout"
+
+        websocket = fake_websocket()
+        user_manager = get_user_manager()
+
+        response = await initialise_user(
+            InitialiseUserData(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                default_models=True,
+            ),
+            user_manager,
+        )
+        assert read_response(response)["error"] == ""
+
+        response = await initialise_tree(
+            InitialiseTreeData(
+                user_id=user_id,
+                conversation_id=conversation_id,
+            ),
+            user_manager,
+        )
+        assert read_response(response)["error"] == ""
+
+        # do a query
+        await process(
+            QueryData(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                query="hi",
+                query_id=query_id,
+                collection_names=["Example_verba_slack_conversations"],
+            ).model_dump(),
+            websocket,
+            user_manager,
+        )
+
+        # store number of outputs in websocket results
+        num_outputs = len(websocket.results)
+
+        # the tree should be saved to weaviate
+        response = await get_saved_trees(
+            user_id=user_id,
+            user_manager=user_manager,
+        )
+        assert read_response(response)["error"] == ""
+        assert len(list(read_response(response)["trees"].keys())) >= 1
+
+        # timeout the tree manually by deleting it from the treemanager
+        local_user = await user_manager.get_user_local(user_id)
+        tree_manager = local_user["tree_manager"]
+        del tree_manager.trees[conversation_id]
+
+        # check the tree exists in weaviate
+        tree_exists_response = await user_manager.check_tree_exists_weaviate(
+            user_id, conversation_id
+        )
+        assert tree_exists_response
+
+        # do a query - this should not error
+        await process(
+            QueryData(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                query="hi again",
+                query_id=query_id,
+                collection_names=["Example_verba_slack_conversations"],
+            ).model_dump(),
+            websocket,
+            user_manager,
+        )
+        assert len(websocket.results) > num_outputs
+        assert "type" in websocket.results[-1]
+        assert websocket.results[-1]["type"] != "tree_timeout_error"
