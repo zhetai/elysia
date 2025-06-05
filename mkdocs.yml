@@ -52,6 +52,7 @@ nav:
     - Preprocessor: Reference/Preprocessor.md
     - Tree: Reference/Tree.md
     - WeaviateClient: Reference/Client.md
+    - Managers: Reference/Managers.md
     # - Configure: Reference/Configure.md
     - Objects: Reference/Objects.md
     # - Tools: Reference/Tools.md
