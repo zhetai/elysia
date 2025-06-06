@@ -14,6 +14,7 @@ from elysia.util.client import ClientManager
 from elysia.api.core.log import logger
 from elysia.api.api_types import Config
 from elysia.api.utils.frontend_config import FrontendConfig
+from elysia.tree.util import get_saved_trees_weaviate
 
 
 class TreeTimeoutError(Update):
@@ -464,6 +465,42 @@ class UserManager:
         )
         tree_manager.delete_tree_local(conversation_id)
 
+    async def get_saved_trees(
+        self,
+        user_id: str,
+        wcd_url: str | None = None,
+        wcd_api_key: str | None = None,
+    ):
+        """
+        Get all saved trees from a Weaviate instance (set in the frontend config).
+
+        Args:
+            user_id (str): Required. The unique identifier for the user stored in the UserManager.
+            wcd_url (str | None): Required. The URL of the Weaviate Cloud Database instance used to save the tree.
+                Defaults to the value of the `wcd_url` setting in the frontend config.
+            wcd_api_key (str | None): Required. The API key for the Weaviate Cloud Database instance used to save the tree.
+                Defaults to the value of the `wcd_api_key` setting in the frontend config.
+
+        Returns:
+            dict: A dictionary of tree UUIDs and their titles (None if no title generated).
+        """
+        local_user = await self.get_user_local(user_id)
+
+        if wcd_url is None or wcd_api_key is None:
+            save_location_client_manager = local_user[
+                "frontend_config"
+            ].save_location_client_manager
+        else:
+            save_location_client_manager = ClientManager(
+                logger=logger,
+                wcd_url=wcd_url,
+                wcd_api_key=wcd_api_key,
+            )
+
+        return await get_saved_trees_weaviate(
+            "ELYSIA_TREES__", save_location_client_manager
+        )
+
     async def update_user_last_request(self, user_id: str):
         self.users[user_id]["last_request"] = datetime.datetime.now()
 
@@ -483,6 +520,8 @@ class UserManager:
         training_route: str = "",
         collection_names: list[str] = [],
         save_trees_to_weaviate: bool | None = None,
+        wcd_url: str | None = None,
+        wcd_api_key: str | None = None,
     ):
         """
         Wrapper for the TreeManager.process_tree() method.
@@ -503,6 +542,10 @@ class UserManager:
             save_trees_to_weaviate (bool | None): Optional. Whether to save the trees to a Weaviate instance,
                 after the process_tree() method has finished.
                 Defaults to the value of the `save_trees_to_weaviate` setting in the frontend config.
+            wcd_url (str | None): Required. The URL of the Weaviate Cloud Database instance used to save the tree.
+                Defaults to the value of the `wcd_url` setting in the frontend config.
+            wcd_api_key (str | None): Required. The API key for the Weaviate Cloud Database instance used to save the tree.
+                Defaults to the value of the `wcd_api_key` setting in the frontend config.
         """
 
         if self.check_user_timeout(user_id):
@@ -545,4 +588,4 @@ class UserManager:
             save_trees_to_weaviate = frontend_config.config["save_trees_to_weaviate"]
 
         if save_trees_to_weaviate:
-            await self.save_tree(user_id, conversation_id)
+            await self.save_tree(user_id, conversation_id, wcd_url, wcd_api_key)

@@ -144,7 +144,8 @@ class TreeManager:
         self, conversation_id: str, client_manager: ClientManager
     ):
         """
-        Save a tree to Weaviate.
+        Save a tree to Weaviate to collection ELYSIA_TREES__.
+        Creates the collection if it doesn't exist.
 
         Args:
             conversation_id (str): The conversation ID which contains the tree.
@@ -158,6 +159,7 @@ class TreeManager:
     ):
         """
         Check if a tree exists in a Weaviate instance.
+        The collection ELYSIA_TREES__ must exist, returns False if it doesn't.
 
         Args:
             conversation_id (str): The conversation ID which contains the tree.
