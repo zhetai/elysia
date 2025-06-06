@@ -8,6 +8,7 @@ from elysia.config import settings as environment_settings
 from elysia.objects import Result
 from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable, remove_whitespace
+from copy import deepcopy
 
 
 class Environment:
@@ -303,14 +304,31 @@ class Environment:
         else:
             return self.environment[tool_name][name][index]
 
-    def to_json(self):
+    def to_json(self, remove_unserialisable: bool = False):
         """
         Converts the environment to a JSON serialisable format.
         Used to access specific objects from the environment.
         """
+
+        env_copy = deepcopy(self.environment)
+        hidden_env_copy = deepcopy(self.hidden_environment)
+
+        # Check if environment and hidden_environment are JSON serialisable
+        for tool_name in env_copy:
+            if tool_name != "SelfInfo":
+                for name in self.environment[tool_name]:
+                    for obj_metadata in self.environment[tool_name][name]:
+                        format_dict_to_serialisable(
+                            obj_metadata["metadata"], remove_unserialisable
+                        )
+                        for obj in obj_metadata["objects"]:
+                            format_dict_to_serialisable(obj, remove_unserialisable)
+
+        format_dict_to_serialisable(hidden_env_copy, remove_unserialisable)
+
         return {
-            "environment": self.environment,
-            "hidden_environment": self.hidden_environment,
+            "environment": env_copy,
+            "hidden_environment": hidden_env_copy,
             "self_info": self.self_info,
         }
 
@@ -863,7 +881,7 @@ class TreeData:
             for collection_name in self.collection_names
         }
 
-    def to_json(self):
+    def to_json(self, remove_unserialisable: bool = False):
         out = {
             k: v
             for k, v in self.__dict__.items()
@@ -871,7 +889,7 @@ class TreeData:
         }
         out["collection_data"] = self.collection_data.to_json()
         out["atlas"] = self.atlas.model_dump()
-        out["environment"] = self.environment.to_json()
+        out["environment"] = self.environment.to_json(remove_unserialisable)
         out["settings"] = self.settings.to_json()
         return out
 

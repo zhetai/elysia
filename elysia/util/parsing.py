@@ -46,18 +46,22 @@ def format_datetime(dt: datetime.datetime) -> str:
         return dt + "Z"
 
 
-def format_dict_to_serialisable(d):
+def format_dict_to_serialisable(d, remove_unserialisable=False):
+    if remove_unserialisable:
+        keys_to_remove = []
+
     for key, value in d.items():
         if isinstance(value, datetime.datetime):
             d[key] = format_datetime(value)
 
         elif isinstance(value, dict):
-            format_dict_to_serialisable(value)
+            format_dict_to_serialisable(value, remove_unserialisable)
 
         elif isinstance(value, list):
+            items_to_remove = []
             for i, item in enumerate(value):
                 if isinstance(item, dict):
-                    format_dict_to_serialisable(item)
+                    format_dict_to_serialisable(item, remove_unserialisable)
 
                 elif isinstance(item, datetime.datetime):
                     d[key][i] = format_datetime(item)
@@ -65,8 +69,25 @@ def format_dict_to_serialisable(d):
                 elif isinstance(item, uuid.UUID):
                     d[key][i] = str(item)
 
+                elif remove_unserialisable and not isinstance(
+                    item, (str, int, float, bool, list, dict)
+                ):
+                    items_to_remove.append(i)
+
+            for index in sorted(items_to_remove, reverse=True):
+                del d[key][index]
+
         elif isinstance(value, uuid.UUID):
             d[key] = str(value)
+
+        elif remove_unserialisable and not isinstance(
+            d, (str, int, float, bool, list, dict)
+        ):
+            keys_to_remove.append(key)
+
+    if remove_unserialisable:
+        for key in keys_to_remove:
+            del d[key]
 
 
 def remove_whitespace(text: str) -> str:
