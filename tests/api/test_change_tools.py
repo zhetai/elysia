@@ -350,7 +350,9 @@ async def test_basic_add_branch_to_tree():
             description="New Branch Description",
             instruction="New Branch Instruction",
             from_branch_id="base",
+            from_tool_ids=[],
             status="New Branch Status",
+            root=False,
         ),
         user_manager=user_manager,
     )
@@ -420,6 +422,8 @@ async def test_add_branch_to_branch():
             instruction="New Branch Instruction",
             from_branch_id="search",
             status="New Branch Status",
+            from_tool_ids=[],
+            root=False,
         ),
         user_manager=user_manager,
     )
