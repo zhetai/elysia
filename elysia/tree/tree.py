@@ -1756,7 +1756,7 @@ class Tree:
                 "tree_index": self.tree_index,
                 "store_retrieved_objects": self.store_retrieved_objects,
                 "low_memory": self.low_memory,
-                "tree_data": self.tree_data.to_json(),
+                "tree_data": self.tree_data.to_json(remove_unserialisable=True),
                 "settings": self.settings.to_json(),
                 "tool_names": list(self.tools.keys()),
                 "frontend_rebuild": self.returner.store,
