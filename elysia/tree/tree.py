@@ -1790,6 +1790,9 @@ class Tree:
                 await client.collections.create(
                     collection_name,
                     vectorizer_config=wc.Configure.Vectorizer.none(),
+                    inverted_index_config=wc.Configure.inverted_index(
+                        index_timestamps=True
+                    ),
                 )
 
             collection = client.collections.get(collection_name)

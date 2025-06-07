@@ -7,6 +7,7 @@ from pympler import asizeof
 from logging import Logger
 
 from weaviate.util import generate_uuid5
+from weaviate.classes.query import MetadataQuery, Sort
 
 # globals
 from elysia.objects import (
@@ -22,6 +23,7 @@ from elysia.tree.objects import TreeData
 from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.util.reference import create_reference
+from elysia.util.parsing import format_datetime
 from elysia.util.client import ClientManager
 from elysia.tree.prompt_templates import (
     construct_decision_prompt,
@@ -501,19 +503,29 @@ async def get_saved_trees_weaviate(
 
     async with client_manager.connect_to_async_client() as client:
 
+        if not await client.collections.exists(collection_name):
+            return {}
+
         collection = client.collections.get(collection_name)
 
         len_collection = (
             await collection.aggregate.over_all(total_count=True)
         ).total_count
 
-        response = await collection.query.fetch_objects(limit=len_collection)
+        response = await collection.query.fetch_objects(
+            limit=len_collection,
+            sort=Sort.by_update_time(ascending=False),
+            return_metadata=MetadataQuery(last_update_time=True),
+        )
 
     if close_after_use:
         client_manager.close_clients()
 
     trees = {
-        obj.properties["conversation_id"]: obj.properties["title"]
+        obj.properties["conversation_id"]: {
+            "title": obj.properties["title"],
+            "last_update_time": format_datetime(obj.metadata.last_update_time),
+        }
         for obj in response.objects
     }
 
