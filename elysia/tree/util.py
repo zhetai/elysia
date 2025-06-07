@@ -1,4 +1,4 @@
-import ast
+import uuid
 from typing import Any
 
 # dspy requires a 'base' LM but this should not be used
@@ -381,6 +381,20 @@ class TreeReturner:
 
     def clear_store(self):
         self.store = []
+
+    def add_prompt(self, prompt: str, query_id: str):
+        self.store.append(
+            {
+                "type": "user_prompt",
+                "id": str(uuid.uuid4()),
+                "user_id": self.user_id,
+                "conversation_id": self.conversation_id,
+                "query_id": query_id,
+                "payload": {
+                    "prompt": prompt,
+                },
+            }
+        )
 
     async def __call__(
         self,

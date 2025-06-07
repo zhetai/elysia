@@ -1291,11 +1291,13 @@ class Tree:
             )
             self.settings.logger.info(f"End goal: {self.tree_data.atlas.end_goal}")
 
-            # Reset the tree (clear temporary data specific to the last user prompt)
-            self.soft_reset()
-
             if query_id is None:
                 query_id = str(uuid.uuid4())
+
+            self.returner.add_prompt(user_prompt, query_id)
+
+            # Reset the tree (clear temporary data specific to the last user prompt)
+            self.soft_reset()
 
             check_base_lm_settings(self.settings)
             check_complex_lm_settings(self.settings)
