@@ -73,17 +73,20 @@ class Tracker:
 
             history = lm.history[-num_calls:]
 
-            input_tokens = (
-                sum(h["usage"]["prompt_tokens"] for h in history)
-                if "prompt_tokens" in history[0]["usage"]
-                else 0
-            )
-            output_tokens = (
-                sum(h["usage"]["completion_tokens"] for h in history)
-                if "completion_tokens" in history[0]["usage"]
-                else 0
-            )
-            cost = sum(h["cost"] for h in history)
+            input_tokens = 0
+            for h in history:
+                if "usage" in h and "prompt_tokens" in h["usage"]:
+                    input_tokens += h["usage"]["prompt_tokens"]
+
+            output_tokens = 0
+            for h in history:
+                if "usage" in h and "completion_tokens" in h["usage"]:
+                    output_tokens += h["usage"]["completion_tokens"]
+
+            cost = 0
+            for h in history:
+                if "cost" in h:
+                    cost += h["cost"]
 
             if self.trackers["models"][model_type]["input_tokens"] is None:
                 self.trackers["models"][model_type]["input_tokens"] = input_tokens
