@@ -113,12 +113,14 @@ def test_save_and_load_config_user():
     data = response.json()
     assert "error" in data
     assert data["error"] == "" or isinstance(data["error"], str)
+
     # Load config
     load_payload = {
         "config_id": config_id,
         "include_atlas": True,
         "include_branch_initialisation": True,
         "include_settings": True,
+        "include_frontend_config": True,
     }
     response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/load", json=load_payload)
     assert response.status_code == 200

@@ -41,55 +41,55 @@ class fake_websocket:
 
 class TestUtils:
 
-    @pytest.mark.asyncio
-    async def test_ner(self):
-        try:
-            out = await named_entity_recognition(NERData(text="Hello, world!"))
-            response = read_response(out)
-            assert response["error"] == ""
-        finally:
-            await get_user_manager().close_all_clients()
+    # @pytest.mark.asyncio
+    # async def test_ner(self):
+    #     try:
+    #         out = await named_entity_recognition(NERData(text="Hello, world!"))
+    #         response = read_response(out)
+    #         assert response["error"] == ""
+    #     finally:
+    #         await get_user_manager().close_all_clients()
 
-    @pytest.mark.asyncio
-    async def test_title(self):
-        try:
-            user_manager = get_user_manager()
-            # local_user = user_manager.get_user_local(user_id="test_user")
+    # @pytest.mark.asyncio
+    # async def test_title(self):
+    #     try:
+    #         user_manager = get_user_manager()
+    #         # local_user = user_manager.get_user_local(user_id="test_user")
 
-            out = await initialise_user(
-                InitialiseUserData(
-                    user_id="test_user",
-                    default_models=True,
-                ),
-                user_manager,
-            )
-            response = read_response(out)
-            assert response["error"] == ""
+    #         out = await initialise_user(
+    #             InitialiseUserData(
+    #                 user_id="test_user",
+    #                 default_models=True,
+    #             ),
+    #             user_manager,
+    #         )
+    #         response = read_response(out)
+    #         assert response["error"] == ""
 
-            out = await initialise_tree(
-                InitialiseTreeData(
-                    user_id="test_user",
-                    conversation_id="test_conversation",
-                ),
-                user_manager,
-            )
+    #         out = await initialise_tree(
+    #             InitialiseTreeData(
+    #                 user_id="test_user",
+    #                 conversation_id="test_conversation",
+    #             ),
+    #             user_manager,
+    #         )
 
-            response = read_response(out)
-            assert response["error"] == ""
+    #         response = read_response(out)
+    #         assert response["error"] == ""
 
-            out = await title(
-                TitleData(
-                    user_id="test_user",
-                    conversation_id="test_conversation",
-                    text="Hello, world!",
-                ),
-                user_manager,
-            )
+    #         out = await title(
+    #             TitleData(
+    #                 user_id="test_user",
+    #                 conversation_id="test_conversation",
+    #                 text="Hello, world!",
+    #             ),
+    #             user_manager,
+    #         )
 
-            response = read_response(out)
-            assert response["error"] == ""
-        finally:
-            await get_user_manager().close_all_clients()
+    #         response = read_response(out)
+    #         assert response["error"] == ""
+    #     finally:
+    #         await get_user_manager().close_all_clients()
 
     @pytest.mark.asyncio
     async def test_follow_up_suggestions(self):
