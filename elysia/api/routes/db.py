@@ -73,7 +73,7 @@ async def save_tree(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.post("/{user_id}/delete_tree/{conversation_id}")
+@router.delete("/{user_id}/delete_tree/{conversation_id}")
 async def delete_tree(
     user_id: str,
     conversation_id: str,
