@@ -67,7 +67,7 @@ class TestQuery:
             )
 
             # check all payloads are valid
-            for result in websocket.results:
+            for i, result in enumerate(websocket.results):
                 assert isinstance(result, dict)
                 assert "type" in result
                 assert "id" in result
@@ -82,9 +82,22 @@ class TestQuery:
                     assert isinstance(result["payload"]["metadata"], dict)
                 if "text" in result["payload"]:
                     assert isinstance(result["payload"]["text"], str)
+
+                if result["type"] == "ner":
+                    assert isinstance(result["payload"]["text"], str)
+                    assert isinstance(result["payload"]["entity_spans"], list)
+                    assert isinstance(result["payload"]["noun_spans"], list)
+                    assert isinstance(result["payload"]["error"], str)
+                    assert result["payload"]["error"] == ""
+
+                if result["type"] == "title":
+                    assert isinstance(result["payload"]["title"], str)
+                    assert isinstance(result["payload"]["error"], str)
+                    assert result["payload"]["error"] == ""
+
+                if result["type"] == "completed":
+                    assert i == len(websocket.results) - 1
+                    assert websocket.results[i - 1]["type"] == "title"
+
         finally:
             await get_user_manager().close_all_clients()
-
-
-if __name__ == "__main__":
-    asyncio.run(TestQuery().test_query())

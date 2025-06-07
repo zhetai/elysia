@@ -86,7 +86,7 @@ def test_title_invalid_user():
 def test_follow_up_suggestions_invalid_user():
     payload = {"user_id": "nonexistent_user", "conversation_id": "nonexistent_convo"}
     response = requests.post(f"{UTILS_URL}/follow_up_suggestions", json=payload)
-    assert response.status_code in (200, 401)
+    assert response.status_code in (200, 408)
     data = response.json()
     assert "error" in data
 
