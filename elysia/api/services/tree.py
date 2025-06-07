@@ -398,19 +398,21 @@ class TreeManager:
         # clear the event, set it to working
         self.trees[conversation_id]["event"].clear()
 
-        async for yielded_result in tree.async_run(
-            query,
-            collection_names=collection_names,
-            client_manager=client_manager,
-            query_id=query_id,
-            training_route=training_route,
-            close_clients_after_completion=False,
-        ):
-            yield yielded_result
-            self.update_tree_last_request(conversation_id)
+        try:
+            async for yielded_result in tree.async_run(
+                query,
+                collection_names=collection_names,
+                client_manager=client_manager,
+                query_id=query_id,
+                training_route=training_route,
+                close_clients_after_completion=False,
+            ):
+                yield yielded_result
+                self.update_tree_last_request(conversation_id)
 
-        # set the event to idle
-        self.trees[conversation_id]["event"].set()
+        finally:
+            # set the event to idle
+            self.trees[conversation_id]["event"].set()
 
     def check_tree_timeout(self, conversation_id: str):
         """
