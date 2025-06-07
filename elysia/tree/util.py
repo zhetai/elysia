@@ -531,4 +531,5 @@ async def delete_tree_from_weaviate(
     async with client_manager.connect_to_async_client() as client:
         collection = client.collections.get(collection_name)
         uuid = generate_uuid5(conversation_id)
-        await collection.data.delete_by_id(uuid)
+        if await collection.data.exists(uuid):
+            await collection.data.delete_by_id(uuid)

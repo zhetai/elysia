@@ -1900,6 +1900,11 @@ class Tree:
 
             collection = client.collections.get(collection_name)
             uuid = generate_uuid5(conversation_id)
+            # if not await collection.data.exists(uuid):
+            #     raise ValueError(
+            #         f"No tree found for conversation id '{conversation_id}' in collection '{collection_name}'."
+            #     )
+
             response = await collection.query.fetch_object_by_id(uuid)
 
         if close_after_use:

@@ -230,10 +230,8 @@ async def create_feedback(
         "action_information": history["action_information"],
         "time_taken_seconds": history["time_taken_seconds"],
         "decision_time": tree.tracker.get_average_time("decision_node"),
-        "base_lm_used": tree.base_lm.model if not tree.low_memory else tree.base_lm,
-        "complex_lm_used": (
-            tree.complex_lm.model if not tree.low_memory else tree.complex_lm
-        ),
+        "base_lm_used": tree.base_lm.model,
+        "complex_lm_used": tree.complex_lm.model,
         "feedback_datetime": format_datetime(date_now),
         "feedback_date": format_datetime(
             date_now.replace(hour=0, minute=0, second=0, microsecond=0)

@@ -197,6 +197,12 @@ class TreeManager:
         tree = await Tree.import_from_weaviate(
             "ELYSIA_TREES__", conversation_id, client_manager
         )
+        if conversation_id not in self.trees:
+            self.trees[conversation_id] = {
+                "tree": None,
+                "event": asyncio.Event(),
+                "last_request": datetime.datetime.now(),
+            }
         self.trees[conversation_id]["tree"] = tree
         self.trees[conversation_id]["event"].set()
         self.update_tree_last_request(conversation_id)
@@ -223,7 +229,8 @@ class TreeManager:
         Args:
             conversation_id (str): The conversation ID of the tree to be deleted.
         """
-        del self.trees[conversation_id]
+        if conversation_id in self.trees:
+            del self.trees[conversation_id]
 
     def tree_exists(self, conversation_id: str):
         """
