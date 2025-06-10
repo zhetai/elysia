@@ -7,7 +7,7 @@ from pympler import asizeof
 from logging import Logger
 
 from weaviate.util import generate_uuid5
-from weaviate.classes.query import MetadataQuery, Sort
+from weaviate.classes.query import MetadataQuery, Sort, Filter
 
 # globals
 from elysia.objects import (
@@ -482,7 +482,9 @@ async def get_follow_up_suggestions(
 
 
 async def get_saved_trees_weaviate(
-    collection_name: str, client_manager: ClientManager | None = None
+    collection_name: str,
+    client_manager: ClientManager | None = None,
+    user_id: str | None = None,
 ):
     """
     Get all saved trees from a Weaviate collection.
@@ -491,6 +493,8 @@ async def get_saved_trees_weaviate(
         collection_name (str): The name of the collection to get the trees from.
         client_manager (ClientManager): The client manager to use.
             If not provided, a new ClientManager will be created from environment variables.
+        user_id (str): The user ID to get the trees from.
+            If not provided, the trees will be retrieved from the collection without any filters.
 
     Returns:
         dict: A dictionary of tree UUIDs and their titles.
@@ -501,6 +505,11 @@ async def get_saved_trees_weaviate(
     else:
         close_after_use = False
 
+    if user_id is not None:
+        user_id_filter = Filter.by_property("user_id").equal(user_id)
+    else:
+        user_id_filter = None
+
     async with client_manager.connect_to_async_client() as client:
 
         if not await client.collections.exists(collection_name):
@@ -509,13 +518,17 @@ async def get_saved_trees_weaviate(
         collection = client.collections.get(collection_name)
 
         len_collection = (
-            await collection.aggregate.over_all(total_count=True)
+            await collection.aggregate.over_all(
+                total_count=True,
+                filters=user_id_filter,
+            )
         ).total_count
 
         response = await collection.query.fetch_objects(
             limit=len_collection,
             sort=Sort.by_update_time(ascending=False),
             return_metadata=MetadataQuery(last_update_time=True),
+            filters=user_id_filter,
         )
 
     if close_after_use:

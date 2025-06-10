@@ -26,6 +26,32 @@ class fake_websocket:
         self.results.append(data)
 
 
+async def initialise_user_and_tree(user_id: str, conversation_id: str):
+    user_manager = get_user_manager()
+
+    response = await initialise_user(
+        InitialiseUserData(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            default_models=True,
+        ),
+        user_manager,
+    )
+
+    response = await initialise_tree(
+        InitialiseTreeData(
+            user_id=user_id,
+            conversation_id=conversation_id,
+        ),
+        user_manager,
+    )
+
+
+async def delete_user_and_tree(user_id: str, conversation_id: str):
+    user_manager = get_user_manager()
+    await user_manager.delete_tree(user_id, conversation_id)
+
+
 class TestQuery:
 
     @pytest.mark.asyncio
@@ -39,65 +65,56 @@ class TestQuery:
 
             websocket = fake_websocket()
 
-            await initialise_user(
-                InitialiseUserData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    default_models=True,
+            await initialise_user_and_tree(user_id, conversation_id)
+
+            try:
+                out = await process(
+                    QueryData(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        query="hi!",
+                        query_id=query_id,
+                        collection_names=["test_collection_1", "test_collection_2"],
+                    ).model_dump(),
+                    websocket,
+                    get_user_manager(),
                 )
-            )
 
-            await initialise_tree(
-                InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                )
-            )
+                # check all payloads are valid
+                for i, result in enumerate(websocket.results):
+                    assert isinstance(result, dict)
+                    assert "type" in result
+                    assert "id" in result
+                    assert "conversation_id" in result
+                    assert "query_id" in result
+                    assert "payload" in result
+                    assert isinstance(result["payload"], dict)
+                    if "objects" in result["payload"]:
+                        for obj in result["payload"]["objects"]:
+                            assert isinstance(obj, dict)
+                    if "metadata" in result["payload"]:
+                        assert isinstance(result["payload"]["metadata"], dict)
+                    if "text" in result["payload"]:
+                        assert isinstance(result["payload"]["text"], str)
 
-            out = await process(
-                QueryData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    query="hi!",
-                    query_id=query_id,
-                    collection_names=["test_collection_1", "test_collection_2"],
-                ).model_dump(),
-                websocket,
-                get_user_manager(),
-            )
+                    if result["type"] == "ner":
+                        assert isinstance(result["payload"]["text"], str)
+                        assert isinstance(result["payload"]["entity_spans"], list)
+                        assert isinstance(result["payload"]["noun_spans"], list)
+                        assert isinstance(result["payload"]["error"], str)
+                        assert result["payload"]["error"] == ""
 
-            # check all payloads are valid
-            for i, result in enumerate(websocket.results):
-                assert isinstance(result, dict)
-                assert "type" in result
-                assert "id" in result
-                assert "conversation_id" in result
-                assert "query_id" in result
-                assert "payload" in result
-                assert isinstance(result["payload"], dict)
-                if "objects" in result["payload"]:
-                    for obj in result["payload"]["objects"]:
-                        assert isinstance(obj, dict)
-                if "metadata" in result["payload"]:
-                    assert isinstance(result["payload"]["metadata"], dict)
-                if "text" in result["payload"]:
-                    assert isinstance(result["payload"]["text"], str)
+                    if result["type"] == "title":
+                        assert isinstance(result["payload"]["title"], str)
+                        assert isinstance(result["payload"]["error"], str)
+                        assert result["payload"]["error"] == ""
 
-                if result["type"] == "ner":
-                    assert isinstance(result["payload"]["text"], str)
-                    assert isinstance(result["payload"]["entity_spans"], list)
-                    assert isinstance(result["payload"]["noun_spans"], list)
-                    assert isinstance(result["payload"]["error"], str)
-                    assert result["payload"]["error"] == ""
+                    if result["type"] == "completed":
+                        assert i == len(websocket.results) - 1
+                        assert websocket.results[i - 1]["type"] == "title"
 
-                if result["type"] == "title":
-                    assert isinstance(result["payload"]["title"], str)
-                    assert isinstance(result["payload"]["error"], str)
-                    assert result["payload"]["error"] == ""
-
-                if result["type"] == "completed":
-                    assert i == len(websocket.results) - 1
-                    assert websocket.results[i - 1]["type"] == "title"
+            finally:
+                await delete_user_and_tree(user_id, conversation_id)
 
         finally:
             await get_user_manager().close_all_clients()

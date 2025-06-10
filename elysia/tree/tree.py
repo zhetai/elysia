@@ -1804,6 +1804,7 @@ class Tree:
                 await collection.data.update(
                     uuid=uuid,
                     properties={
+                        "user_id": self.user_id,
                         "conversation_id": self.conversation_id,
                         "tree": json_data_str,
                         "title": self.conversation_title,
@@ -1816,6 +1817,7 @@ class Tree:
                 await collection.data.insert(
                     uuid=uuid,
                     properties={
+                        "user_id": self.user_id,
                         "conversation_id": self.conversation_id,
                         "tree": json_data_str,
                         "title": self.conversation_title,

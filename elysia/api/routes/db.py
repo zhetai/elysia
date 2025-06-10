@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
-from elysia.tree.util import get_saved_trees_weaviate
 
 # Logging
 from elysia.api.core.log import logger
@@ -20,9 +19,7 @@ async def get_saved_trees(
     headers = {"Cache-Control": "no-cache"}
 
     try:
-        user = await user_manager.get_user_local(user_id)
-        client_manager = user["client_manager"]
-        trees = await get_saved_trees_weaviate("ELYSIA_TREES__", client_manager)
+        trees = await user_manager.get_saved_trees(user_id)
         return JSONResponse(
             content={"trees": trees, "error": ""}, status_code=200, headers=headers
         )

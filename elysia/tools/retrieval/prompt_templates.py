@@ -182,6 +182,11 @@ class QueryCreatorPrompt(dspy.Signature):
     8. If you are querying multiple collections for the same thing, do not repeat the same query for each collection, just provide multiple collections a single query_output.
     9. Always make sure your filter matches the property type in the dataset.
 
+    Try to think outside the box. The query search term may not be included in the user prompt.
+    Use knowledge to identify what's NOT in the question but SHOULD be searched.
+    If applicable, you can create multiple queries on the same collection, with different search terms/filters etc.
+    Break this down in your reasoning if you think it is necessary.
+
     Include all of your thoughts in any reasoning fields, as this will be used to communicate to later models about your decision process here.
 
     Return a list of QueryOutput objects that satisfy the user's request. If multiple approaches are possible, return multiple queries.
