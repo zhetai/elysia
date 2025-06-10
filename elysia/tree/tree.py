@@ -456,9 +456,6 @@ class Tree:
             return {}
 
     async def _check_rules(self, branch_id: str, client_manager: ClientManager):
-        base_lm = self.base_lm
-        complex_lm = self.complex_lm
-
         branch = self.decision_nodes[branch_id]
         nodes_with_rules_met = []
         rule_tool_inputs = {}
@@ -471,8 +468,8 @@ class Tree:
                 ].run_if_true(
                     tree_data=self.tree_data,
                     client_manager=client_manager,
-                    base_lm=base_lm,
-                    complex_lm=complex_lm,
+                    base_lm=self.base_lm,
+                    complex_lm=self.complex_lm,
                 )
                 if rule_met:
                     nodes_with_rules_met.append(function_name)
@@ -975,11 +972,8 @@ class Tree:
         Returns:
             (str): The title for the tree.
         """
-
-        lm = self.base_lm
-
         self.conversation_title = await create_conversation_title(
-            self.tree_data.conversation_history, lm
+            self.tree_data.conversation_history, self.base_lm
         )
         return self.conversation_title
 
@@ -1010,13 +1004,10 @@ class Tree:
         Returns:
             (list[str]): A list of follow-up suggestions
         """
-
-        lm = self.base_lm
-
         suggestions = await get_follow_up_suggestions(
             self.tree_data,
             self.suggestions,
-            lm,
+            self.base_lm,
             context=context,
             num_suggestions=num_suggestions,
         )
@@ -1342,9 +1333,6 @@ class Tree:
                         padding=(1, 1),
                     )
                 )
-
-        base_lm = self.base_lm
-        complex_lm = self.complex_lm
         # Start the tree at the root node
         current_decision_node: DecisionNode = self.decision_nodes[self.root]
 
@@ -1411,8 +1399,8 @@ class Tree:
                 self.tree_data.set_current_task("elysia_decision_node")
                 self.current_decision, results = await current_decision_node(
                     tree_data=self.tree_data,
-                    base_lm=base_lm,
-                    complex_lm=complex_lm,
+                    base_lm=self.base_lm,
+                    complex_lm=self.complex_lm,
                     available_tools=available_tools,
                     successive_actions=successive_actions,
                     client_manager=client_manager,
@@ -1793,9 +1781,28 @@ class Tree:
                     inverted_index_config=wc.Configure.inverted_index(
                         index_timestamps=True
                     ),
+                    properties=[
+                        wc.Property(
+                            name="user_id",
+                            data_type=wc.DataType.TEXT,
+                        ),
+                        wc.Property(
+                            name="conversation_id",
+                            data_type=wc.DataType.TEXT,
+                        ),
+                        wc.Property(
+                            name="tree",
+                            data_type=wc.DataType.TEXT,
+                        ),
+                        wc.Property(
+                            name="title",
+                            data_type=wc.DataType.TEXT,
+                        ),
+                    ],
                 )
 
             collection = client.collections.get(collection_name)
+
             json_data_str = json.dumps(self.export_to_json())
 
             uuid = generate_uuid5(self.conversation_id)
