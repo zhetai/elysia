@@ -154,3 +154,6 @@ elysia-frontend/*
 elysia-frontend/.git/* 
 
 elysia/api/static/*
+
+# resources
+resources.txt
