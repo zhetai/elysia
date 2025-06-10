@@ -482,7 +482,16 @@ class UserManager:
                 Defaults to the value of the `wcd_api_key` setting in the frontend config.
 
         Returns:
-            dict: A dictionary of tree UUIDs and their titles (None if no title generated).
+            (dict): A dictionary whose keys are the conversation IDs and whose values are dictionaries containing the title and last update time of the tree.
+            E.g.
+            ```
+            {
+                "12345678-XXX-YYYY-ZZZZ": {
+                    "title": "Query Request",
+                    "last_update_time": "2025-06-07T10:06:47.376000Z"
+                }
+            }
+            ```
         """
         local_user = await self.get_user_local(user_id)
 
@@ -498,7 +507,7 @@ class UserManager:
             )
 
         return await get_saved_trees_weaviate(
-            "ELYSIA_TREES__", save_location_client_manager
+            "ELYSIA_TREES__", save_location_client_manager, user_id
         )
 
     async def update_user_last_request(self, user_id: str):
