@@ -566,7 +566,6 @@ class TreeData:
         user_prompt: str | None = None,
         conversation_history: list[dict] | None = None,
         environment: Environment | None = None,
-        hidden_environment: Environment | None = None,
         tasks_completed: list[dict] | None = None,
         num_trees_completed: int | None = None,
         recursion_limit: int | None = None,
@@ -731,6 +730,10 @@ class TreeData:
             return []
         else:
             return self.errors[self.current_task]
+
+    def clear_error(self, task: str):
+        if task in self.errors:
+            self.errors[task] = []
 
     def tasks_completed_string(self):
         """

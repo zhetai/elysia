@@ -228,6 +228,23 @@ class ElysiaChainOfThought(Module):
                 name="tasks_completed", field=tasks_completed_field, type_=str
             )
 
+        # -- Impossible Field --
+        if impossible:
+            impossible_desc = (
+                "Given the actions you have available, and the environment/information. "
+                "Is the task impossible to complete? "
+                "I.e., do you wish that you had a different task to perform/choose from and hence should return to the base of the decision tree?"
+                "Do not base this judgement on the entire prompt, as it is possible that other agents can perform other aspects of the request."
+                "Do not judge impossibility based on if tasks have been completed, only on the current action and environment."
+            )
+            impossible_prefix = "${impossible}"
+            impossible_field: bool = dspy.OutputField(
+                prefix=impossible_prefix, desc=impossible_desc
+            )
+            extended_signature = extended_signature.prepend(
+                name="impossible", field=impossible_field, type_=bool
+            )
+
         # -- Message Update Output --
         if message_update:
             message_update_desc = (
@@ -246,25 +263,8 @@ class ElysiaChainOfThought(Module):
             message_update_field: str = dspy.OutputField(
                 prefix=message_update_prefix, desc=message_update_desc
             )
-            extended_signature = extended_signature.append(
-                name="message_update", field=message_update_field, type_=str
-            )
-
-        # -- Impossible Field --
-        if impossible:
-            impossible_desc = (
-                "Given the actions you have available, and the environment/information. "
-                "Is the task impossible to complete? "
-                "I.e., do you wish that you had a different task to perform/choose from and hence should return to the base of the decision tree?"
-                "Do not base this judgement on the entire prompt, as it is possible that other agents can perform other aspects of the request."
-                "Do not judge impossibility based on if tasks have been completed, only on the current action and environment."
-            )
-            impossible_prefix = "${impossible}"
-            impossible_field: bool = dspy.OutputField(
-                prefix=impossible_prefix, desc=impossible_desc
-            )
             extended_signature = extended_signature.prepend(
-                name="impossible", field=impossible_field, type_=bool
+                name="message_update", field=message_update_field, type_=str
             )
 
         # -- Reasoning Field --

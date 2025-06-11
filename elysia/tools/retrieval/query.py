@@ -35,12 +35,11 @@ class Query(Tool):
         super().__init__(
             name="query",
             description="""
-            Query the knowledge base based on searching with a specific query.
-            This views the data specifically, and returns the data that matches the query.
-            You will be given information about the collection, such as the fields and types of the data.
+            Retrieves and displays specific data entries from the collections.
             Then, query with semantic search, keyword search, or a combination of both.
             Queries can be filtered, sorted, and more.
-            All collections may be filtered by creation time, regardless of the schema.
+            Retrieving and displaying specific data entries rather than performing calculations or summaries.
+            Do not use 'query' as a preliminary filtering step when 'aggregate' can achieve the same result more efficiently (if 'aggregate' is available).
             """,
             status="Querying...",
             inputs={
@@ -267,24 +266,25 @@ class Query(Tool):
         if tree_data.settings.USE_FEEDBACK:
             yield FewShotExamples(uuids=example_uuids)
 
-        yield TreeUpdate(
-            from_node="query",
-            to_node="query_executor",
-            reasoning=query.reasoning,
-            last_in_branch=(
-                query.impossible
-                or query.query_output is None
-                or not any(
-                    self._evaluate_needs_chunking(
-                        query.data_display[collection_name].display_type,
-                        current_query_output.search_type,
-                        schemas[collection_name],
+        if self.summariser_in_tree:
+            yield TreeUpdate(
+                from_node="query",
+                to_node="summarise_items",
+                reasoning=query.reasoning,
+                last_in_branch=(
+                    query.impossible
+                    or query.query_output is None
+                    or not any(
+                        self._evaluate_needs_chunking(
+                            query.data_display[collection_name].display_type,
+                            current_query_output.search_type,
+                            schemas[collection_name],
+                        )
+                        for current_query_output in query.query_output.query_outputs
+                        for collection_name in current_query_output.target_collections
                     )
-                    for current_query_output in query.query_output.query_outputs
-                    for collection_name in current_query_output.target_collections
-                )
-            ),
-        )
+                ),
+            )
 
         # Return if model deems query impossible
         if query.impossible or query.query_output is None:
@@ -307,13 +307,14 @@ class Query(Tool):
                     f"Model judged query to be impossible. Returning to the decision tree..."
                 )
 
-            yield TreeUpdate(
-                from_node="query",
-                to_node="query_executor",
-                reasoning=query.reasoning,
-                last_in_branch=True,
-            )
-            return
+            if self.summariser_in_tree:
+                yield TreeUpdate(
+                    from_node="query",
+                    to_node="summarise_items",
+                    reasoning=query.reasoning,
+                    last_in_branch=True,
+                )
+                return
 
         # extract and error handle the query output
         # TODO: replace with assertions when they're released

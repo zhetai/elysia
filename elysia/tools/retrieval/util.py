@@ -49,25 +49,27 @@ class CreationTimeFilter(BaseModel):
 # == Aggregation Fields
 class NumberAggregation(BaseModel):
     property_name: str
-    metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE", "SUM"]]
+    metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE", "SUM", "COUNT"]]
 
 
 class TextAggregation(BaseModel):
     property_name: str
-    metrics: List[Literal["TOP_OCCURRENCES"]]
-    top_occurrences_limit: Optional[int] = None
+    metrics: List[Literal["TOP_OCCURRENCES", "COUNT"]]
+    min_occurrences: Optional[int] = None
 
 
 class BooleanAggregation(BaseModel):
     property_name: str
     metrics: List[
-        Literal["TOTAL_TRUE", "TOTAL_FALSE", "PERCENTAGE_TRUE", "PERCENTAGE_FALSE"]
+        Literal[
+            "TOTAL_TRUE", "TOTAL_FALSE", "PERCENTAGE_TRUE", "PERCENTAGE_FALSE", "COUNT"
+        ]
     ]
 
 
 class DateAggregation(BaseModel):
     property_name: str
-    metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE"]]
+    metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE", "COUNT"]]
 
 
 # == Define FilterBucket type recursively
@@ -540,20 +542,14 @@ def _build_return_metrics(tool_args: dict):
                             for m in metrics
                             for metric_name in metric_mapping.get(m, m.lower())
                         ]
-                        metric_names = [
-                            item
-                            for sublist in metric_names
-                            if isinstance(sublist, list)
-                            for item in sublist
-                        ]
 
                         if (
                             any(m.startswith("top_occurrences") for m in metric_names)
-                            and tool_args[agg_type].top_occurrences_limit
+                            and agg.min_occurrences
                         ):
                             full_metrics.append(
                                 Metrics(prop_name).text(
-                                    limit=tool_args[agg_type].top_occurrences_limit,
+                                    min_occurrences=agg.min_occurrences,
                                     **{
                                         metric_name: True
                                         for metric_name in metric_names
@@ -943,23 +939,16 @@ def _build_return_metrics_string(tool_args: dict) -> str:
                     }
                     metric_names = [
                         metric_name
-                        for metric_name in metric_mapping.get(metrics, metrics.lower())
-                    ]
-                    metric_names = [
-                        item
-                        for sublist in metric_names
-                        if isinstance(sublist, list)
-                        for item in sublist
+                        for m in metrics
+                        for metric_name in metric_mapping.get(m, m.lower())
                     ]
                     metric_bools = [f"{m}=True" for m in metric_names]
                     limit_part = ""
                     if (
-                        "top_occurrences_limit" in tool_args[agg_type]
-                        and tool_args[agg_type].top_occurrences_limit
+                        "min_occurrences" in tool_args[agg_type]
+                        and tool_args[agg_type].min_occurrences
                     ):
-                        limit_part = (
-                            f", limit={tool_args[agg_type].top_occurrences_limit}"
-                        )
+                        limit_part = f", limit={tool_args[agg_type].min_occurrences}"
 
                     metric_strs.append(
                         f"Metrics('{prop_name}').text({', '.join(metric_bools)}{limit_part})"
