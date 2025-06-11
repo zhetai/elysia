@@ -28,12 +28,14 @@ class Aggregate(Tool):
         super().__init__(
             name="aggregate",
             description="""
-            Perform functions such as counting, averaging, summing, etc. on the data, grouping by some property and returning metrics/statistics about different categories.
-            Or providing a high level overview of the dataset.
-            Note this does not include viewing the data, only performing operations to find quantities and summary statistics.
-            You will be given information about the collection, such as the fields and types of the data.
-            Then, aggregate over different categories of the collection, with operations: top_occurences, count, sum, average, min, max, median, mode, group_by.
-            Without viewing the data.
+            Query the knowledge base specifically for aggregation queries.
+            Performs calculations (counting, averaging, summing, etc.) and provides summary statistics on data.
+            It can group data by properties and apply filters directly, without needing a prior query.
+            Aggregation queries can be filtered.
+            This can be applied directly on any collections in the schema.
+            Use this tool when you need counts, sums, averages, or other summary statistics on properties in the collections.
+            'aggregate' should be considered the first choice for tasks involving counting, summing, averaging, 
+            or other statistical operations, even when filtering is required.
             """,
             status="Aggregating...",
             inputs={
@@ -146,6 +148,11 @@ class Aggregate(Tool):
         except Exception as e:
             yield Error(str(e))
             return
+
+        if self.logger and aggregation.aggregation_queries is not None:
+            self.logger.debug(
+                f"Aggregation: {aggregation.aggregation_queries.aggregation_outputs}"
+            )
 
         # Yield results to front end
         yield Response(text=aggregation.message_update)

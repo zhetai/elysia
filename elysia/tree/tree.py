@@ -40,6 +40,7 @@ from elysia.objects import (
 )
 from elysia.tools.retrieval.aggregate import Aggregate
 from elysia.tools.retrieval.query import Query
+from elysia.tools.visualisation.visualise import Visualise
 from elysia.tools.postprocessing.summarise_items import SummariseItems
 from elysia.tools.text.text import (
     FakeTextResponse,
@@ -241,6 +242,7 @@ class Tree:
         )
         self.add_tool(branch_id="search", tool=Query, summariser_in_tree=True)
         self.add_tool(branch_id="search", tool=Aggregate)
+        self.add_tool(branch_id="base", tool=Visualise)
         self.add_tool(SummariseItems, branch_id="search", from_tool_ids=["query"])
 
     def one_branch_init(self):
@@ -258,6 +260,7 @@ class Tree:
         self.add_tool(branch_id="base", tool=FakeTextResponse)
         self.add_tool(branch_id="base", tool=Aggregate)
         self.add_tool(branch_id="base", tool=Query, summariser_in_tree=True)
+        self.add_tool(branch_id="base", tool=Visualise)
         self.add_tool(SummariseItems, branch_id="base", from_tool_ids=["query"])
 
     def empty_init(self):
@@ -1139,6 +1142,7 @@ class Tree:
         result: Return | TreeUpdate | Error | TrainingUpdate,
         decision: Decision,
     ):
+        error = False
 
         if isinstance(result, Result):
             self._add_refs(result.objects, decision.function_name, result.name)
@@ -1158,6 +1162,7 @@ class Tree:
                         padding=(1, 1),
                     )
                 )
+            error = True
 
         if isinstance(result, Text):
             self._update_conversation_history("assistant", result.text)
@@ -1171,10 +1176,13 @@ class Tree:
                     )
                 )
 
-        return await self.returner(
-            result,
-            self.prompt_to_query_id[self.user_prompt],
-            last_in_tree=decision.last_in_tree,
+        return (
+            await self.returner(
+                result,
+                self.prompt_to_query_id[self.user_prompt],
+                last_in_tree=decision.last_in_tree,
+            ),
+            error,
         )
 
     async def _get_available_tools(
@@ -1374,7 +1382,7 @@ class Tree:
                         complex_lm=self.complex_lm,
                         client_manager=client_manager,
                     ):
-                        action_result = await self._evaluate_result(
+                        action_result, _ = await self._evaluate_result(
                             result, rule_decision
                         )
                         if action_result is not None:
@@ -1406,7 +1414,7 @@ class Tree:
                     client_manager=client_manager,
                 )
                 for result in results:
-                    action_result = await self._evaluate_result(
+                    action_result, _ = await self._evaluate_result(
                         result, self.current_decision
                     )
                     if action_result is not None:
@@ -1493,6 +1501,7 @@ class Tree:
             if action_fn is not None:
                 self.tracker.start_tracking(self.current_decision.function_name)
                 self.tree_data.set_current_task(self.current_decision.function_name)
+                successful_action = True
                 async for result in action_fn(
                     tree_data=self.tree_data,
                     inputs=self.current_decision.function_inputs,
@@ -1500,11 +1509,16 @@ class Tree:
                     complex_lm=self.complex_lm,
                     client_manager=client_manager,
                 ):
-                    action_result = await self._evaluate_result(
+                    action_result, error = await self._evaluate_result(
                         result, self.current_decision
                     )
+                    successful_action = not error and successful_action
+
                     if action_result is not None:
                         yield action_result
+
+                if successful_action:
+                    self.tree_data.clear_error(self.current_decision.function_name)
 
                 self.tracker.end_tracking(
                     self.current_decision.function_name,
@@ -1545,7 +1559,7 @@ class Tree:
                     base_lm=self.base_lm,
                     complex_lm=self.complex_lm,
                 ):
-                    action_result = await self._evaluate_result(
+                    action_result, _ = await self._evaluate_result(
                         result, self.current_decision
                     )
                     if action_result is not None:

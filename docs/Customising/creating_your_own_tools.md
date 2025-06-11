@@ -11,8 +11,15 @@ This page will detail all relevant information for tool construction, to get sta
 
 A tool must be initialised with
 ```python
-    def __init__(self, **kwargs):
-        # initialisation
+    def __init__(self, logger: Logger | None = None, **kwargs):
+        
+        super().__init__(
+            name=...,
+            description=...,
+            status=..., # optional
+            inputs=..., # optional
+            end=..., # optional
+        )
 ```
 
 - `name`: A short, one or two word name of the tool.
@@ -34,6 +41,8 @@ A tool must be initialised with
 - `end` (optional): A bool denoting whether the tool is capable of ending the entire decision tree. For example, a `text_response` tool can end the process, but a `query` tool cannot. This is because a query tool returns some information which is then parsed by the decision tree _afterwards_, to see if the retrieved information was worthwhile. Note that setting `end=True` does not guarantee that after this tool is finished running, the decision process ends, it only allows the model to choose that performing this action _can_ end the tree.
 - `**kwargs` (required)
 
+The `logger` can be automatically assigned to the initialisation of the tool and is passed by default into the Elysia decision tree. Save this as `self.logger = logger` to use it in the tool call later.
+
 ## Tool Call
 
 The tool should have an _async_ `__call__` method,
@@ -44,6 +53,7 @@ The tool should have an _async_ `__call__` method,
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
         client_manager: ClientManager,
+        **kwargs
     ):
         # tool call here
 ```
