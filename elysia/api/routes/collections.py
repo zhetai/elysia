@@ -301,7 +301,7 @@ async def collection_metadata(
             metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
 
             # check if the collection itself exists
-            if not await client.collections.exists(collection_name.lower()):
+            if not await client.collections.exists(collection_name):
                 raise Exception(f"Collection {collection_name} does not exist")
 
             # check if the metadata collection exists
