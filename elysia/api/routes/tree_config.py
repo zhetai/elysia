@@ -206,11 +206,11 @@ async def change_config_tree(
     return JSONResponse(content={"error": "", "config": config.model_dump()})
 
 
-@router.post("/{user_id}/{conversation_id}/load")
+@router.post("/{user_id}/{conversation_id}/{config_id}/load")
 async def load_config_tree(
     user_id: str,
     conversation_id: str,
-    data: LoadConfigTreeData,
+    config_id: str,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
@@ -221,13 +221,9 @@ async def load_config_tree(
     It will NOT update the ClientManager to use the new API keys.
 
     Args:
-        data (LoadConfigTreeData): A class with the following attributes:
-            user_id (str): The user ID.
-            conversation_id (str): The conversation ID.
-            config_id (str): The ID of the config to load. Can be found in the /list_configs API.
-            include_atlas (bool): Whether to include the atlas (style, agent_description, end_goal) in the config.
-            include_branch_initialisation (bool): Whether to include the branch initialisation in the config.
-            include_settings (bool): Whether to include the settings (LM choice, etc.) in the config.
+        user_id (str): The user ID.
+        conversation_id (str): The conversation ID.
+        config_id (str): The ID of the config to load. Can be found in the /list_configs API.
         user_manager (UserManager): The user manager instance.
 
     Returns:
@@ -238,7 +234,7 @@ async def load_config_tree(
     logger.debug(f"/load_config_tree API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Conversation ID: {conversation_id}")
-    logger.debug(f"Config ID: {data.config_id}")
+    logger.debug(f"Config ID: {config_id}")
 
     try:
         # Retrieve the user info
@@ -265,7 +261,7 @@ async def load_config_tree(
         async with user[
             "frontend_config"
         ].save_location_client_manager.connect_to_async_client() as client:
-            uuid = generate_uuid5(data.config_id)
+            uuid = generate_uuid5(config_id)
             collection = client.collections.get("ELYSIA_CONFIG__")
             config_item = await collection.query.fetch_object_by_id(uuid=uuid)
 
@@ -273,22 +269,19 @@ async def load_config_tree(
         format_dict_to_serialisable(config_item.properties)
         renamed_config = rename_keys(config_item.properties)
 
-        if data.include_settings:
-            tree.configure(
-                **{
-                    c: renamed_config["settings"][c]
-                    for c in renamed_config["settings"]
-                    if (c != "api_keys" and not c.endswith("api_key"))
-                }
-            )
+        tree.configure(
+            **{
+                c: renamed_config["settings"][c]
+                for c in renamed_config["settings"]
+                if (c != "api_keys" and not c.endswith("api_key"))
+            }
+        )
 
-        if data.include_atlas:
-            tree.change_style(renamed_config["style"])
-            tree.change_agent_description(renamed_config["agent_description"])
-            tree.change_end_goal(renamed_config["end_goal"])
+        tree.change_style(renamed_config["style"])
+        tree.change_agent_description(renamed_config["agent_description"])
+        tree.change_end_goal(renamed_config["end_goal"])
 
-        if data.include_branch_initialisation:
-            tree.set_branch_initialisation(renamed_config["branch_initialisation"])
+        # tree.set_branch_initialisation(renamed_config["branch_initialisation"])
 
     except Exception as e:
         logger.exception(f"Error in /load_config API")

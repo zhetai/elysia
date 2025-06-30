@@ -133,7 +133,7 @@ async def title(data: TitleData, user_manager: UserManager = Depends(get_user_ma
 
 #     try:
 
-#         config = user_manager.get_user_config(data.user_id)
+#         config = user_manager.get_current_user_config(data.user_id)
 
 #         error = ""
 #         object_relevance = ObjectRelevanceExecutor()
