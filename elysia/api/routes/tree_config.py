@@ -122,7 +122,7 @@ async def default_models_tree(
     return JSONResponse(content={"error": "", "config": config.model_dump()})
 
 
-@router.patch("/{user_id}/{conversation_id}")
+@router.post("/{user_id}/{conversation_id}")
 async def change_config_tree(
     user_id: str,
     conversation_id: str,
@@ -188,8 +188,8 @@ async def change_config_tree(
         if data.end_goal is not None:
             tree.change_end_goal(data.end_goal)
 
-        if data.branch_initialisation is not None:
-            tree.set_branch_initialisation(data.branch_initialisation)
+        # if data.branch_initialisation is not None:
+        #     tree.set_branch_initialisation(data.branch_initialisation)
 
         config = Config(
             settings=tree.settings.to_json(),
@@ -217,7 +217,6 @@ async def load_config_tree(
     Load a config from the weaviate database for a single tree / conversation.
     This will set the config for the current tree.
     It will not affect other trees associated with the user.
-
     It will NOT update the ClientManager to use the new API keys.
 
     Args:

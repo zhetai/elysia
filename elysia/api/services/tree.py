@@ -294,6 +294,8 @@ class TreeManager:
     def change_style(self, style: str, conversation_id: str | None = None):
         """
         Change the style for a tree in the TreeManager.
+        Or change the global style for all trees (if conversation_id is not supplied).
+        And applies these changes to current trees with default settings.
 
         Args:
             style (str): The new style for the tree.
@@ -302,6 +304,10 @@ class TreeManager:
         """
         if conversation_id is None:
             self.style = style
+            for conversation_id in self.trees:
+                if not self.trees[conversation_id]["tree"]._config_modified:
+                    self.trees[conversation_id]["tree"].change_style(style)
+                    self.trees[conversation_id]["tree"]._config_modified = False
         else:
             if conversation_id not in self.trees:
                 raise ValueError(f"Tree {conversation_id} not found")
@@ -313,6 +319,8 @@ class TreeManager:
     ):
         """
         Change the agent description for a tree in the TreeManager.
+        Or change the global agent description for all trees (if conversation_id is not supplied).
+        And applies these changes to current trees with default settings.
 
         Args:
             agent_description (str): The new agent description for the tree.
@@ -321,6 +329,12 @@ class TreeManager:
         """
         if conversation_id is None:
             self.agent_description = agent_description
+            for conversation_id in self.trees:
+                if not self.trees[conversation_id]["tree"]._config_modified:
+                    self.trees[conversation_id]["tree"].change_agent_description(
+                        agent_description
+                    )
+                    self.trees[conversation_id]["tree"]._config_modified = False
         else:
             if conversation_id not in self.trees:
                 raise ValueError(f"Tree {conversation_id} not found")
@@ -332,6 +346,8 @@ class TreeManager:
     def change_end_goal(self, end_goal: str, conversation_id: str | None = None):
         """
         Change the end goal for a tree in the TreeManager.
+        Or change the global end goal for all trees (if conversation_id is not supplied).
+        And applies these changes to current trees with default settings.
 
         Args:
             end_goal (str): The new end goal for the tree.
@@ -340,6 +356,10 @@ class TreeManager:
         """
         if conversation_id is None:
             self.end_goal = end_goal
+            for conversation_id in self.trees:
+                if not self.trees[conversation_id]["tree"]._config_modified:
+                    self.trees[conversation_id]["tree"].change_end_goal(end_goal)
+                    self.trees[conversation_id]["tree"]._config_modified = False
         else:
             if conversation_id not in self.trees:
                 raise ValueError(f"Tree {conversation_id} not found")
@@ -351,6 +371,8 @@ class TreeManager:
     ):
         """
         Change the branch initialisation for a tree in the TreeManager.
+        Or change the global branch initialisation for all trees (if conversation_id is not supplied).
+        And applies these changes to current trees with default settings.
 
         Args:
             branch_initialisation (str): The new branch initialisation for the tree.
@@ -359,6 +381,12 @@ class TreeManager:
         """
         if conversation_id is None:
             self.branch_initialisation = branch_initialisation
+            for conversation_id in self.trees:
+                if not self.trees[conversation_id]["tree"]._config_modified:
+                    self.trees[conversation_id]["tree"].set_branch_initialisation(
+                        branch_initialisation
+                    )
+                    self.trees[conversation_id]["tree"]._config_modified = False
         else:
             if conversation_id not in self.trees:
                 raise ValueError(f"Tree {conversation_id} not found")

@@ -201,9 +201,10 @@ async def environment_settings_user(
     return JSONResponse(content={"error": "", "config": config.model_dump()})
 
 
-@router.patch("/{user_id}")
-async def change_config_user(
+@router.post("/{user_id}/{config_id}")
+async def save_config_user(
     user_id: str,
+    config_id: str,
     data: Config,
     user_manager: UserManager = Depends(get_user_manager),
 ):
@@ -217,9 +218,15 @@ async def change_config_user(
     However, changes to the _style_, _agent_description_, _end_goal_ and _branch_initialisation_ will not be changed for existing trees.
     I.e., only changes to API keys and model choices will be changed for existing trees (Settings).
 
+    Additionally saves a config to the weaviate database.
+    If the collection ELYSIA_CONFIG__ does not exist, it will be created.
+    Uses the WCD_URL and WCD_API_KEY from /update_save_location to connect to the weaviate database.
+    (These are initialised to the environment variables).
+
     Args:
         user_id (str): Required. The user ID.
         data (Config): Required. Containing the following attributes:
+            name (str): Optional. The name of the config.
             settings (dict): Optional. A dictionary of config values to set, follows the same format as the Settings.configure() method.
             style (str): Optional. The writing style of the agent.
             agent_description (str): Optional. The description of the agent.
@@ -234,12 +241,15 @@ async def change_config_user(
     """
     logger.debug(f"/change_config_user API request received")
     logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Config ID: {config_id}")
+    logger.debug(f"Name: {data.name}")
     logger.debug(f"Settings: {data.settings}")
     logger.debug(f"Style: {data.style}")
     logger.debug(f"Agent description: {data.agent_description}")
     logger.debug(f"End goal: {data.end_goal}")
     logger.debug(f"Branch initialisation: {data.branch_initialisation}")
 
+    # Save the config in memory for this user (Apply step)
     try:
         user = await user_manager.get_user_local(user_id)
         tree_manager: TreeManager = user["tree_manager"]
@@ -266,50 +276,30 @@ async def change_config_user(
             api_keys=tree_manager.settings.API_KEYS,
         )
 
-        config = Config(
-            settings=tree_manager.settings.to_json(),
-            style=tree_manager.style,
-            agent_description=tree_manager.agent_description,
-            end_goal=tree_manager.end_goal,
-            branch_initialisation=tree_manager.branch_initialisation,
-        )
-
     except Exception as e:
-        logger.exception(f"Error in /change_config_user API")
+        logger.exception(f"Error in /save_config_user API during in-memory update")
         return JSONResponse(content={"error": str(e), "config": {}})
 
-    return JSONResponse(content={"error": "", "config": config.model_dump()})
+    if not user["frontend_config"].config["save_configs_to_weaviate"]:
+        return JSONResponse(
+            content={
+                "error": "",
+                "config": {
+                    "name": data.name,
+                    "settings": tree_manager.settings.to_json(),
+                    "style": tree_manager.style,
+                    "agent_description": tree_manager.agent_description,
+                    "end_goal": tree_manager.end_goal,
+                    "branch_initialisation": tree_manager.branch_initialisation,
+                    "config_id": config_id,
+                },
+                "frontend_config": user["frontend_config"].config,
+            }
+        )
 
-
-@router.post("/{user_id}/save")
-async def save_config(
-    user_id: str,
-    data: SaveConfigData,
-    user_manager: UserManager = Depends(get_user_manager),
-):
-    """
-    Save a config to the weaviate database.
-    If the collection ELYSIA_CONFIG__ does not exist, it will be created.
-    Uses the WCD_URL and WCD_API_KEY from /update_save_location to connect to the weaviate database.
-    (These are initialised to the environment variables).
-
-    Args:
-        user_id (str): The user ID.
-        data (SaveConfigData): A class with the following attributes:
-            config_id (str): Required. The ID of the config to save. Can be a user submitted name.
-        user_manager (UserManager): The user manager instance.
-
-    Returns:
-        JSONResponse: A JSON response with the following attributes:
-            error (str): An error message. Empty if no error.
-            config (dict): A dictionary of the updated config values.
-    """
-
-    logger.debug(f"/save_config API request received")
-    logger.debug(f"User ID: {user_id}")
-    logger.debug(f"Config ID: {data.config_id}")
-
+    # Save the config to the weaviate database
     try:
+
         # Retrieve the user info
         user = await user_manager.get_user_local(user_id)
         settings: Settings = user["tree_manager"].settings
@@ -321,6 +311,7 @@ async def save_config(
         end_goal = user["tree_manager"].end_goal
         branch_initialisation = user["tree_manager"].branch_initialisation
 
+        # Check if the user has a valid save location
         if (
             "frontend_config" not in user
             or "save_location_wcd_url" not in user["frontend_config"].__dict__
@@ -337,14 +328,14 @@ async def save_config(
                 "Please update the save location using the /update_save_location API."
             )
 
-        # check if an auth key is set in the environment variables
+        # Check if an auth key is set in the environment variables
         if "FERNET_KEY" in os.environ:
             auth_key = os.environ["FERNET_KEY"]
         else:  # create one
             auth_key = Fernet.generate_key().decode("utf-8")
             set_key(".env", "FERNET_KEY", auth_key)
 
-        # encode all api keys
+        # Encode all api keys
         f = Fernet(auth_key.encode("utf-8"))
         if "API_KEYS" in settings_dict:
             for key in settings_dict["API_KEYS"]:
@@ -357,11 +348,12 @@ async def save_config(
                 settings_dict["WCD_API_KEY"].encode("utf-8")
             ).decode("utf-8")
 
+        # Connect to the weaviate database
         async with user[
             "frontend_config"
         ].save_location_client_manager.connect_to_async_client() as client:
 
-            uuid = generate_uuid5(data.config_id)
+            uuid = generate_uuid5(config_id)
 
             # Create a collection if it doesn't exist
             if await client.collections.exists("ELYSIA_CONFIG__"):
@@ -375,13 +367,14 @@ async def save_config(
             format_dict_to_serialisable(settings_dict)
 
             config_item = {
+                "name": data.name,
                 "settings": settings_dict,
                 "style": style,
                 "agent_description": agent_description,
                 "end_goal": end_goal,
                 "branch_initialisation": branch_initialisation,
                 "frontend_config": user["frontend_config"].config,
-                "config_id": data.config_id,
+                "config_id": config_id,
             }
 
             if await collection.data.exists(uuid=uuid):
@@ -389,26 +382,27 @@ async def save_config(
             else:
                 await collection.data.insert(config_item, uuid=uuid)
 
-            return JSONResponse(
-                content={
-                    "error": "",
-                    "config": {
-                        "settings": settings_dict,
-                        "style": style,
-                        "agent_description": agent_description,
-                        "end_goal": end_goal,
-                        "branch_initialisation": branch_initialisation,
-                        "config_id": data.config_id,
-                    },
-                    "frontend_config": user["frontend_config"].config,
-                }
-            )
-
     except Exception as e:
-        logger.exception(f"Error in /save_config API")
+        logger.exception(f"Error in /save_config_user API during weaviate save")
         return JSONResponse(
             content={"error": str(e), "config": {}, "frontend_config": {}}
         )
+
+    return JSONResponse(
+        content={
+            "error": "",
+            "config": {
+                "name": data.name,
+                "settings": settings_dict,
+                "style": style,
+                "agent_description": agent_description,
+                "end_goal": end_goal,
+                "branch_initialisation": branch_initialisation,
+                "config_id": config_id,
+            },
+            "frontend_config": user["frontend_config"].config,
+        }
+    )
 
 
 @router.post("/{user_id}/{config_id}/load")
@@ -503,15 +497,20 @@ async def load_config_user(
                 config_item.properties["settings"]["WCD_API_KEY"].encode("utf-8")
             ).decode("utf-8")
 
+        # Rename the keys to the correct format
         renamed_config = rename_keys(config_item.properties)
 
+        # Load the settings
         settings.load_settings(renamed_config["settings"])
+
+        # Restart the client manager with new WCD_URL and WCD_API_KEY etc.
         await client_manager.reset_keys(
             wcd_url=settings.WCD_URL,
             wcd_api_key=settings.WCD_API_KEY,
             api_keys=settings.API_KEYS,
         )
 
+        # Update the style, agent_description, end_goal, branch_initialisation in the tree manager
         tree_manager.change_style(renamed_config["style"])
         tree_manager.change_agent_description(renamed_config["agent_description"])
         tree_manager.change_end_goal(renamed_config["end_goal"])
@@ -520,6 +519,7 @@ async def load_config_user(
         #     renamed_config["branch_initialisation"]
         # )
 
+        # Update the frontend config
         frontend_config.config = renamed_config["frontend_config"]
 
     except Exception as e:
