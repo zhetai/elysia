@@ -48,7 +48,7 @@ class CitedSummarizer(Tool):
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
         client_manager: ClientManager | None = None,
-        **kwargs
+        **kwargs,
     ):
         summarizer = ElysiaChainOfThought(
             CitedSummarizingPrompt,
@@ -99,7 +99,7 @@ class Summarizer(Tool):
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
         client_manager: ClientManager | None = None,
-        **kwargs
+        **kwargs,
     ):
         summarizer = ElysiaChainOfThought(
             SummarizingPrompt,
@@ -133,7 +133,7 @@ class TextResponse(Tool):
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
         client_manager: ClientManager | None = None,
-        **kwargs
+        **kwargs,
     ):
         text_response = ElysiaChainOfThought(
             TextResponsePrompt,
@@ -163,13 +163,14 @@ class FakeTextResponse(Tool):
                     "type": "string",
                     "description": (
                         "The text to display to the user. Speak directly to them, do not say 'the user' or similar. "
-                        "If you have achieved the goal, give a satsifying answer to their original prompt (user_prompt). "
+                        "If you have achieved the goal, give a satisfying answer to their original prompt (user_prompt). "
                         "If you have not achieved the goal, explain. "
                         "If you know why, explain any shortcomings, maybe it was a limitation, a misunderstanding, a problem with the data. "
                         "Your suggestions should be useful to the user so they know if there is something possible to fix or do as a follow up. "
                         "Sometimes you can ask for clarification. "
                         "Be polite, professional, apologetic if necessary but above all - helpful! "
-                        "Only provide a response in text, not using any variables or otherwise."
+                        "Only provide a response in text, not using any variables or otherwise. "
+                        "The text in this field is the DIRECT response to the user that will be displayed to them, and ending the conversation afterwards."
                     ),
                     "default": "",
                 }
@@ -184,6 +185,6 @@ class FakeTextResponse(Tool):
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
         client_manager: ClientManager | None = None,
-        **kwargs
+        **kwargs,
     ):
         yield Response(text=inputs["text"])

@@ -96,7 +96,7 @@ class Visualise(Tool):
             )
             return
 
-        if self.logger.level <= 20:
+        if self.logger and self.logger.level <= 20:
             fig = convert_chart_types_to_matplotlib(charts, chart_type)
             fig.show()
 

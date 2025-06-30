@@ -538,7 +538,7 @@ class Tree:
 
     def add_tool(
         self,
-        tool: Tool,
+        tool,
         branch_id: str | None = None,
         from_tool_ids: list[str] = [],
         root: bool = False,
@@ -598,10 +598,13 @@ class Tree:
                 "I.e. it must yield objects."
             )
 
-        tool_instance = tool(
-            logger=self.settings.logger,
-            **kwargs,
-        )
+        if isinstance(tool, Tool):
+            tool_instance = tool
+        else:
+            tool_instance = tool(
+                logger=self.settings.logger,
+                **kwargs,
+            )
 
         if not isinstance(tool_instance, Tool):
             raise TypeError("tool must be an instance of the Tool class")
