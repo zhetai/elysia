@@ -57,7 +57,7 @@ If you're using the [UserManager](../Reference/Managers.md#elysia.api.services.u
 UserManager(tree_timeout: datetime.timedelta | int, user_timeout: datetime.timedelta | int, client_timeout: datetime.timedelta | int))
 ```
 
-This defaults to `USER_TREE_TIMEOUT`, `USER_TIMEOUT` and `CLIENT_TIMEOUT` respectively in the environment variables if not set (in minutes), which itself defaults to 10 minutes. If they are set to 0, then no users/trees/clients will be restart. Not restarting the clients is not recommended.
+This defaults to `TREE_TIMEOUT`, `USER_TIMEOUT` and `CLIENT_TIMEOUT` respectively in the environment variables if not set (in minutes), which itself defaults to 10 minutes. If they are set to 0, then no users/trees/clients will be restart. Not restarting the clients is not recommended.
 
 If you're using a [TreeManager](../Reference/Managers.md#elysia.api.services.tree) only (and not a `UserManager`), you can do the same with `tree_manager.check_all_trees_timeout()`, with same defaults.
 

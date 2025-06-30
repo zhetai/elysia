@@ -43,31 +43,23 @@ class UserManager:
 
     - TreeManager
     - ClientManager
+    - FrontendConfig
 
     It contains methods for creating and updating these objects across a range of users, stored in a dictionary.
-
     It can be used as a dependency injection container for FastAPI.
+    The user manager/tree manager is decoupled from the core of the Elysia package functionality.
+    It is designed to be used to manage separate Elysia instances, set of trees (via tree managers), configs, etc.
     """
 
     def __init__(
         self,
         user_timeout: datetime.timedelta | int | None = None,
-        tree_timeout: datetime.timedelta | int | None = None,
-        client_timeout: datetime.timedelta | int | None = None,
     ):
         """
         Args:
             user_timeout (datetime.timedelta | int | None): Optional.
                 The length of time a user can be idle before being timed out.
                 Defaults to 20 minutes or the value of the USER_TIMEOUT environment variable.
-                If an integer is provided, it is interpreted as the number of minutes.
-            tree_timeout (datetime.timedelta | int | None): Optional.
-                The length of time a tree can be idle before being timed out.
-                Defaults to 10 minutes or the value of the USER_TREE_TIMEOUT environment variable.
-                If an integer is provided, it is interpreted as the number of minutes.
-            client_timeout (datetime.timedelta | int | None): Optional.
-                The length of time a client can be idle before being timed out.
-                Defaults to 10 minutes or the value of the CLIENT_TIMEOUT environment variable.
                 If an integer is provided, it is interpreted as the number of minutes.
         """
         if user_timeout is None:
@@ -78,24 +70,6 @@ class UserManager:
             self.user_timeout = datetime.timedelta(minutes=user_timeout)
         else:
             self.user_timeout = user_timeout
-
-        if tree_timeout is None:
-            self.tree_timeout = datetime.timedelta(
-                minutes=int(os.environ.get("USER_TREE_TIMEOUT", 10))
-            )
-        elif isinstance(tree_timeout, int):
-            self.tree_timeout = datetime.timedelta(minutes=tree_timeout)
-        else:
-            self.tree_timeout = tree_timeout
-
-        if client_timeout is None:
-            self.client_timeout = datetime.timedelta(
-                minutes=int(os.environ.get("CLIENT_TIMEOUT", 10))
-            )
-        elif isinstance(client_timeout, int):
-            self.client_timeout = datetime.timedelta(minutes=client_timeout)
-        else:
-            self.client_timeout = client_timeout
 
         self.manager_id = random.randint(0, 1000000)
         self.date_of_reset = None
@@ -114,7 +88,7 @@ class UserManager:
     ):
         local_user = await self.get_user_local(user_id)
         frontend_config: FrontendConfig = local_user["frontend_config"]
-        frontend_config.configure(**config)
+        await frontend_config.configure(**config)
 
     def add_user_local(
         self,
@@ -145,6 +119,11 @@ class UserManager:
         # add user if it doesn't exist
         if user_id not in self.users:
             self.users[user_id] = {}
+
+            # each user has their own frontend config (frontend-specific config options)
+            fe_config = FrontendConfig(logger=logger)
+            self.users[user_id]["frontend_config"] = fe_config
+
             self.users[user_id]["tree_manager"] = TreeManager(
                 user_id=user_id,
                 style=style,
@@ -152,16 +131,12 @@ class UserManager:
                 end_goal=end_goal,
                 branch_initialisation=branch_initialisation,
                 settings=settings,
-                tree_timeout=self.tree_timeout,
+                tree_timeout=fe_config.config["tree_timeout"],
             )
 
             # client manager starts with env variables, when config is updated, api keys are updated
             self.users[user_id]["client_manager"] = ClientManager(
-                logger=logger, client_timeout=self.client_timeout
-            )
-
-            self.users[user_id]["frontend_config"] = FrontendConfig(
-                logger=logger, client_timeout=self.client_timeout
+                logger=logger, client_timeout=fe_config.config["client_timeout"]
             )
 
     async def get_user_local(self, user_id: str):
@@ -179,7 +154,7 @@ class UserManager:
 
         if user_id not in self.users:
             raise ValueError(
-                f"User {user_id} not found. Please initialise a user first (by calling `initialise_tree` or `add_user_local`)."
+                f"User {user_id} not found. Please initialise a user first (by calling `add_user_local`)."
             )
 
         # update last request (adds last_request to user)
@@ -190,6 +165,7 @@ class UserManager:
     async def get_tree(self, user_id: str, conversation_id: str):
         """
         Get a tree for a user.
+        Will raise a ValueError if the user is not found, or the tree is not found.
 
         Args:
             user_id (str): Required. The unique identifier for the user.
@@ -222,7 +198,7 @@ class UserManager:
         if user_id not in self.users:
             return True
 
-        # Remove any trees that have not been active in the last USER_TREE_TIMEOUT minutes
+        # Remove any trees that have not been active in the last user_timeout
         if (
             "last_request" in self.users[user_id]
             and datetime.datetime.now() - self.users[user_id]["last_request"]
