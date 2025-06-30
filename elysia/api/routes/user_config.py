@@ -5,9 +5,6 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv, set_key
 
-from pydantic import BaseModel
-from typing import Optional
-
 load_dotenv(override=True)
 
 # API Types
@@ -26,10 +23,9 @@ from elysia.util.parsing import format_dict_to_serialisable
 from elysia.config import Settings
 from elysia.api.services.tree import TreeManager
 from elysia.api.utils.frontend_config import FrontendConfig
-import weaviate
+
 import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
-from weaviate.auth import Auth
 
 
 def rename_keys(config_item: dict):
@@ -84,14 +80,14 @@ async def update_frontend_config(
 
 
 @router.get("/{user_id}")
-async def get_user_config(
+async def get_current_user_config(
     user_id: str,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
-    Get the config for a single user.
+    Get the currnet config for a single user (in memory).
     """
-    logger.debug(f"/get_user_config API request received")
+    logger.debug(f"/get_current_user_config API request received")
     logger.debug(f"User ID: {user_id}")
 
     headers = {"Cache-Control": "no-cache"}
@@ -109,7 +105,7 @@ async def get_user_config(
         )
 
     except Exception as e:
-        logger.exception(f"Error in /get_user_config API")
+        logger.exception(f"Error in /get_current_user_config API")
         return JSONResponse(content={"error": str(e), "config": {}}, headers=headers)
 
     return JSONResponse(
@@ -415,10 +411,10 @@ async def save_config(
         )
 
 
-@router.post("/{user_id}/load")
+@router.post("/{user_id}/{config_id}/load")
 async def load_config_user(
     user_id: str,
-    data: LoadConfigUserData,
+    config_id: str,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
@@ -431,12 +427,7 @@ async def load_config_user(
 
     Args:
         user_id (str): The user ID.
-        data (LoadConfigUserData): A class with the following attributes:
-            config_id (str): The ID of the config to load. Can be found in the /config/list API.
-            include_atlas (bool): Whether to include the atlas (style, agent_description, end_goal) in the config.
-            include_branch_initialisation (bool): Whether to include the branch initialisation in the config.
-            include_settings (bool): Whether to include the settings (LM choice, etc.) in the config.
-            include_frontend_config (bool): Whether to include the frontend config in the config.
+        config_id (str): The config ID you want to load.
         user_manager (UserManager): The user manager instance.
 
     Returns:
@@ -446,7 +437,7 @@ async def load_config_user(
     """
     logger.debug(f"/load_config_user API request received")
     logger.debug(f"User ID: {user_id}")
-    logger.debug(f"Config ID: {data.config_id}")
+    logger.debug(f"Config ID: {config_id}")
 
     try:
         # Retrieve the user info
@@ -456,6 +447,7 @@ async def load_config_user(
         client_manager: ClientManager = user["client_manager"]
         frontend_config: FrontendConfig = user["frontend_config"]
 
+        # check if the user has a valid save location
         if (
             "frontend_config" not in user
             or "save_location_wcd_url" not in user["frontend_config"].__dict__
@@ -472,6 +464,7 @@ async def load_config_user(
                 "Please update the save location using the /update_save_location API."
             )
 
+        # check if the auth key is set in the environment variables
         if "FERNET_KEY" in os.environ:
             auth_key = os.environ["FERNET_KEY"]
         else:
@@ -479,13 +472,11 @@ async def load_config_user(
                 "API key auth key not found, cannot decode API keys in config."
             )
 
-        f = Fernet(auth_key.encode("utf-8"))
-
         # Retrieve the config from the weaviate database
         async with user[
             "frontend_config"
         ].save_location_client_manager.connect_to_async_client() as client:
-            uuid = generate_uuid5(data.config_id)
+            uuid = generate_uuid5(config_id)
             collection = client.collections.get("ELYSIA_CONFIG__")
             config_item = await collection.query.fetch_object_by_id(uuid=uuid)
 
@@ -493,6 +484,8 @@ async def load_config_user(
         format_dict_to_serialisable(config_item.properties)
 
         # decode all api keys
+        f = Fernet(auth_key.encode("utf-8"))
+
         if (
             "settings" in config_item.properties
             and "API_KEYS" in config_item.properties["settings"]
@@ -512,26 +505,22 @@ async def load_config_user(
 
         renamed_config = rename_keys(config_item.properties)
 
-        if data.include_settings:
-            settings.load_settings(renamed_config["settings"])
-            await client_manager.reset_keys(
-                wcd_url=settings.WCD_URL,
-                wcd_api_key=settings.WCD_API_KEY,
-                api_keys=settings.API_KEYS,
-            )
+        settings.load_settings(renamed_config["settings"])
+        await client_manager.reset_keys(
+            wcd_url=settings.WCD_URL,
+            wcd_api_key=settings.WCD_API_KEY,
+            api_keys=settings.API_KEYS,
+        )
 
-        if data.include_atlas:
-            tree_manager.change_style(renamed_config["style"])
-            tree_manager.change_agent_description(renamed_config["agent_description"])
-            tree_manager.change_end_goal(renamed_config["end_goal"])
+        tree_manager.change_style(renamed_config["style"])
+        tree_manager.change_agent_description(renamed_config["agent_description"])
+        tree_manager.change_end_goal(renamed_config["end_goal"])
 
-        if data.include_branch_initialisation:
-            tree_manager.change_branch_initialisation(
-                renamed_config["branch_initialisation"]
-            )
+        # tree_manager.change_branch_initialisation(
+        #     renamed_config["branch_initialisation"]
+        # )
 
-        if data.include_frontend_config:
-            frontend_config.config = renamed_config["frontend_config"]
+        frontend_config.config = renamed_config["frontend_config"]
 
     except Exception as e:
         logger.exception(f"Error in /load_config API")
@@ -546,6 +535,34 @@ async def load_config_user(
             "frontend_config": frontend_config.config,
         }
     )
+
+
+@router.delete("/{user_id}/{config_id}")
+async def delete_config(
+    user_id: str,
+    config_id: str,
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """
+    Delete a config from the weaviate database.
+    """
+    logger.debug(f"/delete_config API request received")
+    logger.debug(f"User ID: {user_id}")
+    logger.debug(f"Config ID: {config_id}")
+
+    try:
+        user = await user_manager.get_user_local(user_id)
+        client_manager: ClientManager = user["client_manager"]
+        async with client_manager.connect_to_async_client() as client:
+            collection = client.collections.get("ELYSIA_CONFIG__")
+            uuid = generate_uuid5(config_id)
+            await collection.data.delete_by_id(uuid)
+
+    except Exception as e:
+        logger.exception(f"Error in /delete_config API")
+        return JSONResponse(content={"error": str(e)})
+
+    return JSONResponse(content={"error": ""})
 
 
 @router.get("/{user_id}/list")

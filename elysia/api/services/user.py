@@ -572,5 +572,11 @@ class UserManager:
             frontend_config: FrontendConfig = local_user["frontend_config"]
             save_trees_to_weaviate = frontend_config.config["save_trees_to_weaviate"]
 
-        if save_trees_to_weaviate:
+        if save_trees_to_weaviate and (wcd_url is not None and wcd_api_key is not None):
             await self.save_tree(user_id, conversation_id, wcd_url, wcd_api_key)
+
+        if (wcd_url is None or wcd_api_key is None) and save_trees_to_weaviate:
+            logger.warning(
+                f"save_trees_to_weaviate is set to True, but wcd_url and wcd_api_key are not provided. "
+                f"Tree {conversation_id} has not been saved to Weaviate."
+            )
