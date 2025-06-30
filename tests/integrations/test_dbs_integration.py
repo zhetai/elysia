@@ -29,11 +29,12 @@ def ensure_user_and_tree():
     )
 
 
-def test_dbs_integration():
+@pytest.mark.asyncio
+async def test_dbs_integration():
 
     # Simulate a query
     query_payload = {
-        "user_id": "c5163446-4eff-5c3f-b362-33932ca630d4",
+        "user_id": TEST_USER,
         "conversation_id": TEST_CONVO,
         "query": "What is the capital of France?",
         "query_id": TEST_QUERY_ID,
@@ -58,7 +59,12 @@ def test_dbs_integration():
 
     # wait for query to complete
     ws.send(json.dumps(query_payload))
-    while len(results) != 0 and results[-1]["type"] != "completed":
+    while len(results) == 0 or (
+        results[-1]["type"] != "completed"
+        and results[-1]["type"] != "tree_timeout_error"
+        and results[-1]["type"] != "user_timeout_error"
+        and results[-1]["type"] != "error"
+    ):
         time.sleep(0.1)
 
     # should have saved

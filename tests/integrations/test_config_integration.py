@@ -91,42 +91,51 @@ def test_list_configs():
 
 
 def test_save_and_load_config_user():
-    config_id = f"endpoint_test_config_{random.randint(0, 1000000)}"
-    config_payload = {
+    config_id = f"test_endpoint_config_{random.randint(0, 1000000)}"
+
+    save_payload = {
         "config_id": config_id,
-        "config": {
-            "settings": {
-                "BASE_MODEL": "gpt-4o-mini",
-                "COMPLEX_MODEL": "gpt-4o",
-                "BASE_PROVIDER": "openai",
-                "COMPLEX_PROVIDER": "openai",
-            },
-            "style": "Technical",
-            "agent_description": "You are a technical assistant.",
-            "end_goal": "Provide technical answers.",
-            "branch_initialisation": "two_branch",
-        },
     }
-    # Save config
-    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/save", json=config_payload)
+
+    config_payload = {
+        "settings": {
+            "BASE_MODEL": "gpt-4o-mini",
+            "COMPLEX_MODEL": "gpt-4o",
+            "BASE_PROVIDER": "openai",
+            "COMPLEX_PROVIDER": "openai",
+        },
+        "style": "Technical",
+        "agent_description": "You are a technical assistant.",
+        "end_goal": "Provide technical answers.",
+        "branch_initialisation": "two_branch",
+    }
+
+    # Update config
+    response = requests.patch(f"{USER_CONFIG_URL}/{TEST_USER}", json=config_payload)
     assert response.status_code == 200
     data = response.json()
     assert "error" in data
-    assert data["error"] == "" or isinstance(data["error"], str)
+    assert data["error"] == ""
+
+    # Save config
+    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/save", json=save_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["error"] == ""
 
     # Load config
-    load_payload = {
-        "config_id": config_id,
-        "include_atlas": True,
-        "include_branch_initialisation": True,
-        "include_settings": True,
-        "include_frontend_config": True,
-    }
-    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/load", json=load_payload)
+    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/{config_id}/load")
     assert response.status_code == 200
     data = response.json()
     assert "error" in data
     assert "config" in data
+
+    # Delete config
+    response = requests.delete(f"{USER_CONFIG_URL}/{TEST_USER}/{config_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data and data["error"] == ""
 
 
 def test_get_tree_config_and_change():
@@ -142,7 +151,7 @@ def test_get_tree_config_and_change():
     response = requests.get(f"{TREE_CONFIG_URL}/{TEST_USER}/{TEST_CONVO}")
     assert response.status_code == 200
     data = response.json()
-    assert "error" in data
+    assert "error" in data and data["error"] == ""
     assert "config" in data
     # Change config
     payload = {
@@ -162,7 +171,7 @@ def test_get_tree_config_and_change():
     )
     assert response.status_code == 200
     data = response.json()
-    assert "error" in data
+    assert "error" in data and data["error"] == ""
     assert "config" in data
 
 
@@ -177,58 +186,72 @@ def test_default_models_tree():
     )
     assert response.status_code == 200
     data = response.json()
-    assert "error" in data
+    assert "error" in data and data["error"] == ""
     assert "config" in data
 
 
 def test_save_and_load_config_tree():
-    config_id = f"endpoint_test_tree_config_{random.randint(0, 1000000)}"
+    config_id = f"test_endpoint_tree_config_{random.randint(0, 1000000)}"
     # Save config for user first
-    config_payload = {
+    save_payload = {
         "config_id": config_id,
-        "config": {
-            "settings": {
-                "BASE_MODEL": "gpt-4-turbo",
-                "COMPLEX_MODEL": "gpt-4-vision",
-                "BASE_PROVIDER": "openai",
-                "COMPLEX_PROVIDER": "openai",
-            },
-            "style": "Tree Analytical",
-            "agent_description": "Analytical assistant.",
-            "end_goal": "Provide analyses.",
-            "branch_initialisation": "empty",
-        },
     }
-    requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/save", json=config_payload)
+    config_payload = {
+        "settings": {
+            "BASE_MODEL": "gpt-4-turbo",
+            "COMPLEX_MODEL": "gpt-4-vision",
+            "BASE_PROVIDER": "openai",
+            "COMPLEX_PROVIDER": "openai",
+        },
+        "style": "Tree Analytical",
+        "agent_description": "Analytical assistant.",
+        "end_goal": "Provide analyses.",
+        "branch_initialisation": "empty",
+    }
+
+    # Update config
+    response = requests.patch(f"{USER_CONFIG_URL}/{TEST_USER}", json=config_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data and data["error"] == ""
+
+    # Save config
+    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/save", json=save_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data and data["error"] == ""
+
     # Ensure tree exists
     requests.post(
         f"{INIT_URL}/tree",
         json={"user_id": TEST_USER, "conversation_id": TEST_CONVO, "low_memory": True},
     )
     # Load config to tree
-    load_payload = {
-        "config_id": config_id,
-        "include_atlas": True,
-        "include_branch_initialisation": True,
-        "include_settings": True,
-    }
     response = requests.post(
-        f"{TREE_CONFIG_URL}/{TEST_USER}/{TEST_CONVO}/load", json=load_payload
+        f"{TREE_CONFIG_URL}/{TEST_USER}/{TEST_CONVO}/{config_id}/load"
     )
     assert response.status_code == 200
     data = response.json()
-    assert "error" in data
+    assert "error" in data and data["error"] == ""
     assert "config" in data
+
+    # Delete config
+    response = requests.delete(f"{USER_CONFIG_URL}/{TEST_USER}/{config_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data and data["error"] == ""
 
 
 def test_list_configs_no_save_location():
     # Use a user that doesn't have a save location set
     user_id = "endpoint_user_no_save_location"
     requests.post(f"{INIT_URL}/user", json={"user_id": user_id, "default_models": True})
+
     response = requests.get(f"{USER_CONFIG_URL}/{user_id}/list")
     assert response.status_code == 200
     data = response.json()
     assert "error" in data
     assert "configs" in data
-    # Should return empty list, not error
+
+    # Should be empty list, not error
     assert isinstance(data["configs"], list)

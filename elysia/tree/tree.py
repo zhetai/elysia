@@ -137,6 +137,7 @@ class Tree:
         self.low_memory = low_memory
         self._base_lm = None
         self._complex_lm = None
+        self._config_modified = False
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
@@ -162,9 +163,9 @@ class Tree:
         # Set the initialisations
         self.tools = {}
         self.set_branch_initialisation(branch_initialisation)
-        self.change_style(style)
-        self.change_agent_description(agent_description)
-        self.change_end_goal(end_goal)
+        self.tree_data.atlas.style = style
+        self.tree_data.atlas.agent_description = agent_description
+        self.tree_data.atlas.end_goal = end_goal
 
         self.tools["forced_text_response"] = ForcedTextResponse()
 
@@ -299,6 +300,8 @@ class Tree:
 
     def default_models(self):
         self.settings = deepcopy(self.settings)
+        self.settings.SETTINGS_ID = str(uuid.uuid4())
+        self._config_modified = True
         self.settings.default_models()
 
     def configure(self, **kwargs):
@@ -308,17 +311,22 @@ class Tree:
         Will not affect any settings preceding this (e.g. in TreeManager).
         """
         self.settings = deepcopy(self.settings)
+        self.settings.SETTINGS_ID = str(uuid.uuid4())
+        self._config_modified = True
         self.tree_data.settings = self.settings
         self.settings.configure(**kwargs)
 
     def change_style(self, style: str):
         self.tree_data.atlas.style = style
+        self._config_modified = True
 
     def change_agent_description(self, agent_description: str):
         self.tree_data.atlas.agent_description = agent_description
+        self._config_modified = True
 
     def change_end_goal(self, end_goal: str):
         self.tree_data.atlas.end_goal = end_goal
+        self._config_modified = True
 
     def _get_root(self):
         for decision_node in self.decision_nodes.values():
