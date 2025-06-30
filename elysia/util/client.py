@@ -146,22 +146,30 @@ class ClientManager:
         self.async_client = None
         self.async_init_completed = False
 
-    async def set_keys_from_settings(self, settings: Settings):
+    async def reset_keys(
+        self,
+        wcd_url: str | None = None,
+        wcd_api_key: str | None = None,
+        api_keys: dict = {},
+    ):
         """
         Set the API keys, WCD_URL and WCD_API_KEY from the settings object.
 
         Args:
-            settings (Settings): the settings object to set the keys from.
+            wcd_url (str): the url of the Weaviate cluster.
+            wcd_api_key (str): the api key for the Weaviate cluster.
+            api_keys (dict): a dictionary of api keys for third party services.
         """
-        self.wcd_url = settings.WCD_URL
-        self.wcd_api_key = settings.WCD_API_KEY
+        self.wcd_url = wcd_url
+        self.wcd_api_key = wcd_api_key
 
-        for api_key in settings.API_KEYS:
+        for api_key in api_keys:
             if api_key.lower() in [a.lower() for a in api_key_map.keys()]:
-                self.headers[api_key_map[api_key.upper()]] = settings.API_KEYS[api_key]
+                self.headers[api_key_map[api_key.upper()]] = api_keys[api_key]
 
-        await self.restart_client()
-        await self.restart_async_client()
+        await self.restart_client(force=True)
+        await self.restart_async_client(force=True)
+        await self.start_clients()
 
     async def start_clients(self):
         """
@@ -253,15 +261,18 @@ class ClientManager:
         async with connection:
             yield connection.client
 
-    async def restart_async_client(self):
+    async def restart_async_client(self, force=False):
         """
         Restart the async client if it has not been used in the last client_timeout minutes (set in init).
         """
-        if self.client_timeout == datetime.timedelta(minutes=0):
+        if self.client_timeout == datetime.timedelta(minutes=0) and not force:
             return
 
         # First check if the client has been used in the last X minutes
-        if datetime.datetime.now() - self.last_used_async_client > self.client_timeout:
+        if (
+            datetime.datetime.now() - self.last_used_async_client > self.client_timeout
+            or force
+        ):
             # Acquire lock before modifying shared state to prevent race conditions
             try:
                 async with self.async_lock:
@@ -344,15 +355,18 @@ class ClientManager:
                 # Attempt to create a new client
                 self.async_client = await self.get_async_client()
 
-    async def restart_client(self):
+    async def restart_client(self, force=False):
         """
         Restart the sync client if it has not been used in the last client_timeout minutes (set in init).
         """
-        if self.client_timeout == datetime.timedelta(minutes=0):
+        if self.client_timeout == datetime.timedelta(minutes=0) and not force:
             return
 
         # First check if the client has been used in the last X minutes
-        if datetime.datetime.now() - self.last_used_sync_client > self.client_timeout:
+        if (
+            datetime.datetime.now() - self.last_used_sync_client > self.client_timeout
+            or force
+        ):
             # Use both locks to prevent any race conditions between sync and async operations
             try:
                 # Acquire sync lock first

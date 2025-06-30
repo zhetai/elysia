@@ -24,6 +24,8 @@ class TreeManager:
 
     You can initialise the TreeManager with particular config options.
     Or, upon adding a tree, you can set a specific style, description and end goal for that tree.
+
+    Each tree has separate elements: the tree itself, the last request time, and the asyncio event.
     """
 
     def __init__(
@@ -48,7 +50,7 @@ class TreeManager:
                 and "empty", which contains no tools (only a base branch), designed to add more tools to.
             settings (Settings | None): Optional. A settings for all trees managed by this TreeManager.
             tree_timeout (datetime.timedelta | int | None): Optional. A timeout for all trees managed by this TreeManager.
-                Defaults to the value of the `USER_TREE_TIMEOUT` environment variable.
+                Defaults to the value of the `TREE_TIMEOUT` environment variable.
                 If an integer is passed, it will be interpreted as minutes.
                 If set to 0, trees will not be automatically removed.
         """
@@ -57,7 +59,7 @@ class TreeManager:
 
         if tree_timeout is None:
             self.tree_timeout = datetime.timedelta(
-                minutes=int(os.environ.get("USER_TREE_TIMEOUT", 10))
+                minutes=int(os.environ.get("TREE_TIMEOUT", 10))
             )
         elif isinstance(tree_timeout, int):
             self.tree_timeout = datetime.timedelta(minutes=tree_timeout)
@@ -247,6 +249,7 @@ class TreeManager:
     def get_tree(self, conversation_id: str):
         """
         Get a tree from the TreeManager.
+        Will raise a ValueError if the tree is not found.
 
         Args:
             conversation_id (str): The conversation ID which contains the tree.
@@ -254,6 +257,10 @@ class TreeManager:
         Returns:
             Tree: The tree associated with the conversation ID.
         """
+        if conversation_id not in self.trees:
+            raise ValueError(
+                f"Tree {conversation_id} not found. Please initialise a tree first (by calling `add_tree`)."
+            )
 
         return self.trees[conversation_id]["tree"]
 
@@ -428,7 +435,7 @@ class TreeManager:
         if conversation_id not in self.trees:
             return True
 
-        # Remove any trees that have not been active in the last USER_TREE_TIMEOUT minutes
+        # Remove any trees that have not been active in the last TREE_TIMEOUT minutes
         if (
             "last_request" in self.trees[conversation_id]
             and datetime.datetime.now() - self.trees[conversation_id]["last_request"]

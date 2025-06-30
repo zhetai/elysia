@@ -184,7 +184,11 @@ async def environment_settings_user(
         tree_manager.settings.set_api_keys_from_env()
 
         client_manager: ClientManager = user["client_manager"]
-        await client_manager.set_keys_from_settings(tree_manager.settings)
+        await client_manager.reset_keys(
+            wcd_url=tree_manager.settings.WCD_URL,
+            wcd_api_key=tree_manager.settings.WCD_API_KEY,
+            api_keys=tree_manager.settings.API_KEYS,
+        )
 
         config = Config(
             settings=tree_manager.settings.to_json(),
@@ -260,7 +264,11 @@ async def change_config_user(
             tree_manager.change_branch_initialisation(data.branch_initialisation)
 
         client_manager: ClientManager = user["client_manager"]
-        await client_manager.set_keys_from_settings(tree_manager.settings)
+        await client_manager.reset_keys(
+            wcd_url=tree_manager.settings.WCD_URL,
+            wcd_api_key=tree_manager.settings.WCD_API_KEY,
+            api_keys=tree_manager.settings.API_KEYS,
+        )
 
         config = Config(
             settings=tree_manager.settings.to_json(),
@@ -506,7 +514,11 @@ async def load_config_user(
 
         if data.include_settings:
             settings.load_settings(renamed_config["settings"])
-            await client_manager.set_keys_from_settings(settings)
+            await client_manager.reset_keys(
+                wcd_url=settings.WCD_URL,
+                wcd_api_key=settings.WCD_API_KEY,
+                api_keys=settings.API_KEYS,
+            )
 
         if data.include_atlas:
             tree_manager.change_style(renamed_config["style"])

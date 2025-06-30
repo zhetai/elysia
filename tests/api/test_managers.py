@@ -30,7 +30,7 @@ class TestUserManager:
         assert user is not None
 
         # will raise error if no tree created
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError):
             await user_manager.get_tree(user_id, conversation_id)
 
         # add a tree
@@ -48,7 +48,7 @@ class TestUserManager:
         tree_manager = TreeManager(user_id)
 
         # will raise error if no tree created
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError):
             tree_manager.get_tree(conversation_id)
 
         # add a tree
