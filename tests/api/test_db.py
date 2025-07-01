@@ -199,6 +199,17 @@ class TestSaveLoad:
                 user_manager,
             )
 
+            response = await get_saved_trees(
+                user_id=user_id,
+                user_manager=user_manager,
+            )
+            assert read_response(response)["error"] == ""
+            assert len(list(read_response(response)["trees"].keys())) >= 1
+            old_len = len(list(read_response(response)["trees"].keys()))
+            assert "test_conversation_automatic_save_load_cycle" in list(
+                read_response(response)["trees"].keys()
+            )
+
             response = await load_tree(
                 user_id=user_id,
                 conversation_id=conversation_id,
@@ -213,17 +224,6 @@ class TestSaveLoad:
                 assert "id" in rebuilt
                 if "user_id" in rebuilt:
                     assert rebuilt["user_id"] == user_id
-
-            response = await get_saved_trees(
-                user_id=user_id,
-                user_manager=user_manager,
-            )
-            assert read_response(response)["error"] == ""
-            assert len(list(read_response(response)["trees"].keys())) >= 1
-            old_len = len(list(read_response(response)["trees"].keys()))
-            assert "test_conversation_automatic_save_load_cycle" in list(
-                read_response(response)["trees"].keys()
-            )
 
             response = await delete_tree(
                 user_id=user_id,
