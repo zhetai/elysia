@@ -19,13 +19,14 @@ from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.util.client import ClientManager
-from elysia.util.parsing import format_dict_to_serialisable
+from elysia.util.parsing import format_dict_to_serialisable, format_datetime
 from elysia.config import Settings
 from elysia.api.services.tree import TreeManager
 from elysia.api.utils.frontend_config import FrontendConfig
 
 import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
+from weaviate.classes.query import MetadataQuery, Sort, Filter
 
 
 def rename_keys(config_item: dict):
@@ -362,6 +363,9 @@ async def save_config_user(
                 collection = await client.collections.create(
                     "ELYSIA_CONFIG__",
                     vectorizer_config=wc.Configure.Vectorizer.none(),
+                    inverted_index_config=wc.Configure.inverted_index(
+                        index_timestamps=True
+                    ),
                 )
 
             format_dict_to_serialisable(settings_dict)
@@ -375,6 +379,7 @@ async def save_config_user(
                 "branch_initialisation": branch_initialisation,
                 "frontend_config": user["frontend_config"].config,
                 "config_id": config_id,
+                "user_id": user_id,
             }
 
             if await collection.data.exists(uuid=uuid):
@@ -605,6 +610,11 @@ async def list_configs(
             )
             return JSONResponse(content={"error": "", "configs": []}, headers=headers)
 
+        if user_id is not None:
+            user_id_filter = Filter.by_property("user_id").equal(user_id)
+        else:
+            user_id_filter = None
+
         async with user[
             "frontend_config"
         ].save_location_client_manager.connect_to_async_client() as client:
@@ -614,8 +624,21 @@ async def list_configs(
             len_collection = await collection.aggregate.over_all(total_count=True)
             len_collection = len_collection.total_count
 
-            response = await collection.query.fetch_objects(limit=len_collection)
-            configs = [obj.properties["config_id"] for obj in response.objects]
+            response = await collection.query.fetch_objects(
+                limit=len_collection,
+                sort=Sort.by_update_time(ascending=False),
+                return_metadata=MetadataQuery(last_update_time=True),
+                filters=user_id_filter,
+            )
+
+            configs = [
+                {
+                    "config_id": obj.properties["config_id"],
+                    "name": obj.properties["name"],
+                    "last_update_time": format_datetime(obj.metadata.last_update_time),
+                }
+                for obj in response.objects
+            ]
 
     except Exception as e:
         logger.exception(f"Error in /list_configs API")
