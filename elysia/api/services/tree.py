@@ -2,9 +2,9 @@ import asyncio
 import datetime
 import os
 import uuid
-from copy import deepcopy
 from dotenv import load_dotenv
 from weaviate.util import generate_uuid5
+from uuid import uuid4
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -13,8 +13,7 @@ from elysia.config import Settings
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
 from elysia.tree.util import delete_tree_from_weaviate
-
-# from elysia.tools.fun.dnd import SetTheScene, ActionConsequence, DiceRoll
+from elysia.api.api_types import Config
 
 
 class TreeManager:
@@ -31,11 +30,7 @@ class TreeManager:
     def __init__(
         self,
         user_id: str,
-        style: str = "",
-        agent_description: str = "",
-        end_goal: str = "",
-        branch_initialisation: str = "one_branch",
-        settings: Settings | None = None,
+        config: Config | None = None,
         tree_timeout: datetime.timedelta | int | None = None,
     ):
         """
@@ -66,25 +61,27 @@ class TreeManager:
         else:
             self.tree_timeout = tree_timeout
 
-        if settings is None:
-            self.settings = Settings()
-            self.settings.set_from_env()
+        if config is None:
+            self.settings = Settings().from_smart_setup()
+            self.config = Config(
+                id=str(uuid4()),
+                name="New Config",
+                settings=self.settings.to_json(),
+                style="Informative, polite and friendly.",
+                agent_description="You search and query Weaviate to satisfy the user's query, providing a concise summary of the results.",
+                end_goal=(
+                    "You have satisfied the user's query, and provided a concise summary of the results. "
+                    "Or, you have exhausted all options available, or asked the user for clarification."
+                ),
+                branch_initialisation="one_branch",
+            )
         else:
-            self.settings = settings
-
-        self.style = style
-        self.agent_description = agent_description
-        self.end_goal = end_goal
-        self.branch_initialisation = branch_initialisation
+            self.config = config
+            self.settings = Settings.from_json(self.config.settings)
 
     def add_tree(
         self,
         conversation_id: str,
-        settings: Settings | None = None,
-        style: str | None = None,
-        agent_description: str | None = None,
-        end_goal: str | None = None,
-        branch_initialisation: str | None = None,
         low_memory: bool = False,
     ):
         """
@@ -94,47 +91,21 @@ class TreeManager:
 
         Args:
             conversation_id (str): Required. A unique identifier for the conversation.
-            settings (Settings | None): Optional. A Settings object for the tree.
-                Defaults to the Settings object used to initialise the TreeManager.
-            style (str | None): Optional. A style for the tree.
-                Defaults to the style used to initialise the TreeManager.
-            agent_description (str | None): Optional. An agent description for the tree.
-                Defaults to the agent description used to initialise the TreeManager.
-            end_goal (str | None): Optional. An end goal for the tree.
-                Defaults to the end goal used to initialise the TreeManager.
-            branch_initialisation (str | None): Optional. A branch initialisation for the tree.
-                Defaults to the branch initialisation used to initialise the TreeManager.
             low_memory (bool): Optional. Whether to use low memory mode for the tree.
                 Controls the LM history being saved in the tree, and some other variables.
                 Defaults to False.
         """
 
-        if settings is None:
-            settings = self.settings
-
-        if style is None:
-            style = self.style
-
-        if agent_description is None:
-            agent_description = self.agent_description
-
-        if end_goal is None:
-            end_goal = self.end_goal
-
-        if branch_initialisation is None:
-            branch_initialisation = "one_branch"
-
         if not self.tree_exists(conversation_id):
-
             self.trees[conversation_id] = {
                 "tree": Tree(
                     conversation_id=conversation_id,
                     user_id=self.user_id,
-                    settings=settings,
-                    style=style,
-                    agent_description=agent_description,
-                    end_goal=end_goal,
-                    branch_initialisation=branch_initialisation,
+                    settings=self.settings,
+                    style=self.config.style,
+                    agent_description=self.config.agent_description,
+                    end_goal=self.config.end_goal,
+                    branch_initialisation=self.config.branch_initialisation,
                     low_memory=low_memory,
                 ),
                 "last_request": datetime.datetime.now(),
@@ -303,7 +274,7 @@ class TreeManager:
                 If not supplied, the style will be changed on all trees.
         """
         if conversation_id is None:
-            self.style = style
+            self.config.style = style
             for conversation_id in self.trees:
                 if not self.trees[conversation_id]["tree"]._config_modified:
                     self.trees[conversation_id]["tree"].change_style(style)
@@ -328,7 +299,7 @@ class TreeManager:
                 If not supplied, the agent description will be changed on all trees.
         """
         if conversation_id is None:
-            self.agent_description = agent_description
+            self.config.agent_description = agent_description
             for conversation_id in self.trees:
                 if not self.trees[conversation_id]["tree"]._config_modified:
                     self.trees[conversation_id]["tree"].change_agent_description(
@@ -355,7 +326,7 @@ class TreeManager:
                 If not supplied, the end goal will be changed on all trees.
         """
         if conversation_id is None:
-            self.end_goal = end_goal
+            self.config.end_goal = end_goal
             for conversation_id in self.trees:
                 if not self.trees[conversation_id]["tree"]._config_modified:
                     self.trees[conversation_id]["tree"].change_end_goal(end_goal)
@@ -380,7 +351,7 @@ class TreeManager:
                 If not supplied, the branch initialisation will be changed on all trees.
         """
         if conversation_id is None:
-            self.branch_initialisation = branch_initialisation
+            self.config.branch_initialisation = branch_initialisation
             for conversation_id in self.trees:
                 if not self.trees[conversation_id]["tree"]._config_modified:
                     self.trees[conversation_id]["tree"].set_branch_initialisation(

@@ -2,25 +2,21 @@ import os
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+from uuid import uuid4
 
 load_dotenv(override=True)
 
 # API Types
-from elysia.api.api_types import (
-    LoadConfigTreeData,
-    Config,
-)
+from elysia.api.api_types import Config, SaveConfigTreeData
 
 from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.util.parsing import format_dict_to_serialisable
 from elysia.tree.tree import Tree
+from elysia.config import Settings
 
-import weaviate
-import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
-from weaviate.auth import Auth
 
 
 def rename_keys(config_item: dict):
@@ -63,6 +59,8 @@ async def get_tree_config(
     try:
         tree: Tree = await user_manager.get_tree(user_id, conversation_id)
         config = Config(
+            id="tree_config",
+            name="Tree Config",
             settings=tree.settings.to_json(),
             style=tree.tree_data.atlas.style,
             agent_description=tree.tree_data.atlas.agent_description,
@@ -79,8 +77,8 @@ async def get_tree_config(
     )
 
 
-@router.post("/{user_id}/{conversation_id}/default_models")
-async def default_models_tree(
+@router.post("/{user_id}/{conversation_id}/new_config")
+async def new_tree_config(
     user_id: str,
     conversation_id: str,
     user_manager: UserManager = Depends(get_user_manager),
@@ -99,15 +97,34 @@ async def default_models_tree(
             error (str): An error message. Empty if no error.
             config (dict): A dictionary of the updated config values.
     """
-    logger.debug(f"/default_models_tree API request received")
+    logger.debug(f"/new_tree_config API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Conversation ID: {conversation_id}")
 
     try:
         tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        tree.default_models()
+
+        settings = Settings()
+        settings.smart_setup()
+
+        tree.configure(
+            **{k: v for k, v in settings.to_json().items() if k != "API_KEYS"}
+        )
+        tree.configure(**settings.to_json()["API_KEYS"])
+
+        tree.change_style("Informative, polite and friendly.")
+        tree.change_agent_description(
+            "You search and query Weaviate to satisfy the user's query, providing a concise summary of the results."
+        )
+        tree.change_end_goal(
+            "You have satisfied the user's query, and provided a concise summary of the results. "
+            "Or, you have exhausted all options available, or asked the user for clarification."
+        )
+        tree.set_branch_initialisation("one_branch")
 
         config = Config(
+            id="tree_config",
+            name="Tree Config",
             settings=tree.settings.to_json(),
             style=tree.tree_data.atlas.style,
             agent_description=tree.tree_data.atlas.agent_description,
@@ -116,7 +133,7 @@ async def default_models_tree(
         )
 
     except Exception as e:
-        logger.exception(f"Error in /default_models_tree API")
+        logger.exception(f"Error in /new_tree_config API")
         return JSONResponse(content={"error": str(e), "config": {}})
 
     return JSONResponse(content={"error": "", "config": config.model_dump()})
@@ -126,7 +143,7 @@ async def default_models_tree(
 async def change_config_tree(
     user_id: str,
     conversation_id: str,
-    data: Config,
+    data: SaveConfigTreeData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
@@ -192,6 +209,8 @@ async def change_config_tree(
         #     tree.set_branch_initialisation(data.branch_initialisation)
 
         config = Config(
+            id="tree_config",
+            name="Tree Config",
             settings=tree.settings.to_json(),
             style=tree.tree_data.atlas.style,
             agent_description=tree.tree_data.atlas.agent_description,

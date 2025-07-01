@@ -298,11 +298,11 @@ class Tree:
 
         self.branch_initialisation = initialisation
 
-    def default_models(self):
+    def smart_setup(self):
         self.settings = deepcopy(self.settings)
         self.settings.SETTINGS_ID = str(uuid.uuid4())
         self._config_modified = True
-        self.settings.default_models()
+        self.settings.smart_setup()
 
     def configure(self, **kwargs):
         """

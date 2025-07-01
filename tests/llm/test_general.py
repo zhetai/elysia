@@ -63,7 +63,7 @@ class TestMultiBranch:
         tree = Tree(
             low_memory=False,
             branch_initialisation="empty",
-            settings=Settings.from_default(),
+            settings=Settings.from_smart_setup(),
         )
 
         # error if branch_id is not found
@@ -79,7 +79,7 @@ class TestMultiBranch:
         tree = Tree(
             low_memory=False,
             branch_initialisation="multi_branch",
-            settings=Settings.from_default(),
+            settings=Settings.from_smart_setup(),
         )
 
         assert len(tree.decision_nodes) > 1
@@ -95,7 +95,7 @@ class TestMultiBranch:
         tree = Tree(
             low_memory=False,
             branch_initialisation="empty",
-            settings=Settings.from_default(),
+            settings=Settings.from_smart_setup(),
         )
 
         tree.add_branch(
@@ -131,7 +131,7 @@ class TestToolChanges:
         tree = Tree(
             low_memory=False,
             branch_initialisation="empty",
-            settings=Settings.from_default(),
+            settings=Settings.from_smart_setup(),
         )
 
         tree.add_branch(

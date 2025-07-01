@@ -93,27 +93,14 @@ class UserManager:
     def add_user_local(
         self,
         user_id: str,
-        style: str = "",
-        agent_description: str = "",
-        end_goal: str = "",
-        branch_initialisation: str = "one_branch",
-        settings: Settings | None = None,
+        config: Config | None = None,
     ):
         """
         Add a user to the UserManager.
 
         Args:
             user_id (str): Required. The unique identifier for the user.
-            style (str | None): Optional. A writing style for all trees created for this user.
-            agent_description (str | None): Optional. A description of the agent for all trees created for this user.
-            end_goal (str | None): Optional. A goal for all trees created for this user.
-            branch_initialisation (str | None): Optional. A branch initialisation for all trees created for this user.
-                Defaults to "one_branch", which contains 'Query', 'Aggregate' and 'Summarize' tools.
-                Other options are "multi_branch", which contains 'Query' and 'Aggregate' in a separate branch,
-                and "empty", which contains no tools (only a base branch), designed to add more tools to.
-            settings (Settings | None): Optional. The settings for the user.
-                This setting config will be set for all trees associated with the user (in the TreeManager).
-                Defaults to None, which will use the environment variables.
+            config (Config): Required. The config for the user.
         """
 
         # add user if it doesn't exist
@@ -126,11 +113,7 @@ class UserManager:
 
             self.users[user_id]["tree_manager"] = TreeManager(
                 user_id=user_id,
-                style=style,
-                agent_description=agent_description,
-                end_goal=end_goal,
-                branch_initialisation=branch_initialisation,
-                settings=settings,
+                config=config,
                 tree_timeout=fe_config.config["tree_timeout"],
             )
 
@@ -149,7 +132,7 @@ class UserManager:
 
         Returns:
             dict: A local user object, containing a TreeManager ("tree_manager"),
-                User Config ("config") and ClientManager ("client_manager").
+                Frontend Config ("frontend_config") and ClientManager ("client_manager").
         """
 
         if user_id not in self.users:
@@ -241,11 +224,6 @@ class UserManager:
         self,
         user_id: str,
         conversation_id: str,
-        settings: Settings | None = None,
-        style: str | None = None,
-        agent_description: str | None = None,
-        end_goal: str | None = None,
-        branch_initialisation: str | None = None,
         low_memory: bool = False,
     ):
         """
@@ -256,17 +234,6 @@ class UserManager:
         Args:
             user_id (str): Required. The unique identifier for the user.
             conversation_id (str): Required. The unique identifier for a new conversation within the tree manager.
-            settings (Settings | None): Optional. The settings for the tree.
-                Defaults to the settings used to initialise the TreeManager for that specific user.
-                Which itself defaults to the environment variables if not specified.
-            style (str | None): Optional. The style for the tree.
-                Defaults to the style used to initialise the TreeManager for that specific user.
-            agent_description (str | None): Optional. The description of the agent for the tree.
-                Defaults to the agent description used to initialise the TreeManager for that specific user.
-            end_goal (str | None): Optional. The end goal for the tree.
-                Defaults to the end goal used to initialise the TreeManager for that specific user.
-            branch_initialisation (str | None): Optional. The initialisation for the branches of the tree.
-                Defaults to the branch initialisation used to initialise the TreeManager for that specific user.
             low_memory (bool): Optional. Whether to use low memory mode for the tree.
                 Controls the LM history being saved in the tree, and some other variables.
                 Defaults to False.
@@ -276,11 +243,6 @@ class UserManager:
         tree_manager: TreeManager = local_user["tree_manager"]
         tree_manager.add_tree(
             conversation_id,
-            settings,
-            style,
-            agent_description,
-            end_goal,
-            branch_initialisation,
             low_memory,
         )
         return tree_manager.get_tree(conversation_id)

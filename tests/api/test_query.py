@@ -10,7 +10,7 @@ from elysia.api.dependencies.common import get_user_manager
 set_log_level("CRITICAL")
 
 from elysia.api.routes.query import process
-from elysia.api.api_types import QueryData, InitialiseUserData, InitialiseTreeData
+from elysia.api.api_types import QueryData, InitialiseTreeData
 
 from elysia.api.routes.init import initialise_user, initialise_tree
 
@@ -30,18 +30,15 @@ async def initialise_user_and_tree(user_id: str, conversation_id: str):
     user_manager = get_user_manager()
 
     response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
-        ),
+        user_id,
         user_manager,
     )
 
     response = await initialise_tree(
+        user_id,
+        conversation_id,
         InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
+            low_memory=True,
         ),
         user_manager,
     )

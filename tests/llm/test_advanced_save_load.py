@@ -15,7 +15,7 @@ async def test_save_load_weaviate():
     client_manager = ClientManager()
 
     try:
-        settings = Settings.from_default()
+        settings = Settings.from_smart_setup()
         tree = Tree(settings=settings)
 
         # ask about edward

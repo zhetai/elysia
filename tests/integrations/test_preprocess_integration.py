@@ -58,12 +58,10 @@ def create_collection(client_manager: ClientManager):
 @pytest.fixture(scope="module", autouse=True)
 def ensure_user_and_tree():
     # Ensure the user and tree exist before running tests
+    requests.post(f"{INIT_URL}/user/{TEST_USER}")
     requests.post(
-        f"{INIT_URL}/user", json={"user_id": TEST_USER, "default_models": True}
-    )
-    requests.post(
-        f"{INIT_URL}/tree",
-        json={"user_id": TEST_USER, "conversation_id": TEST_CONVO, "low_memory": True},
+        f"{INIT_URL}/tree/{TEST_USER}/{TEST_CONVO}",
+        json={"low_memory": True},
     )
 
 

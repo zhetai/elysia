@@ -26,11 +26,11 @@ class TestConfig:
 
         self.reset_global_settings()
 
-    def test_default_models(self):
+    def test_smart_setup(self):
         """
-        Test that the default config is correct
+        Test that the smart setup is correct
         """
-        settings = Settings.from_default()
+        settings = Settings.from_smart_setup()
         assert settings.BASE_MODEL is not None
         assert settings.COMPLEX_MODEL is not None
         assert settings.BASE_PROVIDER is not None

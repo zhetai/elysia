@@ -14,9 +14,7 @@ TEST_COLLECTION = "example_verba_github_issues"
 @pytest.fixture(scope="module", autouse=True)
 def ensure_user():
     # Ensure the user exists before running tests
-    requests.post(
-        f"{INIT_URL}/user", json={"user_id": TEST_USER, "default_models": True}
-    )
+    requests.post(f"{INIT_URL}/user/{TEST_USER}")
 
 
 def test_mapping_types():

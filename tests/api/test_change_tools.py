@@ -1,17 +1,22 @@
 import pytest
 
 from elysia.api.api_types import (
-    InitialiseUserData,
     InitialiseTreeData,
     AddToolToTreeData,
     RemoveToolFromTreeData,
     AddBranchToTreeData,
     RemoveBranchFromTreeData,
+    SaveConfigUserData,
+    UpdateFrontendConfigData,
 )
 from elysia.api.routes.query import process
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.routes.init import initialise_user, initialise_tree
-from elysia.api.routes.user_config import update_frontend_config
+from elysia.api.routes.user_config import (
+    update_frontend_config,
+    save_config_user,
+    get_current_user_config,
+)
 from elysia.api.routes.tools import (
     get_available_tools,
     add_tool_to_tree,
@@ -38,6 +43,24 @@ def read_response(response: JSONResponse):
     return json.loads(response.body)
 
 
+async def initialise_user_and_tree(user_id: str, conversation_id: str):
+    user_manager = get_user_manager()
+
+    response = await initialise_user(
+        user_id,
+        user_manager,
+    )
+
+    response = await initialise_tree(
+        user_id,
+        conversation_id,
+        InitialiseTreeData(
+            low_memory=False,
+        ),
+        user_manager,
+    )
+
+
 @pytest.mark.asyncio
 async def test_tools_exist():
     joke_tool = TellAJoke()
@@ -59,27 +82,9 @@ async def test_basic_add_tool_to_tree():
     conversation_id = "test_conversation_basic_add_tool_to_tree"
 
     user_manager = get_user_manager()
+    await initialise_user_and_tree(user_id, conversation_id)
 
     tool = TellAJoke()
-
-    response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
-
-    response = await initialise_tree(
-        InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
 
     # add tool to tree
     response = await add_tool_to_tree(
@@ -120,25 +125,7 @@ async def test_add_tool_to_tree_with_from_tool_ids():
 
     tool = TellAJoke()
 
-    response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
-
-    response = await initialise_tree(
-        InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            branch_initialisation="one_branch",
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
+    await initialise_user_and_tree(user_id, conversation_id)
 
     # add tool to tree
     response = await add_tool_to_tree(
@@ -185,25 +172,7 @@ async def test_basic_remove_tool_from_tree():
 
     tool = TellAJoke()
 
-    response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
-
-    response = await initialise_tree(
-        InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            branch_initialisation="one_branch",
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
+    await initialise_user_and_tree(user_id, conversation_id)
 
     # first add tool to tree
     response = await add_tool_to_tree(
@@ -254,25 +223,7 @@ async def test_remove_tool_from_tree_with_from_tool_ids():
 
     tool = TellAJoke()
 
-    response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
-
-    response = await initialise_tree(
-        InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            branch_initialisation="one_branch",
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
+    await initialise_user_and_tree(user_id, conversation_id)
 
     # first add tool to tree
     response = await add_tool_to_tree(
@@ -321,25 +272,7 @@ async def test_basic_add_branch_to_tree():
 
     user_manager = get_user_manager()
 
-    response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
-
-    response = await initialise_tree(
-        InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            branch_initialisation="one_branch",
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
+    await initialise_user_and_tree(user_id, conversation_id)
 
     # add branch to tree
     response = await add_branch_to_tree(
@@ -392,20 +325,31 @@ async def test_add_branch_to_branch():
 
     user_manager = get_user_manager()
 
-    response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
+    await initialise_user_and_tree(user_id, conversation_id)
+
+    # get config_id
+    response = await get_current_user_config(
+        user_id,
+        user_manager,
+    )
+    assert read_response(response)["error"] == ""
+    config_id = read_response(response)["config"]["id"]
+
+    # set no configs saved to weaviate
+    response = await update_frontend_config(
+        user_id,
+        UpdateFrontendConfigData(
+            config={"save_configs_to_weaviate": False},
         ),
         user_manager,
     )
     assert read_response(response)["error"] == ""
 
-    response = await initialise_tree(
-        InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
+    # change branch initialisation
+    response = await save_config_user(
+        user_id,
+        config_id,
+        SaveConfigUserData(
             branch_initialisation="multi_branch",
         ),
         user_manager,
@@ -476,20 +420,31 @@ async def test_full_cycle():
 
     user_manager = get_user_manager()
 
-    response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
+    await initialise_user_and_tree(user_id, conversation_id)
+
+    # get config_id
+    response = await get_current_user_config(
+        user_id,
+        user_manager,
+    )
+    assert read_response(response)["error"] == ""
+    config_id = read_response(response)["config"]["id"]
+
+    # set no configs saved to weaviate
+    response = await update_frontend_config(
+        user_id,
+        UpdateFrontendConfigData(
+            config={"save_configs_to_weaviate": False},
         ),
         user_manager,
     )
     assert read_response(response)["error"] == ""
 
-    response = await initialise_tree(
-        InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
+    # change branch initialisation
+    response = await save_config_user(
+        user_id,
+        config_id,
+        SaveConfigUserData(
             branch_initialisation="multi_branch",
         ),
         user_manager,

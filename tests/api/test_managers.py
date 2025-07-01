@@ -5,6 +5,7 @@ import dotenv
 from elysia.api.services.user import UserManager
 from elysia.api.services.tree import TreeManager
 from elysia.config import Settings
+from elysia.api.api_types import Config
 
 dotenv.load_dotenv(override=True)
 
@@ -89,7 +90,7 @@ class TestUserManager:
         assert tree.settings.WCD_URL == os.environ.get("WCD_URL")
         assert tree.settings.WCD_API_KEY == os.environ.get("WCD_API_KEY")
 
-        # create a new user with a new settings
+        # create a new user with a new config
         user_id_2 = "test_user_config_2"
         conversation_id_2 = "test_conversation_config_2"
 
@@ -104,7 +105,21 @@ class TestUserManager:
             complex_provider="openai",
         )
 
-        user_manager.add_user_local(user_id_2, settings=new_settings)
+        user_manager.add_user_local(
+            user_id_2,
+            config=Config(
+                id="new_config",
+                name="New Config",
+                settings=new_settings.to_json(),
+                style="Informative, polite and friendly.",
+                agent_description="You search and query Weaviate to satisfy the user's query, providing a concise summary of the results.",
+                end_goal=(
+                    "You have satisfied the user's query, and provided a concise summary of the results. "
+                    "Or, you have exhausted all options available, or asked the user for clarification."
+                ),
+                branch_initialisation="one_branch",
+            ),
+        )
         await user_manager.initialise_tree(
             user_id_2, conversation_id_2, low_memory=True
         )
@@ -124,31 +139,3 @@ class TestUserManager:
         assert tree_2.settings.API_KEYS["openai_api_key"] == "new_openai_api_key"
         assert tree_2.settings.WCD_URL == "new_wcd_url"
         assert tree_2.settings.WCD_API_KEY == "new_wcd_api_key"
-
-        # make a new tree with a new settings
-        conversation_id_3 = "test_conversation_config_3"
-
-        new_settings_2 = Settings()
-        new_settings_2.configure(
-            openai_api_key="new_openai_api_key_2",
-            wcd_url="new_wcd_url_2",
-            wcd_api_key="new_wcd_api_key_2",
-            base_model="gpt-4o-mini",
-            base_provider="openai",
-            complex_model="gpt-4o",
-            complex_provider="openai",
-        )
-        tree_3 = await user_manager.initialise_tree(
-            user_id_2, conversation_id_3, settings=new_settings_2, low_memory=True
-        )
-
-        # check that the tree has these settings too
-        assert tree_3.settings.API_KEYS["openai_api_key"] == "new_openai_api_key_2"
-        assert tree_3.settings.WCD_URL == "new_wcd_url_2"
-        assert tree_3.settings.WCD_API_KEY == "new_wcd_api_key_2"
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(TestUserManager().test_config_in_managers())

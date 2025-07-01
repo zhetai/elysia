@@ -15,9 +15,7 @@ TEST_CONVO = "endpoint_config_convo"
 @pytest.fixture(scope="module", autouse=True)
 def ensure_user():
     # Ensure the user exists before running tests
-    requests.post(
-        f"{INIT_URL}/user", json={"user_id": TEST_USER, "default_models": True}
-    )
+    requests.post(f"{INIT_URL}/user/{TEST_USER}")
 
 
 def test_get_user_config():
@@ -30,6 +28,16 @@ def test_get_user_config():
 
 
 def test_change_config_user():
+
+    # get current config id
+    response = requests.get(f"{USER_CONFIG_URL}/{TEST_USER}")
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert "config" in data
+    assert isinstance(data["config"], dict)
+    config_id = data["config"]["id"]
+
     payload = {
         "settings": {
             "BASE_MODEL": "gpt-4o-mini",
@@ -42,7 +50,7 @@ def test_change_config_user():
         "end_goal": "Help users efficiently.",
         "branch_initialisation": "one_branch",
     }
-    response = requests.patch(f"{USER_CONFIG_URL}/{TEST_USER}", json=payload)
+    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/{config_id}", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert "error" in data
@@ -50,16 +58,8 @@ def test_change_config_user():
     assert data["error"] == ""
 
 
-def test_default_models_user():
-    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/default_models")
-    assert response.status_code == 200
-    data = response.json()
-    assert "error" in data
-    assert "config" in data
-
-
-def test_environment_settings_user():
-    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/from_env")
+def test_new_config_user():
+    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/new")
     assert response.status_code == 200
     data = response.json()
     assert "error" in data
@@ -91,7 +91,15 @@ def test_list_configs():
 
 
 def test_save_and_load_config_user():
-    config_id = f"test_endpoint_config_{random.randint(0, 1000000)}"
+
+    # get config id
+    response = requests.get(f"{USER_CONFIG_URL}/{TEST_USER}")
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert "config" in data
+    assert isinstance(data["config"], dict)
+    config_id = data["config"]["id"]
 
     save_payload = {
         "config_id": config_id,
@@ -107,18 +115,22 @@ def test_save_and_load_config_user():
         "style": "Technical",
         "agent_description": "You are a technical assistant.",
         "end_goal": "Provide technical answers.",
-        "branch_initialisation": "two_branch",
+        "branch_initialisation": "multi_branch",
     }
 
     # Update config
-    response = requests.patch(f"{USER_CONFIG_URL}/{TEST_USER}", json=config_payload)
+    response = requests.post(
+        f"{USER_CONFIG_URL}/{TEST_USER}/{config_id}", json=config_payload
+    )
     assert response.status_code == 200
     data = response.json()
     assert "error" in data
     assert data["error"] == ""
 
     # Save config
-    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/save", json=save_payload)
+    response = requests.post(
+        f"{USER_CONFIG_URL}/{TEST_USER}/{config_id}", json=save_payload
+    )
     assert response.status_code == 200
     data = response.json()
     assert "error" in data
@@ -140,19 +152,20 @@ def test_save_and_load_config_user():
 
 def test_get_tree_config_and_change():
     # Ensure tree exists
+    requests.post(f"{INIT_URL}/user/{TEST_USER}")
     requests.post(
-        f"{INIT_URL}/user", json={"user_id": TEST_USER, "default_models": True}
+        f"{INIT_URL}/tree/{TEST_USER}/{TEST_CONVO}",
+        json={"low_memory": True},
     )
-    requests.post(
-        f"{INIT_URL}/tree",
-        json={"user_id": TEST_USER, "conversation_id": TEST_CONVO, "low_memory": True},
-    )
+
     # Get config
     response = requests.get(f"{TREE_CONFIG_URL}/{TEST_USER}/{TEST_CONVO}")
     assert response.status_code == 200
     data = response.json()
     assert "error" in data and data["error"] == ""
     assert "config" in data
+    config_id = data["config"]["id"]
+
     # Change config
     payload = {
         "settings": {
@@ -166,7 +179,7 @@ def test_get_tree_config_and_change():
         "end_goal": "Tree goal",
         "branch_initialisation": "empty",
     }
-    response = requests.patch(
+    response = requests.post(
         f"{TREE_CONFIG_URL}/{TEST_USER}/{TEST_CONVO}", json=payload
     )
     assert response.status_code == 200
@@ -175,27 +188,17 @@ def test_get_tree_config_and_change():
     assert "config" in data
 
 
-def test_default_models_tree():
-    # Ensure tree exists
-    requests.post(
-        f"{INIT_URL}/tree",
-        json={"user_id": TEST_USER, "conversation_id": TEST_CONVO, "low_memory": True},
-    )
-    response = requests.post(
-        f"{TREE_CONFIG_URL}/{TEST_USER}/{TEST_CONVO}/default_models"
-    )
+def test_save_and_load_config_tree():
+
+    # get config id
+    response = requests.get(f"{USER_CONFIG_URL}/{TEST_USER}")
     assert response.status_code == 200
     data = response.json()
-    assert "error" in data and data["error"] == ""
+    assert "error" in data
     assert "config" in data
+    assert isinstance(data["config"], dict)
+    config_id = data["config"]["id"]
 
-
-def test_save_and_load_config_tree():
-    config_id = f"test_endpoint_tree_config_{random.randint(0, 1000000)}"
-    # Save config for user first
-    save_payload = {
-        "config_id": config_id,
-    }
     config_payload = {
         "settings": {
             "BASE_MODEL": "gpt-4-turbo",
@@ -209,22 +212,18 @@ def test_save_and_load_config_tree():
         "branch_initialisation": "empty",
     }
 
-    # Update config
-    response = requests.patch(f"{USER_CONFIG_URL}/{TEST_USER}", json=config_payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert "error" in data and data["error"] == ""
-
-    # Save config
-    response = requests.post(f"{USER_CONFIG_URL}/{TEST_USER}/save", json=save_payload)
+    # Update and save config
+    response = requests.post(
+        f"{USER_CONFIG_URL}/{TEST_USER}/{config_id}", json=config_payload
+    )
     assert response.status_code == 200
     data = response.json()
     assert "error" in data and data["error"] == ""
 
     # Ensure tree exists
     requests.post(
-        f"{INIT_URL}/tree",
-        json={"user_id": TEST_USER, "conversation_id": TEST_CONVO, "low_memory": True},
+        f"{INIT_URL}/tree/{TEST_USER}/{TEST_CONVO}",
+        json={"low_memory": True},
     )
     # Load config to tree
     response = requests.post(
@@ -245,7 +244,7 @@ def test_save_and_load_config_tree():
 def test_list_configs_no_save_location():
     # Use a user that doesn't have a save location set
     user_id = "endpoint_user_no_save_location"
-    requests.post(f"{INIT_URL}/user", json={"user_id": user_id, "default_models": True})
+    requests.post(f"{INIT_URL}/user/{user_id}")
 
     response = requests.get(f"{USER_CONFIG_URL}/{user_id}/list")
     assert response.status_code == 200
