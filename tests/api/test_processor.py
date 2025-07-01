@@ -2,12 +2,10 @@ import pytest
 
 from fastapi.responses import JSONResponse
 
-import asyncio
 import json
 import random
 from elysia.api.api_types import (
     ProcessCollectionData,
-    InitialiseUserData,
 )
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.routes.init import initialise_user
@@ -78,23 +76,19 @@ class TestProcessor:
     @pytest.mark.asyncio
     async def test_process_collection(self):
 
+        user_id = "test_user_process_collection"
         try:
             await initialise_user(
-                InitialiseUserData(
-                    user_id="test_user",
-                    default_models=True,
-                ),
+                user_id,
                 user_manager,
             )
-            local_user = await user_manager.get_user_local("test_user")
+            local_user = await user_manager.get_user_local(user_id)
             client_manager = local_user["client_manager"]
 
             collection_name = create_collection(client_manager)
 
             response = await self.run_processor(
-                ProcessCollectionData(
-                    user_id="test_user", collection_name=collection_name
-                ),
+                ProcessCollectionData(user_id=user_id, collection_name=collection_name),
             )
             for result in response:
                 assert result["error"] == ""
@@ -126,7 +120,3 @@ class TestProcessor:
                 pass
 
             await user_manager.close_all_clients()
-
-
-if __name__ == "__main__":
-    asyncio.run(TestProcessor().test_process_collection())

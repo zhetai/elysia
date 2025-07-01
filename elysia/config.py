@@ -115,10 +115,10 @@ class Settings:
         self.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
 
     @classmethod
-    def from_default(cls):
+    def from_smart_setup(cls):
         settings = cls()
         settings.set_from_env()
-        settings.default_models()
+        settings.smart_setup()
         return settings
 
     @classmethod
@@ -154,13 +154,61 @@ class Settings:
         for api_key in self.API_KEYS:
             self.set_api_key(self.API_KEYS[api_key], api_key)
 
-    def default_models(self):
-        # TODO: this could be a lot smarter, checking what api keys are available etc.
-        self.BASE_MODEL = os.getenv("BASE_MODEL", "gemini-2.0-flash-001")
-        self.COMPLEX_MODEL = os.getenv("COMPLEX_MODEL", "gemini-2.0-flash-001")
-        self.BASE_PROVIDER = os.getenv("BASE_PROVIDER", "openrouter/google")
-        self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER", "openrouter/google")
+    def smart_setup(self):
+
+        # Check if the user has set the base model etc from the environment variables
+        if os.getenv("BASE_MODEL", None):
+            self.BASE_MODEL = os.getenv("BASE_MODEL")
+        if os.getenv("COMPLEX_MODEL", None):
+            self.COMPLEX_MODEL = os.getenv("COMPLEX_MODEL")
+        if os.getenv("BASE_PROVIDER", None):
+            self.BASE_PROVIDER = os.getenv("BASE_PROVIDER")
+        if os.getenv("COMPLEX_PROVIDER", None):
+            self.COMPLEX_PROVIDER = os.getenv("COMPLEX_PROVIDER")
+
         self.MODEL_API_BASE = os.getenv("MODEL_API_BASE", None)
+        self.LOGGING_LEVEL = os.getenv("LOGGING_LEVEL", "NOTSET")
+
+        self.set_api_keys_from_env()
+
+        # check what API keys are available
+        if (
+            self.BASE_MODEL is None
+            or self.COMPLEX_MODEL is None
+            or self.BASE_PROVIDER is None
+            or self.COMPLEX_PROVIDER is None
+        ):
+            if os.getenv("OPENROUTER_API_KEY", None):
+                # use gemini 2.0 flash
+                self.BASE_PROVIDER = "openrouter/google"
+                self.COMPLEX_PROVIDER = "openrouter/google"
+                self.BASE_MODEL = "gemini-2.0-flash-001"
+                self.COMPLEX_MODEL = "gemini-2.0-flash-001"
+            elif os.getenv("GEMINI_API_KEY", None):
+                # use gemini 2.0 flash
+                self.BASE_PROVIDER = "gemini"
+                self.COMPLEX_PROVIDER = "gemini"
+                self.BASE_MODEL = "gemini-2.0-flash"
+                self.COMPLEX_MODEL = "gemini-2.0-flash"
+            elif os.getenv("OPENAI_API_KEY", None):
+                # use gpt family
+                self.BASE_PROVIDER = "openai"
+                self.COMPLEX_PROVIDER = "openai"
+                self.BASE_MODEL = "gpt-4.1-mini"
+                self.COMPLEX_MODEL = "gpt-4.1"
+            elif os.getenv("ANTHROPIC_API_KEY", None):
+                # use claude family
+                self.BASE_PROVIDER = "anthropic"
+                self.COMPLEX_PROVIDER = "anthropic"
+                self.BASE_MODEL = "claude-3-5-haiku-latest"
+                self.COMPLEX_MODEL = "claude-sonnet-4-0"
+            else:
+                raise ValueError(
+                    "No BASE_MODEL, COMPLEX_MODEL, BASE_PROVIDER, or COMPLEX_PROVIDER set in the environment variables. "
+                    "And no supported API keys for smart setup detected. "
+                    "Please set one of the following: "
+                    "OPENROUTER_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
+                )
 
     def reset(self):
         self = Settings()

@@ -6,12 +6,9 @@ import random
 import pytest
 from weaviate.util import generate_uuid5
 from elysia.api.api_types import (
-    SaveConfigData,
-    InitialiseUserData,
     InitialiseTreeData,
-    Config,
-    LoadConfigUserData,
-    LoadConfigTreeData,
+    SaveConfigUserData,
+    SaveConfigTreeData,
     UpdateFrontendConfigData,
 )
 from elysia.api.dependencies.common import get_user_manager
@@ -20,15 +17,13 @@ from elysia.api.routes.user_config import (
     load_config_user,
     delete_config,
     save_config_user,
-    default_models_user,
-    environment_settings_user,
     list_configs,
     update_frontend_config,
 )
 from elysia.api.routes.tree_config import (
     load_config_tree,
     change_config_tree,
-    default_models_tree,
+    new_tree_config,
 )
 from elysia.tree.tree import Tree
 from elysia.api.core.log import logger, set_log_level
@@ -53,124 +48,33 @@ async def delete_config_after_completion(
             await collection.data.delete_by_id(uuid)
 
 
+async def initialise_user_and_tree(user_id: str, conversation_id: str):
+    user_manager = get_user_manager()
+
+    response = await initialise_user(
+        user_id,
+        user_manager,
+    )
+
+    response = await initialise_tree(
+        user_id,
+        conversation_id,
+        InitialiseTreeData(
+            low_memory=False,
+        ),
+        user_manager,
+    )
+
+
 class TestConfig:
     user_manager = get_user_manager()
 
     @pytest.mark.asyncio
-    async def test_initialise_user_default_models(self):
-
-        try:
-            user_id = "test_user_initialise_user_default_models"
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # check that the tree manager has the correct settings
-            tree_manager = self.user_manager.users[user_id]["tree_manager"]
-
-            assert tree_manager.settings.BASE_MODEL == os.getenv(
-                "BASE_MODEL", "gemini-2.0-flash-001"
-            )
-            assert tree_manager.settings.COMPLEX_MODEL == os.getenv(
-                "COMPLEX_MODEL", "gemini-2.0-flash-001"
-            )
-            assert tree_manager.settings.BASE_PROVIDER == os.getenv(
-                "BASE_PROVIDER", "openrouter/google"
-            )
-            assert tree_manager.settings.COMPLEX_PROVIDER == os.getenv(
-                "COMPLEX_PROVIDER", "openrouter/google"
-            )
-
-            # should default use environment variables
-            assert response["config"]["settings"]["WCD_URL"] == os.getenv("WCD_URL")
-            assert response["config"]["settings"]["WCD_API_KEY"] == os.getenv(
-                "WCD_API_KEY"
-            )
-            assert response["config"]["style"] != ""
-            assert response["config"]["agent_description"] != ""
-            assert response["config"]["end_goal"] != ""
-            assert response["config"]["branch_initialisation"] != ""
-
-        finally:
-            await self.user_manager.close_all_clients()
-
-    @pytest.mark.asyncio
-    async def test_initialise_user_custom_models(self):
-
-        try:
-            user_id = "test_user_initialise_user_custom_models"
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=False,
-                    settings={
-                        "BASE_MODEL": "gpt-4o-mini",
-                        "COMPLEX_MODEL": "gpt-4o",
-                        "BASE_PROVIDER": "openai",
-                        "COMPLEX_PROVIDER": "openai",
-                        "OPENAI_API_KEY": "test_openai_key",
-                        "WCD_URL": "test_wcd_url",
-                    },
-                ),
-                user_manager=self.user_manager,
-            )
-
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # check that the tree manager has the correct settings
-            tree_manager = self.user_manager.users[user_id]["tree_manager"]
-
-            assert tree_manager.settings.BASE_MODEL == "gpt-4o-mini"
-            assert tree_manager.settings.COMPLEX_MODEL == "gpt-4o"
-            assert tree_manager.settings.BASE_PROVIDER == "openai"
-            assert tree_manager.settings.COMPLEX_PROVIDER == "openai"
-
-            # configs returned should match the settings provided
-            assert response["config"]["settings"]["BASE_MODEL"] == "gpt-4o-mini"
-            assert response["config"]["settings"]["COMPLEX_MODEL"] == "gpt-4o"
-            assert response["config"]["settings"]["BASE_PROVIDER"] == "openai"
-            assert response["config"]["settings"]["COMPLEX_PROVIDER"] == "openai"
-            assert (
-                response["config"]["settings"]["API_KEYS"]["openai_api_key"]
-                == "test_openai_key"
-            )
-            assert response["config"]["settings"]["WCD_URL"] == "test_wcd_url"
-
-            # api keys that are not set should come from environment variables
-            assert response["config"]["settings"]["WCD_API_KEY"] == os.getenv(
-                "WCD_API_KEY"
-            )
-
-            # style, agent_description and end_goal should be set
-            assert response["config"]["style"] != ""
-            assert response["config"]["agent_description"] != ""
-            assert response["config"]["end_goal"] != ""
-            assert response["config"]["branch_initialisation"] != ""
-
-        finally:
-            await self.user_manager.close_all_clients()
-
-    @pytest.mark.asyncio
     async def test_set_save_location(self):
+        user_id = "test_user_set_save_location"
+        conversation_id = "test_conversation_set_save_location"
         try:
-            user_id = "test_user_set_save_location"
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # the user should have a save location
             user = await self.user_manager.get_user_local(user_id)
@@ -225,201 +129,56 @@ class TestConfig:
             await self.user_manager.close_all_clients()
 
     @pytest.mark.asyncio
-    async def test_default_models_user(self):
+    async def test_smart_setup_models_user(self):
+        user_id = "test_user_smart_setup_models_user"
+        conversation_id = "test_conversation_smart_setup_models_user"
+
         try:
-            user_id = "test_user_default_models_user"
-
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=False,
-                ),
-                user_manager=self.user_manager,
-            )
-
-            response = await default_models_user(
-                user_id=user_id,
-                user_manager=self.user_manager,
-            )
-
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # check that the tree manager has the correct settings
             tree_manager = self.user_manager.users[user_id]["tree_manager"]
 
-            assert tree_manager.settings.BASE_MODEL == os.getenv(
-                "BASE_MODEL", "gemini-2.0-flash-001"
-            )
-            assert tree_manager.settings.COMPLEX_MODEL == os.getenv(
-                "COMPLEX_MODEL", "gemini-2.0-flash-001"
-            )
-            assert tree_manager.settings.BASE_PROVIDER == os.getenv(
-                "BASE_PROVIDER", "openrouter/google"
-            )
-            assert tree_manager.settings.COMPLEX_PROVIDER == os.getenv(
-                "COMPLEX_PROVIDER", "openrouter/google"
-            )
+            assert tree_manager.settings.BASE_MODEL is not None
+            assert tree_manager.settings.COMPLEX_MODEL is not None
+            assert tree_manager.settings.BASE_PROVIDER is not None
+            assert tree_manager.settings.COMPLEX_PROVIDER is not None
 
             # should default use environment variables
-            assert response["config"]["settings"]["WCD_URL"] == os.getenv("WCD_URL")
-            assert response["config"]["settings"]["WCD_API_KEY"] == os.getenv(
-                "WCD_API_KEY"
-            )
-            assert response["config"]["style"] != ""
-            assert response["config"]["agent_description"] != ""
-            assert response["config"]["end_goal"] != ""
-            assert response["config"]["branch_initialisation"] != ""
+            assert tree_manager.settings.WCD_URL == os.getenv("WCD_URL")
+            assert tree_manager.settings.WCD_API_KEY == os.getenv("WCD_API_KEY")
+            assert tree_manager.config.style != ""
+            assert tree_manager.config.agent_description != ""
+            assert tree_manager.config.end_goal != ""
+            assert tree_manager.config.branch_initialisation != ""
 
         finally:
             await self.user_manager.close_all_clients()
 
     @pytest.mark.asyncio
-    async def test_default_models_tree(self):
+    async def test_smart_setup_tree(self):
+        user_id = "test_user_smart_setup_tree"
+        conversation_id = "test_conversation_smart_setup_tree"
         try:
-            user_id = "test_user_default_models_tree"
-            conversation_id = "test_conversation_default_models_tree"
-
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=False,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-
-            assert response["error"] == ""
-
-            # should be no models set yet
-            tree_manager = self.user_manager.users[user_id]["tree_manager"]
-            assert tree_manager.settings.BASE_MODEL is None
-            assert tree_manager.settings.COMPLEX_MODEL is None
-            assert tree_manager.settings.BASE_PROVIDER is None
-            assert tree_manager.settings.COMPLEX_PROVIDER is None
-
-            # set the models
-            response = await initialise_tree(
-                data=InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    low_memory=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # should be no models in the tree
+            await initialise_user_and_tree(user_id, conversation_id)
             tree: Tree = await self.user_manager.get_tree(user_id, conversation_id)
-            assert tree.settings.BASE_MODEL is None
-            assert tree.settings.COMPLEX_MODEL is None
-            assert tree.settings.BASE_PROVIDER is None
-            assert tree.settings.COMPLEX_PROVIDER is None
-
-            # set the models
-            response = await default_models_tree(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # check that the tree manager hasn't changed
-            tree_manager = self.user_manager.users[user_id]["tree_manager"]
-
-            assert tree_manager.settings.BASE_MODEL is None
-            assert tree_manager.settings.COMPLEX_MODEL is None
-            assert tree_manager.settings.BASE_PROVIDER is None
-            assert tree_manager.settings.COMPLEX_PROVIDER is None
 
             # and the tree should have the correct models
-            assert tree.settings.BASE_MODEL == os.getenv(
-                "BASE_MODEL", "gemini-2.0-flash-001"
-            )
-            assert tree.settings.COMPLEX_MODEL == os.getenv(
-                "COMPLEX_MODEL", "gemini-2.0-flash-001"
-            )
-            assert tree.settings.BASE_PROVIDER == os.getenv(
-                "BASE_PROVIDER", "openrouter/google"
-            )
-            assert tree.settings.COMPLEX_PROVIDER == os.getenv(
-                "COMPLEX_PROVIDER", "openrouter/google"
-            )
-        finally:
-            await self.user_manager.close_all_clients()
-
-    @pytest.mark.asyncio
-    async def test_environment_settings_user(self):
-        try:
-            user_id = "test_user_environment_settings"
-
-            # Setup: Initialize user with empty settings
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=False,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # Exercise: Apply environment settings
-            response = await environment_settings_user(
-                user_id=user_id,
-                user_manager=self.user_manager,
-            )
-
-            # Verify response is OK
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # Verify settings were updated from environment
-            user = await self.user_manager.get_user_local(user_id)
-            tree_manager = user["tree_manager"]
-
-            # Check API keys were loaded from environment
-            assert tree_manager.settings.WCD_URL == os.getenv("WCD_URL", "")
-            assert tree_manager.settings.WCD_API_KEY == os.getenv("WCD_API_KEY", "")
-
-            # Verify client manager API keys were updated
-            client_manager = user["client_manager"]
-            assert client_manager.wcd_api_key == os.getenv("WCD_API_KEY", "")
-
+            assert tree.settings.BASE_MODEL is not None
+            assert tree.settings.COMPLEX_MODEL is not None
+            assert tree.settings.BASE_PROVIDER is not None
+            assert tree.settings.COMPLEX_PROVIDER is not None
         finally:
             await self.user_manager.close_all_clients()
 
     @pytest.mark.asyncio
     async def test_change_config_user(self):
+        user_id = "test_user_change_config_user"
+        conversation_id = "test_conversation_change_config_user"
+        config_id = f"test_config_{random.randint(0, 1000000)}"
+
         try:
-            user_id = "test_user_change_config_user"
-            config_id = f"test_config_{random.randint(0, 1000000)}"
-
-            # Setup: Initialize user with default settings
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # Create a tree to verify changes propagate
-            conversation_id = "test_conversation_change_config_user"
-            response = await initialise_tree(
-                data=InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    low_memory=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # Get tree manager in advance
             user = await self.user_manager.get_user_local(user_id)
@@ -444,12 +203,12 @@ class TestConfig:
             new_style = "Professional and concise."
             new_agent_description = "You are a helpful assistant that searches data."
             new_branch_init = "one_branch"
-            old_end_goal = tree_manager.end_goal
+            old_end_goal = tree_manager.config.end_goal
 
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=new_settings,
                     style=new_style,
                     agent_description=new_agent_description,
@@ -467,12 +226,12 @@ class TestConfig:
             assert tree_manager.settings.BASE_PROVIDER == "openai"
             assert tree_manager.settings.COMPLEX_PROVIDER == "openai"
 
-            assert tree_manager.style == new_style
-            assert tree_manager.agent_description == new_agent_description
+            assert tree_manager.config.style == new_style
+            assert tree_manager.config.agent_description == new_agent_description
             assert (
-                tree_manager.end_goal == old_end_goal
+                tree_manager.config.end_goal == old_end_goal
             )  # this parameter wasn't set so it should be the same as before
-            assert tree_manager.branch_initialisation == new_branch_init
+            assert tree_manager.config.branch_initialisation == new_branch_init
 
             # Verify model settings propagated to existing tree
             tree: Tree = await self.user_manager.get_tree(user_id, conversation_id)
@@ -492,31 +251,10 @@ class TestConfig:
 
     @pytest.mark.asyncio
     async def test_change_config_tree(self):
+        user_id = "test_user_change_config_tree"
+        conversation_id = "test_conversation_change_config_tree"
         try:
-            user_id = "test_user_change_config_tree"
-            conversation_id = "test_conversation_change_config_tree"
-
-            # Setup: Initialize user and tree
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            response = await initialise_tree(
-                data=InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    low_memory=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # get initial settings
             tree: Tree = await self.user_manager.get_tree(user_id, conversation_id)
@@ -541,7 +279,7 @@ class TestConfig:
             response = await change_config_tree(
                 user_id=user_id,
                 conversation_id=conversation_id,
-                data=Config(
+                data=SaveConfigTreeData(
                     settings=new_settings,
                     style=new_style,
                     agent_description=new_agent_description,
@@ -576,39 +314,20 @@ class TestConfig:
             user = await self.user_manager.get_user_local(user_id)
             tree_manager = user["tree_manager"]
             assert tree_manager.settings.BASE_MODEL == initial_base_model
-            assert tree_manager.style == initial_style
+            assert tree_manager.config.style == initial_style
 
         finally:
             await self.user_manager.close_all_clients()
 
     @pytest.mark.asyncio
     async def test_config_workflow(self):
-        try:
-            user_id = "test_user_config_workflow"
-            conversation_id_1 = "test_conversation_workflow_1"
-            conversation_id_2 = "test_conversation_workflow_2"
-            config_id = f"test_config_{random.randint(0, 1000000)}"
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+        user_id = "test_user_config_workflow"
+        conversation_id_1 = "test_conversation_workflow_1"
+        conversation_id_2 = "test_conversation_workflow_2"
+        config_id = f"test_config_{random.randint(0, 1000000)}"
 
-            # Create tree 1 with default settings
-            response = await initialise_tree(
-                data=InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id_1,
-                    low_memory=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+        try:
+            await initialise_user_and_tree(user_id, conversation_id_1)
 
             # Set so that configs are not saved to weaviate
             response = await update_frontend_config(
@@ -633,7 +352,7 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=user_settings,
                     style="Professional style for user",
                 ),
@@ -657,9 +376,9 @@ class TestConfig:
 
             # Create tree 2
             response = await initialise_tree(
+                user_id,
+                conversation_id_2,
                 data=InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id_2,
                     low_memory=True,
                 ),
                 user_manager=self.user_manager,
@@ -682,7 +401,7 @@ class TestConfig:
             response = await change_config_tree(
                 user_id=user_id,
                 conversation_id=conversation_id_1,
-                data=Config(
+                data=SaveConfigTreeData(
                     settings=tree1_settings,
                     style="Custom tree 1 style",
                     agent_description="Custom tree 1 agent description",
@@ -710,7 +429,7 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=new_user_settings,
                 ),
                 user_manager=self.user_manager,
@@ -729,7 +448,7 @@ class TestConfig:
             assert tree2.settings.COMPLEX_MODEL == "gemini-ultra"
 
             # set default models for tree 1
-            response = await default_models_tree(
+            response = await new_tree_config(
                 user_id=user_id,
                 conversation_id=conversation_id_1,
                 user_manager=self.user_manager,
@@ -759,18 +478,11 @@ class TestConfig:
     @pytest.mark.asyncio
     async def test_save_config(self):
         user_id = "test_user_save_config"
+        conversation_id = "test_conversation_save_config"
         config_id = f"test_config_{random.randint(0, 1000000)}"
 
         try:
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # create a config and save
             user = await self.user_manager.get_user_local(user_id)
@@ -780,12 +492,12 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=tree_manager.settings.to_json(),
-                    style=tree_manager.style,
-                    agent_description=tree_manager.agent_description,
-                    end_goal=tree_manager.end_goal,
-                    branch_initialisation=tree_manager.branch_initialisation,
+                    style=tree_manager.config.style,
+                    agent_description=tree_manager.config.agent_description,
+                    end_goal=tree_manager.config.end_goal,
+                    branch_initialisation=tree_manager.config.branch_initialisation,
                 ),
                 user_manager=self.user_manager,
             )
@@ -809,18 +521,11 @@ class TestConfig:
     @pytest.mark.asyncio
     async def test_load_config_user(self):
         user_id = "test_user_load_config_user"
+        conversation_id = "test_conversation_load_config_user"
         config_id = f"test_config_user_{random.randint(0, 1000000)}"
 
         try:
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # create a config to save with custom settings
             settings = {
@@ -834,13 +539,13 @@ class TestConfig:
                 "You are a technical assistant focusing on details."
             )
             custom_end_goal = "Provide technically accurate information to users."
-            custom_branch_init = "two_branch"
+            custom_branch_init = "multi_branch"
 
             # change user settings to these values
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=settings,
                     style=custom_style,
                     agent_description=custom_agent_description,
@@ -869,7 +574,7 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings={
                         "BASE_MODEL": "claude-3-haiku",
                         "COMPLEX_MODEL": "claude-3-opus",
@@ -903,10 +608,10 @@ class TestConfig:
             assert tree_manager.settings.COMPLEX_MODEL == "gpt-4o"
             assert tree_manager.settings.BASE_PROVIDER == "openai"
             assert tree_manager.settings.COMPLEX_PROVIDER == "openai"
-            assert tree_manager.style == custom_style
-            assert tree_manager.agent_description == custom_agent_description
-            assert tree_manager.end_goal == custom_end_goal
-            # assert tree_manager.branch_initialisation == custom_branch_init
+            assert tree_manager.config.style == custom_style
+            assert tree_manager.config.agent_description == custom_agent_description
+            assert tree_manager.config.end_goal == custom_end_goal
+            # assert tree_manager.config.branch_initialisation == custom_branch_init
 
         finally:
             await self.user_manager.close_all_clients()
@@ -920,26 +625,7 @@ class TestConfig:
         conversation_id = "test_conversation_load_config_tree"
 
         try:
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            response = await initialise_tree(
-                data=InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    low_memory=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # Create a config to save
             settings = {
@@ -958,7 +644,7 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=settings,
                     style=custom_style,
                     agent_description=custom_agent_description,
@@ -1011,7 +697,7 @@ class TestConfig:
             tree_manager = user["tree_manager"]
             assert tree_manager.settings.BASE_MODEL == "gpt-4-turbo"
             assert tree_manager.settings.COMPLEX_MODEL == "gpt-4-vision"
-            assert tree_manager.style == custom_style
+            assert tree_manager.config.style == custom_style
 
         finally:
             await self.user_manager.close_all_clients()
@@ -1020,25 +706,17 @@ class TestConfig:
     @pytest.mark.asyncio
     async def test_list_configs(self):
         """Test listing configs from the Weaviate database."""
+        user_id = "test_user_list_configs"
+        conversation_id = "test_conversation_list_configs"
+        config_ids = [
+            f"test_config_list_{i}_{random.randint(0, 1000000)}" for i in range(3)
+        ]
         try:
-            user_id = "test_user_list_configs"
-            config_ids = [
-                f"test_config_list_{i}_{random.randint(0, 1000000)}" for i in range(3)
-            ]
-
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # Save multiple configs
             for i, config_id in enumerate(config_ids):
-                config = Config(
+                config = SaveConfigUserData(
                     settings={
                         "BASE_MODEL": f"model-{i}",
                         "COMPLEX_MODEL": f"complex-model-{i}",
@@ -1073,51 +751,21 @@ class TestConfig:
 
         finally:
             await self.user_manager.close_all_clients()
+            for config_id in config_ids:
+                await delete_config_after_completion(
+                    self.user_manager, user_id, config_id
+                )
 
     @pytest.mark.asyncio
     async def test_config_save_load_workflow(self):
         """Test a workflow of saving and loading configs between users and trees."""
-        # Setup with unique IDs
         user_id_1 = "test_user_config_workflow_1"
         conversation_id_1 = "test_conversation_workflow_1"
         conversation_id_2 = "test_conversation_workflow_2"
         config_id = f"test_shared_config_{random.randint(0, 1000000)}"
 
         try:
-            # Initialize the first user with custom settings
-            custom_settings = {
-                "BASE_MODEL": "gpt-4o-mini",
-                "COMPLEX_MODEL": "gpt-4o",
-                "BASE_PROVIDER": "openai",
-                "COMPLEX_PROVIDER": "openai",
-            }
-            custom_style = "Original style"
-            custom_agent_description = "Original agent description"
-            custom_end_goal = "Original end goal"
-
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id_1,
-                    default_models=False,
-                    settings=custom_settings,
-                    style=custom_style,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # Create a tree for user 1 using the user-level settings
-            response = await initialise_tree(
-                data=InitialiseTreeData(
-                    user_id=user_id_1,
-                    conversation_id=conversation_id_1,
-                    low_memory=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id_1, conversation_id_1)
 
             # Set so that configs are not saved to weaviate
             response = await update_frontend_config(
@@ -1132,19 +780,30 @@ class TestConfig:
             response = read_response(response)
             assert response["error"] == ""
 
-            # Apply the config from user 1
+            # Initialize the user with custom settings
+            custom_settings = {
+                "BASE_MODEL": "gpt-4o-mini",
+                "COMPLEX_MODEL": "gpt-4o",
+                "BASE_PROVIDER": "openai",
+                "COMPLEX_PROVIDER": "openai",
+            }
+            custom_style = "Original style"
+            custom_agent_description = "Original agent description"
+            custom_end_goal = "Original end goal"
+
+            # Apply the config
             user1 = await self.user_manager.get_user_local(user_id_1)
             tree_manager1: TreeManager = user1["tree_manager"]
 
             response = await save_config_user(
                 user_id=user_id_1,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=tree_manager1.settings.to_json(),
                     style=custom_style,
                     agent_description=custom_agent_description,
                     end_goal=custom_end_goal,
-                    branch_initialisation=tree_manager1.branch_initialisation,
+                    branch_initialisation=tree_manager1.config.branch_initialisation,
                 ),
                 user_manager=self.user_manager,
             )
@@ -1170,12 +829,12 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id_1,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=custom_settings,
                     style=custom_style,
                     agent_description=custom_agent_description,
                     end_goal=custom_end_goal,
-                    branch_initialisation=tree_manager1.branch_initialisation,
+                    branch_initialisation=tree_manager1.config.branch_initialisation,
                 ),
                 user_manager=self.user_manager,
             )
@@ -1207,7 +866,7 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id_1,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings={
                         "BASE_MODEL": "claude-3-haiku",
                         "BASE_PROVIDER": "anthropic",
@@ -1215,7 +874,7 @@ class TestConfig:
                     style="New incorrect style",
                     agent_description="New incorrect agent description",
                     end_goal="New incorrect end goal",
-                    branch_initialisation=tree_manager1.branch_initialisation,
+                    branch_initialisation=tree_manager1.config.branch_initialisation,
                 ),
                 user_manager=self.user_manager,
             )
@@ -1227,9 +886,12 @@ class TestConfig:
             tree_manager1: TreeManager = user1["tree_manager"]
             assert tree_manager1.settings.BASE_MODEL == "claude-3-haiku"
             assert tree_manager1.settings.BASE_PROVIDER == "anthropic"
-            assert tree_manager1.style == "New incorrect style"
-            assert tree_manager1.agent_description == "New incorrect agent description"
-            assert tree_manager1.end_goal == "New incorrect end goal"
+            assert tree_manager1.config.style == "New incorrect style"
+            assert (
+                tree_manager1.config.agent_description
+                == "New incorrect agent description"
+            )
+            assert tree_manager1.config.end_goal == "New incorrect end goal"
 
             # Now load the config to the user
             response = await load_config_user(
@@ -1244,9 +906,11 @@ class TestConfig:
             user1 = await self.user_manager.get_user_local(user_id_1)
             tree_manager1: TreeManager = user1["tree_manager"]
             assert tree_manager1.settings.BASE_MODEL == "gpt-4o-mini"
-            assert tree_manager1.style == "Original style"
-            assert tree_manager1.agent_description == "Original agent description"
-            assert tree_manager1.end_goal == "Original end goal"
+            assert tree_manager1.config.style == "Original style"
+            assert (
+                tree_manager1.config.agent_description == "Original agent description"
+            )
+            assert tree_manager1.config.end_goal == "Original end goal"
 
             user1_frontend_config = user1["frontend_config"]
             assert user1_frontend_config.save_location_wcd_url == os.getenv("WCD_URL")
@@ -1257,9 +921,9 @@ class TestConfig:
 
             # Make a new tree for this user
             response = await initialise_tree(
+                user_id=user_id_1,
+                conversation_id=conversation_id_2,
                 data=InitialiseTreeData(
-                    user_id=user_id_1,
-                    conversation_id=conversation_id_2,
                     low_memory=True,
                 ),
                 user_manager=self.user_manager,
@@ -1280,7 +944,7 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id_1,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings={
                         "BASE_MODEL": "claude-3-5-sonnet",
                         "BASE_PROVIDER": "anthropic",
@@ -1288,7 +952,7 @@ class TestConfig:
                     style="New updated style",
                     agent_description="New updated agent description",
                     end_goal="New updated end goal",
-                    branch_initialisation=tree_manager1.branch_initialisation,
+                    branch_initialisation=tree_manager1.config.branch_initialisation,
                 ),
                 user_manager=self.user_manager,
             )
@@ -1334,19 +998,11 @@ class TestConfig:
     async def test_delete_config(self):
         """Test deleting a config from the Weaviate database."""
         user_id = "test_user_delete_config"
+        conversation_id = "test_conversation_delete_config"
         config_id = f"test_delete_config_{random.randint(0, 1000000)}"
 
         try:
-
-            response = await initialise_user(
-                data=InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # create a config and save
             user = await self.user_manager.get_user_local(user_id)
@@ -1356,12 +1012,12 @@ class TestConfig:
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
-                data=Config(
+                data=SaveConfigUserData(
                     settings=tree_manager.settings.to_json(),
-                    style=tree_manager.style,
-                    agent_description=tree_manager.agent_description,
-                    end_goal=tree_manager.end_goal,
-                    branch_initialisation=tree_manager.branch_initialisation,
+                    style=tree_manager.config.style,
+                    agent_description=tree_manager.config.agent_description,
+                    end_goal=tree_manager.config.end_goal,
+                    branch_initialisation=tree_manager.config.branch_initialisation,
                     config_id=config_id,
                 ),
                 user_manager=self.user_manager,

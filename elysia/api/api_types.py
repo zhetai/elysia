@@ -22,16 +22,8 @@ class ViewPaginatedCollectionData(BaseModel):
     filter_config: Optional[dict[str, Any]] = {}
 
 
-# pass optional args as None to get defaults
 class InitialiseTreeData(BaseModel):
-    user_id: str
-    conversation_id: str
-    style: Optional[str] = None
-    agent_description: Optional[str] = None
-    end_goal: Optional[str] = None
-    branch_initialisation: Optional[str] = None
     low_memory: Optional[bool] = False
-    settings: Optional[dict[str, Any]] = None
 
 
 class MetadataNamedVectorData(BaseModel):
@@ -107,6 +99,7 @@ class FollowUpSuggestionsData(BaseModel):
 
 
 class Config(BaseModel):
+    id: str
     name: Optional[str] = None
     settings: Optional[dict[str, Any]] = None
     style: Optional[str] = None
@@ -115,40 +108,21 @@ class Config(BaseModel):
     branch_initialisation: Optional[str] = None
 
 
-class InitialiseUserData(BaseModel):
-    user_id: str
-    default_models: Optional[bool] = None
+class SaveConfigUserData(BaseModel):
+    name: Optional[str] = None
     settings: Optional[dict[str, Any]] = None
-    style: Optional[str] = "Informative, polite and friendly."
-    agent_description: Optional[str] = (
-        "You search and query Weaviate to satisfy the user's query, providing a concise summary of the results."
-    )
-    end_goal: Optional[str] = (
-        "You have satisfied the user's query, and provided a concise summary of the results. "
-        "Or, you have exhausted all options available, or asked the user for clarification."
-    )
-    branch_initialisation: Optional[Literal["one_branch", "multi_branch", "empty"]] = (
-        "one_branch"
-    )
+    style: Optional[str] = None
+    agent_description: Optional[str] = None
+    end_goal: Optional[str] = None
+    branch_initialisation: Optional[str] = None
 
 
-class SaveConfigData(BaseModel):
-    config_id: str
-
-
-class LoadConfigUserData(BaseModel):
-    config_id: str
-    include_atlas: bool
-    include_branch_initialisation: bool
-    include_settings: bool
-    include_frontend_config: bool
-
-
-class LoadConfigTreeData(BaseModel):
-    config_id: str
-    include_atlas: bool
-    include_branch_initialisation: bool
-    include_settings: bool
+class SaveConfigTreeData(BaseModel):
+    settings: Optional[dict[str, Any]] = None
+    style: Optional[str] = None
+    agent_description: Optional[str] = None
+    end_goal: Optional[str] = None
+    branch_initialisation: Optional[str] = None
 
 
 class UpdateFrontendConfigData(BaseModel):

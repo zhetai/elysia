@@ -20,7 +20,7 @@ class TestGenericPrompts:
     base_tree = Tree(
         low_memory=False,
         branch_initialisation="one_branch",
-        settings=Settings.from_default(),
+        settings=Settings.from_smart_setup(),
     )
 
     def get_tools_called(self, tree: Tree, user_prompt: str):

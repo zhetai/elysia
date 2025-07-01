@@ -6,7 +6,7 @@ from elysia.tree.tree import Tree
 class TestTreeMethods:
 
     def do_query(self, user_prompt: str):
-        elysia.config.settings.default_models()
+        elysia.config.settings.smart_setup()
         tree = Tree(
             low_memory=False,
         )

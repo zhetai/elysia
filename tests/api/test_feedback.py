@@ -4,7 +4,7 @@ import pytest
 
 from datetime import datetime
 
-from elysia.api.api_types import InitialiseUserData, InitialiseTreeData, QueryData
+from elysia.api.api_types import InitialiseTreeData, QueryData
 from elysia.api.routes.query import process
 from elysia.api.dependencies.common import get_user_manager
 from elysia.util.client import ClientManager
@@ -46,6 +46,24 @@ class fake_websocket:
         self.results.append(data)
 
 
+async def initialise_user_and_tree(user_id: str, conversation_id: str):
+    user_manager = get_user_manager()
+
+    response = await initialise_user(
+        user_id,
+        user_manager,
+    )
+
+    response = await initialise_tree(
+        user_id,
+        conversation_id,
+        InitialiseTreeData(
+            low_memory=False,
+        ),
+        user_manager,
+    )
+
+
 class TestFeedback:
 
     @pytest.mark.asyncio
@@ -57,22 +75,7 @@ class TestFeedback:
         user_manager = get_user_manager()
         websocket = fake_websocket()
 
-        await initialise_user(
-            InitialiseUserData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                default_models=True,
-            ),
-            user_manager,
-        )
-
-        await initialise_tree(
-            InitialiseTreeData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-            ),
-            user_manager,
-        )
+        await initialise_user_and_tree(user_id, conversation_id)
 
         out = await process(
             QueryData(

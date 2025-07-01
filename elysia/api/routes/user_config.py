@@ -9,8 +9,7 @@ load_dotenv(override=True)
 
 # API Types
 from elysia.api.api_types import (
-    SaveConfigData,
-    LoadConfigUserData,
+    SaveConfigUserData,
     Config,
     UpdateFrontendConfigData,
 )
@@ -27,6 +26,7 @@ from elysia.api.utils.frontend_config import FrontendConfig
 import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
 from weaviate.classes.query import MetadataQuery, Sort, Filter
+from uuid import uuid4
 
 
 def rename_keys(config_item: dict):
@@ -95,27 +95,28 @@ async def get_current_user_config(
 
     try:
         user = await user_manager.get_user_local(user_id)
-        tree_manager: TreeManager = user["tree_manager"]
-
-        config = Config(
-            settings=tree_manager.settings.to_json(),
-            style=tree_manager.style,
-            agent_description=tree_manager.agent_description,
-            end_goal=tree_manager.end_goal,
-            branch_initialisation=tree_manager.branch_initialisation,
-        )
+        config = user["tree_manager"].config
+        frontend_config = user["frontend_config"].config
 
     except Exception as e:
         logger.exception(f"Error in /get_current_user_config API")
-        return JSONResponse(content={"error": str(e), "config": {}}, headers=headers)
+        return JSONResponse(
+            content={"error": str(e), "config": {}, "frontend_config": {}},
+            headers=headers,
+        )
 
     return JSONResponse(
-        content={"error": "", "config": config.model_dump()}, headers=headers
+        content={
+            "error": "",
+            "config": config.model_dump(),
+            "frontend_config": frontend_config,
+        },
+        headers=headers,
     )
 
 
-@router.post("/{user_id}/default_models")
-async def default_models_user(
+@router.post("/{user_id}/new")
+async def new_user_config(
     user_id: str,
     user_manager: UserManager = Depends(get_user_manager),
 ):
@@ -130,89 +131,50 @@ async def default_models_user(
     Returns:
         JSONResponse: A JSON response with the following attributes:
             error (str): An error message. Empty if no error.
-            config (dict): A dictionary of the updated config values.
+            config (dict): A dictionary of the new config values.
     """
-    logger.debug(f"/default_models_user API request received")
+    logger.debug(f"/new_user_config API request received")
     logger.debug(f"User ID: {user_id}")
 
     try:
         user = await user_manager.get_user_local(user_id)
         tree_manager: TreeManager = user["tree_manager"]
-        tree_manager.settings.default_models()
 
-        config = Config(
-            settings=tree_manager.settings.to_json(),
-            style=tree_manager.style,
-            agent_description=tree_manager.agent_description,
-            end_goal=tree_manager.end_goal,
-            branch_initialisation=tree_manager.branch_initialisation,
+        settings = Settings()
+        settings.smart_setup()
+
+        tree_manager.settings.load_settings(settings.to_json())
+        tree_manager.config.settings = settings.to_json()
+        tree_manager.config.style = "Informative, polite and friendly."
+        tree_manager.config.agent_description = "You search and query Weaviate to satisfy the user's query, providing a concise summary of the results."
+        tree_manager.config.end_goal = (
+            "You have satisfied the user's query, and provided a concise summary of the results. "
+            "Or, you have exhausted all options available, or asked the user for clarification."
         )
+        tree_manager.config.branch_initialisation = "one_branch"
+        tree_manager.config.name = "New Config"
+        tree_manager.config.id = str(uuid4())
 
     except Exception as e:
-        logger.exception(f"Error in /default_models_user API")
+        logger.exception(f"Error in /new_user_config API")
         return JSONResponse(content={"error": str(e), "config": {}})
 
-    return JSONResponse(content={"error": "", "config": config.model_dump()})
-
-
-@router.post("/{user_id}/from_env")
-async def environment_settings_user(
-    user_id: str,
-    user_manager: UserManager = Depends(get_user_manager),
-):
-    """
-    Set the settings for a user, to be used as default settings for all trees associated with that user.
-    These will have been automatically set if none were provided during the initialisation of the user (initialise_user).
-    Any changes to the api keys will be automatically propagated to the ClientManager for that user.
-
-    Args:
-        user_id (str): The user ID.
-        user_manager (UserManager): The user manager instance.
-
-    Returns:
-        JSONResponse: A JSON response with the following attributes:
-            error (str): An error message. Empty if no error.
-            config (dict): A dictionary of the updated config values.
-    """
-
-    try:
-        user = await user_manager.get_user_local(user_id)
-        tree_manager: TreeManager = user["tree_manager"]
-        tree_manager.settings.set_api_keys_from_env()
-
-        client_manager: ClientManager = user["client_manager"]
-        await client_manager.reset_keys(
-            wcd_url=tree_manager.settings.WCD_URL,
-            wcd_api_key=tree_manager.settings.WCD_API_KEY,
-            api_keys=tree_manager.settings.API_KEYS,
-        )
-
-        config = Config(
-            settings=tree_manager.settings.to_json(),
-            style=tree_manager.style,
-            agent_description=tree_manager.agent_description,
-            end_goal=tree_manager.end_goal,
-            branch_initialisation=tree_manager.branch_initialisation,
-        )
-
-    except Exception as e:
-        logger.exception(f"Error in /environment_settings_user API")
-        return JSONResponse(content={"error": str(e), "config": {}})
-
-    return JSONResponse(content={"error": "", "config": config.model_dump()})
+    return JSONResponse(
+        content={"error": "", "config": tree_manager.config.model_dump()}
+    )
 
 
 @router.post("/{user_id}/{config_id}")
 async def save_config_user(
     user_id: str,
     config_id: str,
-    data: Config,
+    data: SaveConfigUserData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
     Change the global config for a user.
-    The `config` dictionary can contain any of the settings (dict), style, agent_description, end_goal and branch_initialisation.
-    You do not need to specify all the settings, only the ones you wish to change.
+    The `config` dictionary can contain any of the `settings` (dict), style, agent_description, end_goal and branch_initialisation.
+    You do not need to specify all the `settings`, only the ones you wish to change.
 
     Any changes to the _settings_ will propagate to all trees associated with the user that were not initialised with their own settings,
     as well as update the ClientManager to use the new API keys.
@@ -226,7 +188,7 @@ async def save_config_user(
 
     Args:
         user_id (str): Required. The user ID.
-        data (Config): Required. Containing the following attributes:
+        data (SaveConfigUserData): Required. Containing the following attributes:
             name (str): Optional. The name of the config.
             settings (dict): Optional. A dictionary of config values to set, follows the same format as the Settings.configure() method.
             style (str): Optional. The writing style of the agent.
@@ -285,15 +247,15 @@ async def save_config_user(
         return JSONResponse(
             content={
                 "error": "",
-                "config": {
-                    "name": data.name,
-                    "settings": tree_manager.settings.to_json(),
-                    "style": tree_manager.style,
-                    "agent_description": tree_manager.agent_description,
-                    "end_goal": tree_manager.end_goal,
-                    "branch_initialisation": tree_manager.branch_initialisation,
-                    "config_id": config_id,
-                },
+                "config": Config(
+                    id=config_id,
+                    name=data.name,
+                    settings=tree_manager.settings.to_json(),
+                    style=tree_manager.config.style,
+                    agent_description=tree_manager.config.agent_description,
+                    end_goal=tree_manager.config.end_goal,
+                    branch_initialisation=tree_manager.config.branch_initialisation,
+                ).model_dump(),
                 "frontend_config": user["frontend_config"].config,
             }
         )
@@ -307,10 +269,10 @@ async def save_config_user(
         settings_dict = settings.to_json()
 
         # extract style, agent_description, end_goal, branch_initialisation from user
-        style = user["tree_manager"].style
-        agent_description = user["tree_manager"].agent_description
-        end_goal = user["tree_manager"].end_goal
-        branch_initialisation = user["tree_manager"].branch_initialisation
+        style = user["tree_manager"].config.style
+        agent_description = user["tree_manager"].config.agent_description
+        end_goal = user["tree_manager"].config.end_goal
+        branch_initialisation = user["tree_manager"].config.branch_initialisation
 
         # Check if the user has a valid save location
         if (
@@ -396,15 +358,15 @@ async def save_config_user(
     return JSONResponse(
         content={
             "error": "",
-            "config": {
-                "name": data.name,
-                "settings": settings_dict,
-                "style": style,
-                "agent_description": agent_description,
-                "end_goal": end_goal,
-                "branch_initialisation": branch_initialisation,
-                "config_id": config_id,
-            },
+            "config": Config(
+                id=config_id,
+                name=data.name,
+                settings=settings_dict,
+                style=style,
+                agent_description=agent_description,
+                end_goal=end_goal,
+                branch_initialisation=branch_initialisation,
+            ).model_dump(),
             "frontend_config": user["frontend_config"].config,
         }
     )
@@ -536,7 +498,15 @@ async def load_config_user(
     return JSONResponse(
         content={
             "error": "",
-            "config": renamed_config,
+            "config": Config(
+                id=config_id,
+                name=renamed_config["name"],
+                settings=renamed_config["settings"],
+                style=renamed_config["style"],
+                agent_description=renamed_config["agent_description"],
+                end_goal=renamed_config["end_goal"],
+                branch_initialisation=renamed_config["branch_initialisation"],
+            ).model_dump(),
             "frontend_config": frontend_config.config,
         }
     )

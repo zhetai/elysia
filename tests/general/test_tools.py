@@ -283,7 +283,7 @@ class TestTools:
         tree = Tree(
             low_memory=False,
             branch_initialisation="empty",
-            settings=Settings.from_default(),
+            settings=Settings.from_smart_setup(),
         )
 
         if not remove_tools:
@@ -369,7 +369,7 @@ class TestTools:
             tree = Tree(
                 low_memory=False,
                 branch_initialisation="empty",
-                settings=Settings.from_default(),
+                settings=Settings.from_smart_setup(),
             )
             tree.add_tool(IncorrectToolInitialisation_kwargs_init)
 
@@ -377,7 +377,7 @@ class TestTools:
             tree = Tree(
                 low_memory=False,
                 branch_initialisation="empty",
-                settings=Settings.from_default(),
+                settings=Settings.from_smart_setup(),
             )
             tree.add_tool(IncorrectToolInitialisation_kwargs_call)
 
@@ -385,7 +385,7 @@ class TestTools:
             tree = Tree(
                 low_memory=False,
                 branch_initialisation="empty",
-                settings=Settings.from_default(),
+                settings=Settings.from_smart_setup(),
             )
             tree.add_tool(IncorrectToolInitialisation_call_non_async)
 
@@ -393,7 +393,7 @@ class TestTools:
             tree = Tree(
                 low_memory=False,
                 branch_initialisation="empty",
-                settings=Settings.from_default(),
+                settings=Settings.from_smart_setup(),
             )
             tree.add_tool(IncorrectToolInitialisation_call_non_async_generator)
 
@@ -402,7 +402,7 @@ class TestTools:
         tree = Tree(
             low_memory=False,
             branch_initialisation="empty",
-            settings=Settings.from_default(),
+            settings=Settings.from_smart_setup(),
         )
 
         tree.add_branch(

@@ -1,7 +1,6 @@
 import pytest
 
 from elysia.api.api_types import (
-    InitialiseUserData,
     InitialiseTreeData,
     QueryData,
     UpdateFrontendConfigData,
@@ -45,18 +44,15 @@ async def initialise_user_and_tree(user_id: str, conversation_id: str):
     user_manager = get_user_manager()
 
     response = await initialise_user(
-        InitialiseUserData(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            default_models=True,
-        ),
+        user_id,
         user_manager,
     )
 
     response = await initialise_tree(
+        user_id,
+        conversation_id,
         InitialiseTreeData(
-            user_id=user_id,
-            conversation_id=conversation_id,
+            low_memory=False,
         ),
         user_manager,
     )
@@ -341,25 +337,6 @@ class TestSaveLoad:
                 websocket,
                 user_manager,
             )
-
-            response = await initialise_user(
-                InitialiseUserData(
-                    user_id=user_id_2,
-                    conversation_id=conversation_id_2,
-                    default_models=True,
-                ),
-                user_manager,
-            )
-            assert read_response(response)["error"] == ""
-
-            response = await initialise_tree(
-                InitialiseTreeData(
-                    user_id=user_id_2,
-                    conversation_id=conversation_id_2,
-                ),
-                user_manager,
-            )
-            assert read_response(response)["error"] == ""
 
             # do a query with this user, automatically saves
             await process(

@@ -9,7 +9,7 @@ from elysia.api.dependencies.common import get_user_manager
 set_log_level("CRITICAL")
 
 from elysia.api.routes.init import initialise_tree, initialise_user
-from elysia.api.api_types import InitialiseTreeData, InitialiseUserData
+from elysia.api.api_types import InitialiseTreeData
 
 
 def read_response(response: JSONResponse):
@@ -22,13 +22,10 @@ class TestTree:
     async def test_initialise_user(self):
         user_manager = get_user_manager()
         user_id = "test_new_user"
-        conversation_id = "test_new_conversation"
 
         # Initialise when a user does not exist
         out = await initialise_user(
-            InitialiseUserData(
-                user_id=user_id,
-            ),
+            user_id,
             user_manager,
         )
 
@@ -48,35 +45,13 @@ class TestTree:
 
         # Initialise when a user exists
         out = await initialise_user(
-            InitialiseUserData(
-                user_id=user_id,
-            ),
+            user_id,
             user_manager,
         )
 
         response = read_response(out)
         assert response["error"] == ""
         assert response["user_exists"] is True
-
-        # Initialise a user with config options
-        user_id_2 = "test_user_2"
-        out = await initialise_user(
-            InitialiseUserData(
-                user_id=user_id_2,
-                style="test_style",
-                agent_description="test_agent_description",
-                end_goal="test_end_goal",
-                branch_initialisation="empty",
-            ),
-            user_manager,
-        )
-
-        response = read_response(out)
-        assert response["error"] == ""
-        assert response["config"]["style"] == "test_style"
-        assert response["config"]["agent_description"] == "test_agent_description"
-        assert response["config"]["end_goal"] == "test_end_goal"
-        assert response["config"]["branch_initialisation"] == "empty"
 
     @pytest.mark.asyncio
     async def test_tree(self):
@@ -87,19 +62,16 @@ class TestTree:
             conversation_id = "test_conversation"
 
             out = await initialise_user(
-                InitialiseUserData(
-                    user_id=user_id,
-                    default_models=True,
-                ),
+                user_id,
                 user_manager,
             )
             response = read_response(out)
             assert response["error"] == ""
 
             out = await initialise_tree(
+                user_id,
+                conversation_id,
                 InitialiseTreeData(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
                     low_memory=True,
                 ),
                 user_manager,
@@ -109,9 +81,9 @@ class TestTree:
             assert response["error"] == ""
 
             out = await initialise_tree(
+                user_id + "2",
+                conversation_id + "2",
                 InitialiseTreeData(
-                    user_id=user_id + "2",
-                    conversation_id=conversation_id + "2",
                     low_memory=True,
                 ),
                 user_manager,

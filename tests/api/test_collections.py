@@ -10,6 +10,7 @@ from elysia.api.api_types import (
     UpdateCollectionMetadataData,
     MetadataNamedVectorData,
     MetadataFieldData,
+    InitialiseTreeData,
 )
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.routes.collections import (
@@ -21,8 +22,7 @@ from elysia.api.routes.collections import (
     update_metadata,
     delete_metadata,
 )
-from elysia.api.routes.init import initialise_user
-from elysia.api.api_types import InitialiseUserData
+from elysia.api.routes.init import initialise_user, initialise_tree
 from elysia.api.core.log import logger, set_log_level
 from elysia.preprocess.collection import preprocess_async
 from elysia.util.client import ClientManager
@@ -30,6 +30,24 @@ from elysia.util.client import ClientManager
 set_log_level("CRITICAL")
 
 from weaviate.classes.config import Configure
+
+
+async def initialise_user_and_tree(user_id: str, conversation_id: str):
+    user_manager = get_user_manager()
+
+    response = await initialise_user(
+        user_id,
+        user_manager,
+    )
+
+    response = await initialise_tree(
+        user_id,
+        conversation_id,
+        InitialiseTreeData(
+            low_memory=False,
+        ),
+        user_manager,
+    )
 
 
 def create_collection(client_manager: ClientManager):
@@ -76,15 +94,13 @@ class TestEndpoints:
     @pytest.mark.asyncio
     async def test_collections(self):
 
+        user_id = "test_user_collections"
+        conversation_id = "test_conversation_collections"
+
         try:
             user_manager = get_user_manager()
-            await initialise_user(
-                InitialiseUserData(user_id="test_user", default_models=True),
-                user_manager,
-            )
-            basic = await collections_list(
-                user_id="test_user", user_manager=user_manager
-            )
+            await initialise_user_and_tree(user_id, conversation_id)
+            basic = await collections_list(user_id, user_manager)
             basic = read_response(basic)
             assert basic["error"] == ""
         finally:
@@ -92,14 +108,15 @@ class TestEndpoints:
 
     @pytest.mark.asyncio
     async def test_collection_metadata(self):
+
+        user_id = "test_user_collection_metadata"
+        conversation_id = "test_conversation_collection_metadata"
+
         try:
             user_manager = get_user_manager()
-            await initialise_user(
-                InitialiseUserData(user_id="test_user", default_models=True),
-                user_manager,
-            )
+            await initialise_user_and_tree(user_id, conversation_id)
             basic = await collection_metadata(
-                user_id="test_user",
+                user_id,
                 collection_name="example_verba_github_issues",
                 user_manager=user_manager,
             )
@@ -110,15 +127,16 @@ class TestEndpoints:
 
     @pytest.mark.asyncio
     async def test_get_object(self):
+
+        user_id = "test_user_get_object"
+        conversation_id = "test_conversation_get_object"
+
         try:
             user_manager = get_user_manager()
-            await initialise_user(
-                InitialiseUserData(user_id="test_user", default_models=True),
-                user_manager,
-            )
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # first manually get a UUID
-            user_local = await user_manager.get_user_local("test_user")
+            user_local = await user_manager.get_user_local(user_id)
             client_manager = user_local["client_manager"]
             async with client_manager.connect_to_async_client() as client:
                 collection = client.collections.get("example_verba_github_issues")
@@ -127,7 +145,7 @@ class TestEndpoints:
 
             # test with valid UUID
             basic = await get_object(
-                user_id="test_user",
+                user_id,
                 collection_name="example_verba_github_issues",
                 uuid=uuid,
                 user_manager=user_manager,
@@ -138,7 +156,7 @@ class TestEndpoints:
 
             # test with invalid UUID
             invalid = await get_object(
-                user_id="test_user",
+                user_id,
                 collection_name="example_verba_github_issues",
                 uuid="invalid",
                 user_manager=user_manager,
@@ -152,16 +170,16 @@ class TestEndpoints:
 
     @pytest.mark.asyncio
     async def test_view_paginated_collection(self):
-        try:
 
+        user_id = "test_user_view_paginated_collection"
+        conversation_id = "test_conversation_view_paginated_collection"
+
+        try:
             user_manager = get_user_manager()
-            await initialise_user(
-                InitialiseUserData(user_id="test_user", default_models=True),
-                user_manager,
-            )
+            await initialise_user_and_tree(user_id, conversation_id)
 
             basic = await view_paginated_collection(
-                user_id="test_user",
+                user_id,
                 collection_name="example_verba_github_issues",
                 data=ViewPaginatedCollectionData(
                     query="",
@@ -178,7 +196,7 @@ class TestEndpoints:
 
             # test with filter
             filter = await view_paginated_collection(
-                user_id="test_user",
+                user_id,
                 collection_name="example_verba_github_issues",
                 data=ViewPaginatedCollectionData(
                     page_size=50,
@@ -203,7 +221,7 @@ class TestEndpoints:
 
             # test with query
             query = await view_paginated_collection(
-                user_id="test_user",
+                user_id,
                 collection_name="example_verba_github_issues",
                 data=ViewPaginatedCollectionData(
                     query="hello",
@@ -228,7 +246,7 @@ class TestEndpoints:
 
             # test with out of bounds page number, should return empty list
             out_of_bounds = await view_paginated_collection(
-                user_id="test_user",
+                user_id,
                 collection_name="example_verba_github_issues",
                 data=ViewPaginatedCollectionData(
                     page_size=50,
@@ -257,17 +275,17 @@ class TestEndpoints:
 
     @pytest.mark.asyncio
     async def test_mapping_types(self):
-        mapping_types()
+        await mapping_types()
 
     @pytest.mark.asyncio
     async def test_update_metadata(self):
+
+        user_id = "test_user_update_metadata"
+        conversation_id = "test_conversation_update_metadata"
+
         try:
-            user_id = "test_user_update_metadata"
             user_manager = get_user_manager()
-            await initialise_user(
-                InitialiseUserData(user_id=user_id, default_models=True),
-                user_manager,
-            )
+            await initialise_user_and_tree(user_id, conversation_id)
 
             # retrieve the metadata
             metadata = await collection_metadata(
@@ -449,13 +467,12 @@ class TestEndpoints:
 
     @pytest.mark.asyncio
     async def test_delete_metadata(self):
+        user_id = "test_user_delete_metadata"
+        conversation_id = "test_conversation_delete_metadata"
+
         try:
-            user_id = "test_user_delete_metadata"
             user_manager = get_user_manager()
-            await initialise_user(
-                InitialiseUserData(user_id=user_id, default_models=True),
-                user_manager,
-            )
+            await initialise_user_and_tree(user_id, conversation_id)
 
             user_local = await user_manager.get_user_local(user_id)
             client_manager = user_local["client_manager"]
