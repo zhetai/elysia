@@ -2,17 +2,38 @@
 
 Welcome to Elysia, the agentic platform for searching and retrieving data in Weaviate. Elysia is also designed to handle any custom tools, and it will be automatically handled by a decision agent.
 
-Unlike other agent-based packages, Elysia is pre-configured to run a wide range of tools and has a lot of capabilities straight away. For example, you could just call Elysia on your Weaviate collections and it will immediately and dynamically search your data, using custom queries with filters or aggregations.
+See the [basic example to get started right away!](basic.md) Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](Customising/creating_your_own_tools.md).
 
-Or you could customise Elysia to your liking, create your own custom tools and add them to the Elysia decision tree.
+## Get Started
 
-See the [basic example to get started right away!](basic.md)
+Elysia can be used very simply:
 
-Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](Customising/creating_your_own_tools.md).
+```python
+import elysia
+tree = elysia.Tree()
+response, objects = tree(
+    "What are the 10 most expensive items in the Ecommerce collection?"
+)
+```
+
+Note that to use your Weaviate collections with these built in tools, you will need to preprocess them. You also need to configure your models and API keys.
+
+[See the setup page to get started.](setting_up.md)
+
+## Installation
+
+```bash
+pip install elysia
+```
 
 ## Usage
 
 Elysia is free, open source, and available to anyone.
+
+Unlike other agent-based packages, Elysia is pre-configured to run a wide range of tools and has a lot of capabilities straight away. For example, you could just call Elysia on your Weaviate collections and it will immediately and dynamically search your data, using custom queries with filters or aggregations.
+
+Or you could customise Elysia to your liking, create your own custom tools and add them to the Elysia decision tree.
+
 
 To use Elysia to search your data, you need a Weaviate cluster (or you can define your own custom tool to search another data source!).
 
@@ -37,4 +58,4 @@ Elysia was developed by Edward Schmuhl (frontend) and Danny Williams (backend). 
 
 - [Danny's Linkedin](https://www.linkedin.com/in/dannyjameswilliams/)
 
-Documentation built with [mkdocs.org](https://www.mkdocs.org).
+Documentation built with [mkdocs](https://www.mkdocs.org).
