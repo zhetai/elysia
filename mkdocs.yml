@@ -28,9 +28,9 @@ theme:
 
 nav:
   - Getting Started: index.md
+  - Setting Up: setting_up.md
   - Basic Usage: basic.md
   - Advanced Usage: advanced_usage.md
-  - Preprocessing: preprocess.md
   - Customising Elysia:
     - Overview: Customising/index.md
     - Technical Overview: Customising/technical_overview.md
