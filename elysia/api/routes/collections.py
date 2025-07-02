@@ -24,6 +24,8 @@ from elysia.util.collection import (
     paginated_collection,
 )
 
+from elysia.preprocess.collection import edit_preprocessed_collection
+
 from elysia.globals.return_types import specific_return_types, types_dict
 
 router = APIRouter()
@@ -353,68 +355,26 @@ async def update_metadata(
         user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
 
-        async with client_manager.connect_to_async_client() as client:
-            metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
-
-            # check if the collection itself exists
-            if not await client.collections.exists(collection_name.lower()):
-                raise Exception(f"Collection {collection_name} does not exist")
-
-            # check if the metadata collection exists
-            if not await client.collections.exists(metadata_name):
-                raise Exception(
-                    f"Metadata collection for {collection_name} does not exist"
-                )
-
-            else:
-                metadata_collection = client.collections.get(metadata_name)
-                metadata = await metadata_collection.query.fetch_objects(limit=1)
-                uuid = metadata.objects[0].uuid
-                properties = metadata.objects[0].properties
-
-    except Exception as e:
-        logger.exception(f"Error in /collection_metadata API")
-        return JSONResponse(
-            content={
-                "metadata": {},
-                "error": str(e),
-            },
-            status_code=200,
+        properties = await edit_preprocessed_collection(
+            collection_name=collection_name,
+            client_manager=client_manager,
+            named_vectors=(
+                [
+                    named_vector.model_dump()
+                    for named_vector in data.named_vectors
+                    if named_vector
+                ]
+                if data.named_vectors
+                else None
+            ),
+            summary=data.summary,
+            mappings=data.mappings,
+            fields=(
+                [field.model_dump() if field else None for field in data.fields]
+                if data.fields
+                else None
+            ),
         )
-
-    try:
-        # update the named vectors
-        if data.named_vectors is not None:
-            for named_vector in data.named_vectors:
-
-                if named_vector.enabled is not None:
-                    properties["named_vectors"][named_vector.name][
-                        "enabled"
-                    ] = named_vector.enabled
-
-                if named_vector.description is not None:
-                    properties["named_vectors"][named_vector.name][
-                        "description"
-                    ] = named_vector.description
-
-        # update the summary
-        if data.summary is not None:
-            properties["summary"] = data.summary
-
-        # update the mappings
-        if data.mappings is not None:
-            properties["mappings"] = data.mappings
-
-        # update the fields
-        if data.fields is not None:
-            for field in data.fields:
-                properties["fields"][field.name]["description"] = field.description
-
-        format_dict_to_serialisable(properties)
-
-        # update the collection
-        await metadata_collection.data.update(uuid=uuid, properties=properties)
-
     except Exception as e:
         logger.exception(f"Error in /update_metadata API:")
         return JSONResponse(
