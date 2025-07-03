@@ -138,6 +138,7 @@ class Tree:
         self._base_lm = None
         self._complex_lm = None
         self._config_modified = False
+        self.root = None
 
         # Define the inputs to prompts
         self.tree_data = TreeData(
@@ -278,6 +279,7 @@ class Tree:
 
     def clear_tree(self):
         self.decision_nodes = {}
+        self.root = None
 
     def set_branch_initialisation(self, initialisation: str | None):
         self.clear_tree()
@@ -331,12 +333,12 @@ class Tree:
     def _get_root(self):
         for decision_node in self.decision_nodes.values():
             if decision_node.root:
-                if "root" in dir(self) and self.root != decision_node.id:
+                if self.root is not None and self.root != decision_node.id:
                     raise ValueError("Multiple root decision nodes found")
 
                 self.root = decision_node.id
 
-        if "root" not in dir(self):
+        if self.root is None:
             raise ValueError("No root decision node found")
 
     def _construct_tree(self, node_id: str, tree: dict, branch: bool = True):
@@ -941,6 +943,16 @@ class Tree:
                     next=self.decision_nodes[branch_id],
                 )
 
+        if root and (self.root is not None):
+            # replace root branch with this one
+            self.decision_nodes[self.root] = decision_node
+            self.settings.logger.debug(
+                f"Replacing root branch '{self.root}' with '{branch_id}'."
+            )
+            old_root = self.root
+            self.root = branch_id
+            self.remove_branch(old_root)
+
         # reconstruct tree
         self._get_root()
         self.tree = {}
@@ -961,10 +973,16 @@ class Tree:
             return
 
         # Special handling for root node
-        if branch_id == self.root:
-            self.settings.logger.error("Cannot remove root branch.")
+        if (
+            branch_id == self.root
+            and sum(1 for node in self.decision_nodes.values() if node.root) == 1
+        ):
+            self.settings.logger.error(
+                "Cannot remove root branch if there is only one root branch."
+            )
             raise ValueError(
-                "Cannot remove the root branch. Create a new tree instead."
+                "Cannot remove the root branch when there is only one root branch. "
+                "Create a new root branch via .add_branch(..., root=True) first."
             )
 
         for decision_node_id in self.decision_nodes:
