@@ -271,9 +271,10 @@ class UserManager:
                 "frontend_config"
             ].save_location_client_manager
         else:
-            logger.warning(
-                f"Trying to save tree to Weaviate, but wcd_url and wcd_api_key are not provided. "
-                f"Tree {conversation_id} has not been saved to Weaviate."
+            save_location_client_manager = ClientManager(
+                logger=logger,
+                wcd_url=wcd_url,
+                wcd_api_key=wcd_api_key,
             )
 
         await tree_manager.save_tree_weaviate(
