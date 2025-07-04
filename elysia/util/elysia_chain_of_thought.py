@@ -9,6 +9,18 @@ from elysia.util.retrieve_feedback import retrieve_feedback
 from elysia.util.client import ClientManager
 
 
+elysia_meta_prompt = """
+You are part of an ensemble of agents that are working together to solve a task.
+Your task is just one as part of a larger system of agents designed to work together.
+You will be given meta information about where you are in the larger system, 
+such as what other tasks have been completed, any items or objects that have been collected during the full process.
+
+Your job is not to answer the entire task, but to complete your part of the task.
+Therefore the `user_prompt` should not be judged in its entirety, analyse what you can complete based on the prompt.
+Complete this task only, remember that other agents will complete other parts of the task.
+"""
+
+
 class ElysiaChainOfThought(Module):
     """
     A custom reasoning DSPy module that reasons step by step in order to predict the output of a task.
@@ -284,6 +296,7 @@ class ElysiaChainOfThought(Module):
 
         # -- Predict --
         self.predict = dspy.Predict(extended_signature, **config)
+        self.predict.signature.instructions += elysia_meta_prompt
 
     def _add_tree_data_inputs(self, kwargs: dict):
 

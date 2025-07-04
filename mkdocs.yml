@@ -43,9 +43,9 @@ nav:
     - Payload Formats: API/payload_formats.md
  
   - Examples:
-    # - Intermediate: Examples/02_intermediate.md
-    - Sentiment Analysis: Examples/sentiment_analysis.md
-    - Fantasy Adventure: Examples/fantasy_adventure.md
+    - Index: Examples/index.md
+    - Basic Linear Regression: Examples/data_analysis.md
+
   - Reference:
     - Preprocessor: Reference/Preprocessor.md
     - Tree: Reference/Tree.md
@@ -92,3 +92,9 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

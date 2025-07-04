@@ -67,6 +67,20 @@ def construct_decision_prompt(
             """.strip()
         )
 
+        unavailable_actions: list[dict] = dspy.InputField(
+            description="""
+            List of actions that are unavailable to choose from for this task only:
+            {
+                "[name]": {
+                    "function_name": [name of the function],
+                    "available_at": [when or how the tool will be available],
+                }
+            }
+            Do NOT pick tools from this list, it is there for information only.
+            If you want to use this tool, you must complete the criteria in `available_at`.
+            """.strip()
+        )
+
         successive_actions: str = dspy.InputField(
             description="""
             Actions that stem from actions you can choose from.
@@ -83,6 +97,7 @@ def construct_decision_prompt(
             }
             etc.
             Do NOT choose sub_actions for `function_name`, only choose actions from `available_actions`.
+            Use this to inform your decision in how it will lead to future tools.
             """.strip()
         )
 
@@ -108,6 +123,12 @@ def construct_decision_prompt(
             If unsure, you should try to complete an action that is related to the user prompt, even if it looks hard. 
             However, do not continually choose the same action.
             Use the action descriptions (and an instruction, if given) to make your decision.
+            Choose the action that will progress the user's request the most, even if it is not solved immediately.
+            It may be a partial solution on route to a full solution.
+            Use the `successive_actions` to inform your decision in how it will lead to future tools.
+            Bare in mind all the actions you can choose from now can be chosen again in future (as well as their sub-actions).
+
+            IMPORTANT: only choose actions whose status is "Available".
             """.strip()
         )
 

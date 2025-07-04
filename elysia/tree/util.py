@@ -155,6 +155,20 @@ class DecisionNode:
             }
         return out
 
+    def _unavailable_options_to_json(self, unavailable_tools: list[tuple[str, str]]):
+        """
+        Options unavailable at this time and why.
+        """
+        out = {}
+        for tool, reason in unavailable_tools:
+            if reason == "":
+                reason = "No reason provided."
+            out[tool] = {
+                "function_name": tool,
+                "available_at": reason,
+            }
+        return out
+
     def decide_from_route(self, route: str):
         """
         Decide from a route.
@@ -203,32 +217,37 @@ class DecisionNode:
         base_lm: dspy.LM = None,
         complex_lm: dspy.LM = None,
         available_tools: list[str] = [],
+        unavailable_tools: list[str] = [],
         successive_actions: dict = {},
         client_manager: ClientManager | None = None,
         **kwargs,
     ):
-        options = self._options_to_json(available_tools)
-        if len(options) == 0:
+        available_options = self._options_to_json(available_tools)
+        unavailable_options = self._unavailable_options_to_json(unavailable_tools)
+
+        if len(available_options) == 0:
             raise RuntimeError(
                 "No available tools to call! Make sure you have added some tools to the tree. "
                 "Or the .is_tool_available() method is returning True for at least one tool."
             )
 
         if self.logger:
-            self.logger.debug(f"Available options: {list(options.keys())}")
+            self.logger.debug(f"Available options: {list(available_options.keys())}")
 
         one_choice = (
-            all(option["inputs"] == {} for option in options.values())
-            and len(options) == 1
+            all(option["inputs"] == {} for option in available_options.values())
+            and len(available_options) == 1
         )
 
-        for option in options:
-            if options[option]["inputs"] == {}:
-                options[option]["inputs"] = "No inputs are needed for this function."
+        for option in available_options:
+            if available_options[option]["inputs"] == {}:
+                available_options[option][
+                    "inputs"
+                ] = "No inputs are needed for this function."
 
         if not one_choice:
             decision_executor = ElysiaChainOfThought(
-                construct_decision_prompt(self._get_options()),
+                construct_decision_prompt(available_tools),
                 tree_data=tree_data,
                 environment=True,
                 collection_schemas=self.use_elysia_collections,
@@ -244,7 +263,8 @@ class DecisionNode:
                     complex_lm=complex_lm,
                     instruction=self.instruction,
                     tree_count=tree_data.tree_count_string(),
-                    available_actions=options,
+                    available_actions=available_options,
+                    unavailable_actions=unavailable_options,
                     successive_actions=successive_actions,
                     num_base_lm_examples=3,
                     return_example_uuids=True,
@@ -253,7 +273,8 @@ class DecisionNode:
                 output = await decision_executor.aforward(
                     instruction=self.instruction,
                     tree_count=tree_data.tree_count_string(),
-                    available_actions=options,
+                    available_actions=available_options,
+                    unavailable_actions=unavailable_options,
                     successive_actions=successive_actions,
                     lm=base_lm,
                 )
@@ -289,24 +310,24 @@ class DecisionNode:
 
         else:
             decision = Decision(
-                function_name=list(options.keys())[0],
-                reasoning=f"Only one option available: {list(options.keys())[0]} (and no function inputs are needed).",
+                function_name=list(available_options.keys())[0],
+                reasoning=f"Only one option available: {list(available_options.keys())[0]} (and no function inputs are needed).",
                 impossible=False,
                 function_inputs={},
                 end_actions=(
-                    self.options[list(options.keys())[0]]["end"]
-                    and self.options[list(options.keys())[0]]["next"] is None
+                    self.options[list(available_options.keys())[0]]["end"]
+                    and self.options[list(available_options.keys())[0]]["next"] is None
                 ),
             )
 
             results = [
                 TreeUpdate(
                     from_node=self.id,
-                    to_node=list(options.keys())[0],
+                    to_node=list(available_options.keys())[0],
                     reasoning=decision.reasoning,
                     last_in_branch=True,
                 ),
-                Status(self.options[list(options.keys())[0]]["status"]),
+                Status(self.options[list(available_options.keys())[0]]["status"]),
             ]
 
         return decision, results

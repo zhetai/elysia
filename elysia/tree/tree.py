@@ -1218,7 +1218,7 @@ class Tree:
         self, current_decision_node: DecisionNode, client_manager: ClientManager
     ):
         available_tools = []
-
+        unavailable_tools = []
         for tool in current_decision_node.options.keys():
             if current_decision_node.options[tool]["action"] is None:
                 available_tools.append(tool)
@@ -1231,7 +1231,14 @@ class Tree:
                 client_manager=client_manager,
             ):
                 available_tools.append(tool)
-        return available_tools
+            else:
+                is_tool_available_doc = (
+                    self.tools[tool].is_tool_available.__doc__.strip()
+                    if self.tools[tool].is_tool_available.__doc__
+                    else ""
+                )
+                unavailable_tools.append((tool, is_tool_available_doc))
+        return available_tools, unavailable_tools
 
     def _get_successive_actions(self, successive_actions: dict, current_options: dict):
 
@@ -1376,7 +1383,7 @@ class Tree:
         # Loop through the tree until the end is reached
         while True:
 
-            available_tools = await self._get_available_tools(
+            available_tools, unavailable_tools = await self._get_available_tools(
                 current_decision_node, client_manager
             )
             if len(available_tools) == 0:
@@ -1439,6 +1446,7 @@ class Tree:
                     base_lm=self.base_lm,
                     complex_lm=self.complex_lm,
                     available_tools=available_tools,
+                    unavailable_tools=unavailable_tools,
                     successive_actions=successive_actions,
                     client_manager=client_manager,
                 )

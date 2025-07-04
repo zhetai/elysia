@@ -459,10 +459,10 @@ class TestConfig:
             # tree 1 should now have default models
             tree1 = await self.user_manager.get_tree(user_id, conversation_id_1)
             assert tree1.settings.BASE_MODEL == os.getenv(
-                "BASE_MODEL", "gemini-2.0-flash-001"
+                "BASE_MODEL", "gemini-2.5-flash"
             )
             assert tree1.settings.COMPLEX_MODEL == os.getenv(
-                "COMPLEX_MODEL", "gemini-2.0-flash-001"
+                "COMPLEX_MODEL", "gemini-2.5-flash"
             )
             assert tree1.settings.BASE_PROVIDER == os.getenv(
                 "BASE_PROVIDER", "openrouter/google"
