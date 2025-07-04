@@ -7,8 +7,8 @@ from uuid import uuid4
 load_dotenv(override=True)
 
 # API Types
-from elysia.api.api_types import Config, SaveConfigTreeData
-
+from elysia.api.api_types import SaveConfigTreeData
+from elysia.api.utils.config import Config
 from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
@@ -61,7 +61,7 @@ async def get_tree_config(
         config = Config(
             id="tree_config",
             name="Tree Config",
-            settings=tree.settings.to_json(),
+            settings=tree.settings,
             style=tree.tree_data.atlas.style,
             agent_description=tree.tree_data.atlas.agent_description,
             end_goal=tree.tree_data.atlas.end_goal,
@@ -73,7 +73,7 @@ async def get_tree_config(
         return JSONResponse(content={"error": str(e), "config": {}}, headers=headers)
 
     return JSONResponse(
-        content={"error": "", "config": config.model_dump()}, headers=headers
+        content={"error": "", "config": config.to_json()}, headers=headers
     )
 
 
@@ -125,7 +125,7 @@ async def new_tree_config(
         config = Config(
             id="tree_config",
             name="Tree Config",
-            settings=tree.settings.to_json(),
+            settings=tree.settings,
             style=tree.tree_data.atlas.style,
             agent_description=tree.tree_data.atlas.agent_description,
             end_goal=tree.tree_data.atlas.end_goal,
@@ -136,7 +136,7 @@ async def new_tree_config(
         logger.exception(f"Error in /new_tree_config API")
         return JSONResponse(content={"error": str(e), "config": {}})
 
-    return JSONResponse(content={"error": "", "config": config.model_dump()})
+    return JSONResponse(content={"error": "", "config": config.to_json()})
 
 
 @router.post("/{user_id}/{conversation_id}")
@@ -211,7 +211,7 @@ async def change_config_tree(
         config = Config(
             id="tree_config",
             name="Tree Config",
-            settings=tree.settings.to_json(),
+            settings=tree.settings,
             style=tree.tree_data.atlas.style,
             agent_description=tree.tree_data.atlas.agent_description,
             end_goal=tree.tree_data.atlas.end_goal,
@@ -222,7 +222,7 @@ async def change_config_tree(
         logger.exception(f"Error in /change_config_tree API")
         return JSONResponse(content={"error": str(e), "config": {}})
 
-    return JSONResponse(content={"error": "", "config": config.model_dump()})
+    return JSONResponse(content={"error": "", "config": config.to_json()})
 
 
 @router.post("/{user_id}/{conversation_id}/{config_id}/load")

@@ -98,16 +98,6 @@ class FollowUpSuggestionsData(BaseModel):
     conversation_id: str
 
 
-class Config(BaseModel):
-    id: str
-    name: Optional[str] = None
-    settings: Optional[dict[str, Any]] = None
-    style: Optional[str] = None
-    agent_description: Optional[str] = None
-    end_goal: Optional[str] = None
-    branch_initialisation: Optional[str] = None
-
-
 class SaveConfigUserData(BaseModel):
     name: Optional[str] = None
     settings: Optional[dict[str, Any]] = None

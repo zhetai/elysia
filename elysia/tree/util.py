@@ -9,7 +9,6 @@ from logging import Logger
 from weaviate.util import generate_uuid5
 from weaviate.classes.query import MetadataQuery, Sort, Filter
 
-# globals
 from elysia.objects import (
     Response,
     Return,

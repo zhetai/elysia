@@ -1,6 +1,3 @@
-# DSPy
-import dspy
-
 # FastAPI
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -8,10 +5,7 @@ from fastapi.responses import JSONResponse
 from elysia.api.api_types import (
     DebugData,
     FollowUpSuggestionsData,
-    GetUserRequestsData,
-    InstantReplyData,
     NERData,
-    ObjectRelevanceData,
     TitleData,
 )
 
@@ -23,17 +17,11 @@ from elysia.api.core.log import logger
 # Dependencies
 from elysia.api.dependencies.common import get_user_manager
 
-# LLM
-from elysia.api.services.prompt_templates import (
-    InstantReplyPrompt,
-    ObjectRelevancePrompt,
-)
-
 # Services
 from elysia.api.services.user import UserManager
 
 # Settings
-from elysia.config import nlp, load_base_lm
+from elysia.config import nlp
 
 # util
 from elysia.api.core.log import logger

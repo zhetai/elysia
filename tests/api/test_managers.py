@@ -5,7 +5,7 @@ import dotenv
 from elysia.api.services.user import UserManager
 from elysia.api.services.tree import TreeManager
 from elysia.config import Settings
-from elysia.api.api_types import Config
+from elysia.api.utils.config import Config
 
 dotenv.load_dotenv(override=True)
 
@@ -110,7 +110,7 @@ class TestUserManager:
             config=Config(
                 id="new_config",
                 name="New Config",
-                settings=new_settings.to_json(),
+                settings=new_settings,
                 style="Informative, polite and friendly.",
                 agent_description="You search and query Weaviate to satisfy the user's query, providing a concise summary of the results.",
                 end_goal=(
