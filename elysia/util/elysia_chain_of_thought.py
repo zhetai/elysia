@@ -94,7 +94,7 @@ class ElysiaChainOfThought(Module):
                 If provided, this will modify the collection schema input to only include the collections in this list.
                 This is useful if you only want to include certain collections in the prompt.
                 And to reduce token usage.
-            **config: The DSPy configuration for the module.
+            **config (Any): The DSPy configuration for the module.
         """
 
         super().__init__()
@@ -351,7 +351,7 @@ class ElysiaChainOfThought(Module):
             complex_lm (dspy.LM): The complex LM to (conditionally) use.
             num_base_lm_examples (int): The threshold number of examples to use the base LM.
                 When there are fewer examples than this, the complex LM will be used.
-            **kwargs: The keyword arguments to pass to the forward pass.
+            **kwargs (Any): The keyword arguments to pass to the forward pass.
                 Important: All additional inputs to the DSPy module should be passed here as keyword arguments.
                 Also: Do not include `lm` in the kwargs, as this will be set automatically.
 

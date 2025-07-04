@@ -51,7 +51,7 @@ nav:
     - Tree: Reference/Tree.md
     - WeaviateClient: Reference/Client.md
     - Managers: Reference/Managers.md
-    # - Configure: Reference/Configure.md
+    - Settings: Reference/Settings.md
     - Objects: Reference/Objects.md
     # - Tools: Reference/Tools.md
     - Result: Reference/Result.md

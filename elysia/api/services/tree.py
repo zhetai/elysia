@@ -149,7 +149,7 @@ class TreeManager:
 
         Returns:
             (list): A list of dictionaries, each containing a frontend payload that was used to generate the tree.
-            The list is ordered by the time the payload was originally sent to the frontend (at the time it was saved).
+                The list is ordered by the time the payload was originally sent to the frontend (at the time it was saved).
         """
         tree = await Tree.import_from_weaviate(
             "ELYSIA_TREES__", conversation_id, client_manager
@@ -197,7 +197,7 @@ class TreeManager:
             conversation_id (str): The conversation ID which may contain the tree.
 
         Returns:
-            bool: True if the tree exists, False otherwise.
+            (bool): True if the tree exists, False otherwise.
         """
         return conversation_id in self.trees
 
@@ -210,7 +210,7 @@ class TreeManager:
             conversation_id (str): The conversation ID which contains the tree.
 
         Returns:
-            Tree: The tree associated with the conversation ID.
+            (Tree): The tree associated with the conversation ID.
         """
         if conversation_id not in self.trees:
             raise ValueError(
@@ -229,7 +229,7 @@ class TreeManager:
             conversation_id (str): The conversation ID which contains the tree.
 
         Returns:
-            asyncio.Event: The event for the tree.
+            (asyncio.Event): The event for the tree.
         """
         return self.trees[conversation_id]["event"]
 
@@ -239,7 +239,7 @@ class TreeManager:
 
         Args:
             conversation_id (str | None): The conversation ID which contains the tree.
-            **kwargs: The keyword arguments to pass to the Settings.configure() method.
+            **kwargs (Any): The keyword arguments to pass to the Settings.configure() method.
         """
         if conversation_id is None:
             self.settings.configure(**kwargs)
