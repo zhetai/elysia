@@ -289,9 +289,9 @@ class Environment:
                 If an integer, the object at the given index is returned.
 
         Returns:
-            list[dict]: The list of objects for the given `tool_name` and `name`, if `index` is `None`.
-            dict: The object at the given `index` for the given `tool_name` and `name`, if `index` is an integer.
-            None if the `tool_name` or `name` is not found in the environment.
+            (list[dict]): if `index` is `None` - The list of objects for the given `tool_name` and `name`.
+            (dict): if `index` is an integer - The object at the given `index` for the given `tool_name` and `name`.
+            (None): If the `tool_name` or `name` is not found in the environment.
         """
 
         if tool_name not in self.environment:
@@ -742,7 +742,7 @@ class TreeData:
         You can use this if you are interfacing with LLMs in tools, to help it understand the context of the tasks completed so far.
 
         Returns:
-            str: A separated and formatted string of the tasks completed so far in an LLM-parseable format.
+            (str): A separated and formatted string of the tasks completed so far in an LLM-parseable format.
         """
         out = ""
         for j, task_prompt in enumerate(self.tasks_completed):
@@ -868,7 +868,7 @@ class TreeData:
         Essentially, this is a list of the keys that can be used to map the objects to the frontend.
 
         Returns:
-            dict: A dictionary of collection names to their return types.
+            (dict): A dictionary of collection names to their return types.
                 ```python
                 {
                     collection_name_1: list[str],

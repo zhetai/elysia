@@ -1777,7 +1777,7 @@ class Tree:
         Export the tree to a JSON object, to be used for loading the tree via import_from_json().
 
         Returns:
-            dict: The JSON object.
+            (dict): The JSON object.
         """
         try:
             return {
@@ -1889,7 +1889,7 @@ class Tree:
             json_data (dict): The JSON object to import the tree from.
 
         Returns:
-            Tree: The new tree instance loaded from the JSON object.
+            (Tree): The new tree instance loaded from the JSON object.
         """
         settings = Settings.from_json(json_data["settings"])
         logger = settings.logger

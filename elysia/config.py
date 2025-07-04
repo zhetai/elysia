@@ -218,23 +218,26 @@ class Settings:
         **kwargs,
     ):
         """
-        Configure the settings for Elysia.
+        Configure the settings for Elysia for the current Settings object.
 
         Args:
-            base_model: The base model to use (str). e.g. "gpt-4o-mini"
-            complex_model: The complex model to use (str). e.g. "gpt-4o"
-            base_provider: The provider to use for base_model (str). E.g. "openai" or "openrouter/openai"
-            complex_provider: The provider to use for complex_model (str). E.g. "openai" or "openrouter/openai"
-            model_api_base: The API base to use (str).
-            wcd_url: The Weaviate cloud URL to use (str).
-            wcd_api_key: The Weaviate cloud API key to use (str).
-            logging_level: The logging level to use (str). e.g. "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
-            use_feedback (bool): EXPERIMENTAL. Whether to use feedback from previous runs of the tree.
-                If True, the tree will use TrainingUpdate objects that have been saved in previous runs of the decision tree.
-                These are implemented via few-shot examples for the decision node.
-                They are collected in the 'feedback' collection (ELYSIA_FEEDBACK__).
-                Relevant examples are retrieved from the collection based on searching the collection via the user's prompt.
-            **kwargs: Additional API keys to set. E.g. `openai_apikey="..."`
+            **kwargs (str): One or more of the following:
+                - base_model (str): The base model to use. e.g. "gpt-4o-mini"
+                - complex_model (str): The complex model to use. e.g. "gpt-4o"
+                - base_provider (str): The provider to use for base_model. E.g. "openai" or "openrouter/openai"
+                - complex_provider (str): The provider to use for complex_model. E.g. "openai" or "openrouter/openai"
+                - model_api_base (str): The API base to use.
+                - wcd_url (str): The Weaviate cloud URL to use.
+                - wcd_api_key (str): The Weaviate cloud API key to use.
+                - logging_level (str): The logging level to use. e.g. "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+                - use_feedback (bool): EXPERIMENTAL. Whether to use feedback from previous runs of the tree.
+                    If True, the tree will use TrainingUpdate objects that have been saved in previous runs of the decision tree.
+                    These are implemented via few-shot examples for the decision node.
+                    They are collected in the 'feedback' collection (ELYSIA_FEEDBACK__).
+                    Relevant examples are retrieved from the collection based on searching the collection via the user's prompt.
+                - Additional API keys to set. E.g. `openai_apikey="..."`, if this argument ends with `apikey` or `api_key`,
+                    it will be added to the `API_KEYS` dictionary.
+
         """
 
         # convert all kwargs to lowercase for consistency
@@ -475,16 +478,38 @@ def load_lm(
 # global settings that should never be used by the frontend
 # but used when using Elysia as a package
 settings = Settings()
-settings.set_from_env()
+settings.smart_setup()
 
 DEFAULT_SETTINGS = Settings()
-DEFAULT_SETTINGS.set_from_env()
+DEFAULT_SETTINGS.smart_setup()
 
 
 def reset_settings():
     settings.reset()
-    settings.set_from_env()
+    settings.smart_setup()
 
 
 def configure(**kwargs):
+    """
+    Configure the settings for Elysia for the global settings object.
+
+    Args:
+        **kwargs (str): One or more of the following:
+            - base_model (str): The base model to use. e.g. "gpt-4o-mini"
+            - complex_model (str): The complex model to use. e.g. "gpt-4o"
+            - base_provider (str): The provider to use for base_model. E.g. "openai" or "openrouter/openai"
+            - complex_provider (str): The provider to use for complex_model. E.g. "openai" or "openrouter/openai"
+            - model_api_base (str): The API base to use.
+            - wcd_url (str): The Weaviate cloud URL to use.
+            - wcd_api_key (str): The Weaviate cloud API key to use.
+            - logging_level (str): The logging level to use. e.g. "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+            - use_feedback (bool): EXPERIMENTAL. Whether to use feedback from previous runs of the tree.
+                If True, the tree will use TrainingUpdate objects that have been saved in previous runs of the decision tree.
+                These are implemented via few-shot examples for the decision node.
+                They are collected in the 'feedback' collection (ELYSIA_FEEDBACK__).
+                Relevant examples are retrieved from the collection based on searching the collection via the user's prompt.
+            - Additional API keys to set. E.g. `openai_apikey="..."`, if this argument ends with `apikey` or `api_key`,
+                it will be added to the `API_KEYS` dictionary.
+
+    """
     settings.configure(**kwargs)

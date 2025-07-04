@@ -477,7 +477,7 @@ class Result(Return):
                 Defaults to `False`.
 
         Returns:
-            list[dict]: A list of dictionaries, which can be serialised to JSON.
+            (list[dict]): A list of dictionaries, which can be serialised to JSON.
         """
         assert all(
             isinstance(obj, dict) for obj in self.objects
@@ -514,7 +514,7 @@ class Result(Return):
             query_id (str): The query ID.
 
         Returns:
-            dict: The frontend payload, which is a dictionary with the following structure:
+            (dict): The frontend payload, which is a dictionary with the following structure:
                 ```python
                 {
                     "type": "result",
@@ -560,7 +560,7 @@ class Result(Return):
         Otherwise a default message is used.
 
         Returns:
-            str: The formatted llm message.
+            (str): The formatted llm message.
         """
 
         if self.llm_message is not None:
@@ -682,7 +682,19 @@ class Retrieval(Result):
 
 
 class Error:
+    """
+    Error objects are used to communicate errors to the decision agent/tool calls.
+    When yielded, Error objects are automatically saved inside the TreeData object.
+    When calling the same tool again, the saved Error object is automatically loaded into any tool calls made with the same tool name.
+    All errors are shown to the decision agent to help decide whether the tool should be called again (retried), or a different tool should be called.
+    """
+
     def __init__(self, feedback: str):
+        """
+        Args:
+            feedback (str): The feedback to display to the decision agent.
+                Usually this will be the error message, but it could be formatted more specifically.
+        """
         self.feedback = feedback
 
     def to_json(self):
