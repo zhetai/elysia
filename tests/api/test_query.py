@@ -79,6 +79,7 @@ class TestQuery:
 
                 # check all payloads are valid
                 for i, result in enumerate(websocket.results):
+                    print(i, result["type"])
                     assert isinstance(result, dict)
                     assert "type" in result
                     assert "id" in result

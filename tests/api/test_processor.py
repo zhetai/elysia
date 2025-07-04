@@ -76,7 +76,7 @@ class TestProcessor:
     @pytest.mark.asyncio
     async def test_process_collection(self):
 
-        user_id = "test_user_process_collection"
+        user_id = "test_user_Process_collection"
         try:
             await initialise_user(
                 user_id,
@@ -100,6 +100,12 @@ class TestProcessor:
             assert response[-1]["type"] == "completed"
             assert response[-1]["progress"] == 1
 
+            with client_manager.connect_to_client() as client:
+                assert client.collections.exists(collection_name)
+                assert client.collections.exists(
+                    f"ELYSIA_METADATA_{collection_name.lower()}__"
+                )
+
         finally:
 
             # delete the collections
@@ -113,7 +119,7 @@ class TestProcessor:
                         f"ELYSIA_METADATA_{collection_name.lower()}"
                     ):
                         client.collections.delete(
-                            f"ELYSIA_METADATA_{collection_name.lower()}"
+                            f"ELYSIA_METADATA_{collection_name.lower()}__"
                         )
             except Exception as e:
                 print(f"Can't delete collection: {str(e)}")

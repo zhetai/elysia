@@ -8,12 +8,11 @@ from typing import Any
 load_dotenv(override=True)
 
 from elysia.api.services.tree import TreeManager
-from elysia.config import Settings
 from elysia.objects import Update
 from elysia.util.client import ClientManager
 from elysia.api.core.log import logger
-from elysia.api.api_types import Config
-from elysia.api.utils.frontend_config import FrontendConfig
+from elysia.api.utils.config import Config
+from elysia.api.utils.config import FrontendConfig
 from elysia.tree.util import get_saved_trees_weaviate
 
 
@@ -131,7 +130,7 @@ class UserManager:
             user_id (str): Required. The unique identifier for the user.
 
         Returns:
-            dict: A local user object, containing a TreeManager ("tree_manager"),
+            (dict): A local user object, containing a TreeManager ("tree_manager"),
                 Frontend Config ("frontend_config") and ClientManager ("client_manager").
         """
 
@@ -155,7 +154,7 @@ class UserManager:
             conversation_id (str): Required. The unique identifier for the conversation.
 
         Returns:
-            Tree: The tree.
+            (Tree): The tree.
         """
         local_user = await self.get_user_local(user_id)
         return local_user["tree_manager"].get_tree(conversation_id)
@@ -341,8 +340,8 @@ class UserManager:
                 Defaults to the value of the `wcd_api_key` setting in the frontend config.
 
         Returns:
-            (list): A list of dictionaries, each containing a frontend payload that was used to generate the tree.
-            The list is ordered by the time the payload was originally sent to the frontend (at the time it was saved).
+            (list[dict]): A list of dictionaries, each containing a frontend payload that was used to generate the tree.
+                The list is ordered by the time the payload was originally sent to the frontend (at the time it was saved).
         """
 
         local_user = await self.get_user_local(user_id)
@@ -421,15 +420,15 @@ class UserManager:
 
         Returns:
             (dict): A dictionary whose keys are the conversation IDs and whose values are dictionaries containing the title and last update time of the tree.
-            E.g.
-            ```
-            {
-                "12345678-XXX-YYYY-ZZZZ": {
-                    "title": "Query Request",
-                    "last_update_time": "2025-06-07T10:06:47.376000Z"
+                E.g.
+                ```
+                {
+                    "12345678-XXX-YYYY-ZZZZ": {
+                        "title": "Query Request",
+                        "last_update_time": "2025-06-07T10:06:47.376000Z"
+                    }
                 }
-            }
-            ```
+                ```
         """
         local_user = await self.get_user_local(user_id)
 

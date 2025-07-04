@@ -1,10 +1,7 @@
-import os
-import sys
 import pytest
 
 from datetime import datetime
 
-from elysia.api.api_types import InitialiseTreeData, QueryData
 from elysia.api.routes.query import process
 from elysia.api.dependencies.common import get_user_manager
 from elysia.util.client import ClientManager
@@ -15,8 +12,9 @@ from elysia.api.routes.feedback import (
     run_remove_feedback,
 )
 
-
 from elysia.api.api_types import (
+    InitialiseTreeData,
+    QueryData,
     AddFeedbackData,
     RemoveFeedbackData,
 )

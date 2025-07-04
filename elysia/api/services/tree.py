@@ -13,7 +13,7 @@ from elysia.config import Settings
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
 from elysia.tree.util import delete_tree_from_weaviate
-from elysia.api.api_types import Config
+from elysia.api.utils.config import Config
 
 
 class TreeManager:
@@ -36,14 +36,9 @@ class TreeManager:
         """
         Args:
             user_id (str): Required. A unique identifier for the user being managed within this TreeManager.
-            style (str | None): Optional. A writing style for all trees managed by this TreeManager.
-            agent_description (str | None): Optional. A description of the agent for all trees managed by this TreeManager.
-            end_goal (str | None): Optional. A goal for all trees managed by this TreeManager.
-            branch_initialisation (str | None): Optional. A branch initialisation for all trees managed by this TreeManager.
-                Defaults to "one_branch", which contains 'Query', 'Aggregate' and 'Summarize' tools.
-                Other options are "multi_branch", which contains 'Query' and 'Aggregate' in a separate branch,
-                and "empty", which contains no tools (only a base branch), designed to add more tools to.
-            settings (Settings | None): Optional. A settings for all trees managed by this TreeManager.
+            config (Config | None): Optional. A config for all trees managed by this TreeManager.
+                Defaults to a new config with default settings.
+                If `settings` is not provided, it will be set to the default settings (smart_setup).
             tree_timeout (datetime.timedelta | int | None): Optional. A timeout for all trees managed by this TreeManager.
                 Defaults to the value of the `TREE_TIMEOUT` environment variable.
                 If an integer is passed, it will be interpreted as minutes.
@@ -62,22 +57,11 @@ class TreeManager:
             self.tree_timeout = tree_timeout
 
         if config is None:
-            self.settings = Settings().from_smart_setup()
-            self.config = Config(
-                id=str(uuid4()),
-                name="New Config",
-                settings=self.settings.to_json(),
-                style="Informative, polite and friendly.",
-                agent_description="You search and query Weaviate to satisfy the user's query, providing a concise summary of the results.",
-                end_goal=(
-                    "You have satisfied the user's query, and provided a concise summary of the results. "
-                    "Or, you have exhausted all options available, or asked the user for clarification."
-                ),
-                branch_initialisation="one_branch",
-            )
+            self.config = Config()
         else:
             self.config = config
-            self.settings = Settings.from_json(self.config.settings)
+
+        self.settings = self.config.settings
 
     def add_tree(
         self,

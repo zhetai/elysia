@@ -4,10 +4,9 @@ import dspy
 import dspy.predict
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.util.reference import create_reference
 
 # LLM
-from elysia.objects import Response, Tool, Reasoning
+from elysia.objects import Response, Tool
 from elysia.tools.text.objects import TextWithTitle, TextWithCitations
 from elysia.tools.text.prompt_templates import (
     SummarizingPrompt,

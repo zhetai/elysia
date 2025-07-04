@@ -1,7 +1,73 @@
-from elysia.util.client import ClientManager
 from logging import Logger
-import datetime
 import os
+from typing import Any, Optional
+from uuid import uuid4
+
+from elysia.config import Settings
+from elysia.util.client import ClientManager
+
+
+class Config:
+
+    def __init__(
+        self,
+        id: Optional[str] = None,
+        name: Optional[str] = None,
+        settings: Optional[Settings] = None,
+        style: Optional[str] = None,
+        agent_description: Optional[str] = None,
+        end_goal: Optional[str] = None,
+        branch_initialisation: Optional[str] = None,
+    ):
+
+        if id is None:
+            self.id = str(uuid4())
+        else:
+            self.id = id
+
+        if name is None:
+            self.name = "New Config"
+        else:
+            self.name = name
+
+        if settings is None:
+            self.settings = Settings().from_smart_setup()
+        else:
+            self.settings = settings
+
+        if style is None:
+            self.style = "Informative, polite and friendly."
+        else:
+            self.style = style
+
+        if agent_description is None:
+            self.agent_description = "You search and query Weaviate to satisfy the user's query, providing a concise summary of the results."
+        else:
+            self.agent_description = agent_description
+
+        if end_goal is None:
+            self.end_goal = (
+                "You have satisfied the user's query, and provided a concise summary of the results. "
+                "Or, you have exhausted all options available, or asked the user for clarification."
+            )
+        else:
+            self.end_goal = end_goal
+
+        if branch_initialisation is None:
+            self.branch_initialisation = "one_branch"
+        else:
+            self.branch_initialisation = branch_initialisation
+
+    def to_json(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "settings": self.settings.to_json(),
+            "style": self.style,
+            "agent_description": self.agent_description,
+            "end_goal": self.end_goal,
+            "branch_initialisation": self.branch_initialisation,
+        }
 
 
 class FrontendConfig:

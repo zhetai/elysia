@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from elysia.api.api_types import InitialiseTreeData, Config
+from elysia.api.api_types import InitialiseTreeData
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.api.core.log import logger
@@ -17,48 +17,31 @@ async def initialise_user(
     user_id: str, user_manager: UserManager = Depends(get_user_manager)
 ):
     """
-    Create a user with a specified config.
+    Create or retrieve a user.
+
+    Returns:
+        (JSONResponse): A JSON response with the following fields:
+            - error (str): Any error message (empty string if no error).
+            - user_exists (bool): True if the user exists, False otherwise.
+            - config (dict): The user's config.
+            - frontend_config (dict): The user's frontend config.
     """
     logger.debug(f"/initialise_user API request received")
 
     try:
 
-        settings = Settings()
-        settings.smart_setup()
-        settings.setup_app_logger(logger)
-
         user_exists = user_manager.user_exists(user_id)
 
         # if a user does not exist, create a user and set up the configs
         if not user_exists:
-
-            config = Config(
-                id=str(uuid4()),
-                name="New Config",
-                settings=settings.to_json(),
-                style="Informative, polite and friendly.",
-                agent_description="You search and query Weaviate to satisfy the user's query, providing a concise summary of the results.",
-                end_goal=(
-                    "You have satisfied the user's query, and provided a concise summary of the results. "
-                    "Or, you have exhausted all options available, or asked the user for clarification."
-                ),
-                branch_initialisation="one_branch",
-            )
-
             user_manager.add_user_local(
                 user_id,
-                config,
-            )
-
-            frontend_config = (await user_manager.get_user_local(user_id))[
-                "frontend_config"
-            ].config
+            )  # leave config empty to create defaults for a new user
 
         # if a user exists, get the existing configs
-        else:
-            user = await user_manager.get_user_local(user_id)  #
-            config = user["tree_manager"].config
-            frontend_config = user["frontend_config"].config
+        user = await user_manager.get_user_local(user_id)
+        config = user["tree_manager"].config.to_json()
+        frontend_config = user["frontend_config"].config
 
     except Exception as e:
         logger.exception(f"Error in /initialise_user API")
@@ -75,7 +58,7 @@ async def initialise_user(
         content={
             "error": "",
             "user_exists": user_exists,
-            "config": config.model_dump(),
+            "config": config,
             "frontend_config": frontend_config,
         },
         status_code=200,
@@ -89,6 +72,15 @@ async def initialise_tree(
     data: InitialiseTreeData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
+    """
+    Create or retrieve a tree.
+
+    Returns:
+        (JSONResponse): A JSON response with the following fields:
+            - conversation_id (str): The conversation ID.
+            - tree (dict): The tree.
+            - error (str): Any error message (empty string if no error).
+    """
     logger.debug(f"/initialise_tree API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Conversation ID: {conversation_id}")

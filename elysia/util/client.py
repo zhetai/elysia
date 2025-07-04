@@ -75,10 +75,11 @@ class ClientManager:
     ):
         """
         Args:
-            wcd_url: the url of the Weaviate cluster. Defaults to global settings config.
-            wcd_api_key: the api key for the Weaviate cluster. Defaults to global settings config.
-            client_timeout: how long (in minutes) means the client should be restarted. Defaults to 3 minutes.
-            **kwargs: any other api keys for third party services (formatted as e.g. OPENAI_APIKEY).
+            wcd_url (str): the url of the Weaviate cluster. Defaults to global settings config.
+            wcd_api_key (str): the api key for the Weaviate cluster. Defaults to global settings config.
+            client_timeout (datetime.timedelta | int | None): how long (in minutes) means the client should be restarted. Defaults to 3 minutes.
+            logger (Logger | None): a logger object for logging messages. Defaults to None.
+            **kwargs (Any): any other api keys for third party services (formatted as e.g. OPENAI_APIKEY).
 
         Example:
         ```python

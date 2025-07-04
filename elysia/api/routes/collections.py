@@ -26,7 +26,7 @@ from elysia.util.collection import (
 
 from elysia.preprocess.collection import edit_preprocessed_collection
 
-from elysia.globals.return_types import specific_return_types, types_dict
+from elysia.util.return_types import specific_return_types, types_dict
 
 router = APIRouter()
 

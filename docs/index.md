@@ -2,7 +2,7 @@
 
 Welcome to Elysia, the agentic platform for searching and retrieving data in Weaviate. Elysia is also designed to handle any custom tools, and it will be automatically handled by a decision agent.
 
-See the [basic example to get started right away!](basic.md) Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](Customising/creating_your_own_tools.md).
+See the [basic example to get started right away!](basic.md) Or if you want to make your own tools and customise Elysia, see the [Tool Construction Overview](Advanced/creating_your_own_tools.md).
 
 ## Get Started
 

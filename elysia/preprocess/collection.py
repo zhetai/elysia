@@ -10,7 +10,7 @@ from weaviate.classes.query import Metrics
 from elysia.config import nlp, Settings, load_base_lm
 from elysia.config import settings as environment_settings
 
-from elysia.globals import return_types as rt
+from elysia.util import return_types as rt
 from elysia.preprocess.prompt_executors import (
     CollectionSummariserExecutor,
     DataMappingExecutor,

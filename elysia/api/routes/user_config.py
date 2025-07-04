@@ -7,13 +7,11 @@ from dotenv import load_dotenv, set_key
 
 load_dotenv(override=True)
 
-# API Types
 from elysia.api.api_types import (
     SaveConfigUserData,
-    Config,
     UpdateFrontendConfigData,
 )
-
+from elysia.api.utils.config import Config
 from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
@@ -21,7 +19,7 @@ from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable, format_datetime
 from elysia.config import Settings
 from elysia.api.services.tree import TreeManager
-from elysia.api.utils.frontend_config import FrontendConfig
+from elysia.api.utils.config import FrontendConfig
 
 import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
@@ -95,7 +93,7 @@ async def get_current_user_config(
 
     try:
         user = await user_manager.get_user_local(user_id)
-        config = user["tree_manager"].config
+        config = user["tree_manager"].config.to_json()
         frontend_config = user["frontend_config"].config
 
     except Exception as e:
@@ -108,7 +106,7 @@ async def get_current_user_config(
     return JSONResponse(
         content={
             "error": "",
-            "config": config.model_dump(),
+            "config": config,
             "frontend_config": frontend_config,
         },
         headers=headers,
@@ -159,9 +157,7 @@ async def new_user_config(
         logger.exception(f"Error in /new_user_config API")
         return JSONResponse(content={"error": str(e), "config": {}})
 
-    return JSONResponse(
-        content={"error": "", "config": tree_manager.config.model_dump()}
-    )
+    return JSONResponse(content={"error": "", "config": tree_manager.config.to_json()})
 
 
 @router.post("/{user_id}/{config_id}")
@@ -247,15 +243,7 @@ async def save_config_user(
         return JSONResponse(
             content={
                 "error": "",
-                "config": Config(
-                    id=config_id,
-                    name=data.name,
-                    settings=tree_manager.settings.to_json(),
-                    style=tree_manager.config.style,
-                    agent_description=tree_manager.config.agent_description,
-                    end_goal=tree_manager.config.end_goal,
-                    branch_initialisation=tree_manager.config.branch_initialisation,
-                ).model_dump(),
+                "config": tree_manager.config.to_json(),
                 "frontend_config": user["frontend_config"].config,
             }
         )
@@ -358,15 +346,7 @@ async def save_config_user(
     return JSONResponse(
         content={
             "error": "",
-            "config": Config(
-                id=config_id,
-                name=data.name,
-                settings=settings_dict,
-                style=style,
-                agent_description=agent_description,
-                end_goal=end_goal,
-                branch_initialisation=branch_initialisation,
-            ).model_dump(),
+            "config": tree_manager.config.to_json(),
             "frontend_config": user["frontend_config"].config,
         }
     )
@@ -498,15 +478,7 @@ async def load_config_user(
     return JSONResponse(
         content={
             "error": "",
-            "config": Config(
-                id=config_id,
-                name=renamed_config["name"],
-                settings=renamed_config["settings"],
-                style=renamed_config["style"],
-                agent_description=renamed_config["agent_description"],
-                end_goal=renamed_config["end_goal"],
-                branch_initialisation=renamed_config["branch_initialisation"],
-            ).model_dump(),
+            "config": tree_manager.config.to_json(),
             "frontend_config": frontend_config.config,
         }
     )
