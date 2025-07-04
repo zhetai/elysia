@@ -182,14 +182,14 @@ class Settings:
                 # use gemini 2.0 flash
                 self.BASE_PROVIDER = "openrouter/google"
                 self.COMPLEX_PROVIDER = "openrouter/google"
-                self.BASE_MODEL = "gemini-2.0-flash-001"
-                self.COMPLEX_MODEL = "gemini-2.0-flash-001"
+                self.BASE_MODEL = "gemini-2.5-flash"
+                self.COMPLEX_MODEL = "gemini-2.5-flash"
             elif os.getenv("GEMINI_API_KEY", None):
                 # use gemini 2.0 flash
                 self.BASE_PROVIDER = "gemini"
                 self.COMPLEX_PROVIDER = "gemini"
-                self.BASE_MODEL = "gemini-2.0-flash"
-                self.COMPLEX_MODEL = "gemini-2.0-flash"
+                self.BASE_MODEL = "gemini-2.5-flash"
+                self.COMPLEX_MODEL = "gemini-2.5-flash"
             elif os.getenv("OPENAI_API_KEY", None):
                 # use gpt family
                 self.BASE_PROVIDER = "openai"

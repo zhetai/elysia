@@ -42,8 +42,8 @@ class TestConfig:
         """
         Test that the config can be loaded from env vars
         """
-        os.environ["BASE_MODEL"] = os.getenv("BASE_MODEL", "gemini-2.0-flash-001")
-        os.environ["COMPLEX_MODEL"] = os.getenv("COMPLEX_MODEL", "gemini-2.0-flash-001")
+        os.environ["BASE_MODEL"] = os.getenv("BASE_MODEL", "gemini-2.5-flash")
+        os.environ["COMPLEX_MODEL"] = os.getenv("COMPLEX_MODEL", "gemini-2.5-flash")
         os.environ["BASE_PROVIDER"] = os.getenv("BASE_PROVIDER", "openrouter/google")
         os.environ["COMPLEX_PROVIDER"] = os.getenv(
             "COMPLEX_PROVIDER", "openrouter/google"

@@ -243,6 +243,7 @@ The `Error` object is initialised with a single string argument, which should be
 You can optionally choose to add another method to your Tool - `run_if_true`. This is a method that will be checked at the _start_ of every decision tree, for every tool that has this method. If you don't wish to use this method, then simply do not define one.
 
 The `run_if_true` method returns two arguments (`tuple[bool, dict]`):
+
 - a boolean value indicating whether the tool should be called *straight away*,
 - a dictionary of `inputs` for if this tool gets called.
 
@@ -251,7 +252,19 @@ If `run_if_true` returns `True`, then the `__call__` method of your tool will be
 - The `run_if_true` method can count the number of tokens in the environment, and if the environment is getting too large, it runs the tool. Then the `__call__` method will be shrinking the environment in some way (e.g. using an LLM or just taking one particular item from it).
 - If the user is asking about a particular subject, e.g. if the `user_prompt` (inside of `tree_data`) contains a specific word, then you could augment the `tree_data` to include some more specific information.
 
+```python
+async def run_if_true(
+    self,
+    tree_data,
+    base_lm,
+    complex_lm,
+    client_manager,
+) -> tuple[bool, dict]:
+    ...
+```
+
 Like the `__call__` and `is_tool_available` methods, this method has access to [the tree data](../Reference/Objects.md#elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](../Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
+
 
 [See the reference for more details.](../Reference/Objects.md#elysia.objects.Tool.run_if_true)
 
@@ -259,7 +272,21 @@ Like the `__call__` and `is_tool_available` methods, this method has access to [
 
 This method should return `True` if the tool is available to be used by the LLM. It should return `False` if the LLM should not have access to it. This can depend on the environment. For example, you can use `tree_data.environment.is_empty()` and the tool is only accessible if the environment is empty. Likewise you can use `not tree_data.environment.is_empty()` for it only to be available if the environment has something in it.
 
+```python
+async def is_tool_available(
+    self,
+    tree_data,
+    base_lm,
+    complex_lm,
+    client_manager,
+) -> bool:
+    """A brief reason when this tool will become available goes here."""
+    ...
+```
+
 Like the `__call__` and `run_if_true` methods, this method has access to [the tree data](../Reference/Objects.md#elysia.tree.objects.TreeData) object, as well as some language models used by the tree and the [ClientManager](../Reference/Client.md#elysia.util.client.ClientManager), to use a Weaviate client.
+
+You should give a brief reason in the docstring of `is_tool_available` as to when it will become available, so that the LLM can perform actions towards completing this goal if it judges the tool to be useful to the current prompt.
 
 [See the reference for more details.](../Reference/Objects.md#elysia.objects.Tool.is_tool_available) 
 
