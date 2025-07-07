@@ -46,16 +46,19 @@ class CreateHistogramChart(dspy.Signature):
     )
 
 
-class CreateScatterChart(dspy.Signature):
+class CreateScatterOrLineChart(dspy.Signature):
     """
-    Create one or more scatter charts.
+    Create one or more scatter or line charts.
 
-    Create a maximum of 9 scatter charts.
-    Create a maximum of 50 points per scatter chart. Pick the most relevant points.
+    Create a maximum of 9 scatter or line charts.
+    Create a maximum of 50 points per scatter or line chart. Pick the most relevant points.
+
+    A scatter or line chart can have multiple y-axis values, each with a different label.
+    You can combine a line chart with a scatter chart by creating multiple
     """
 
     charts: list[ScatterOrLineChart] = dspy.OutputField(
-        description="The scatter chart to create."
+        description="The scatter or line chart to create."
     )
     overall_title: str = dspy.OutputField(
         description=(
@@ -66,21 +69,21 @@ class CreateScatterChart(dspy.Signature):
     )
 
 
-class CreateLineChart(dspy.Signature):
-    """
-    Create one or more line charts.
+# class CreateLineChart(dspy.Signature):
+#     """
+#     Create one or more line charts.
 
-    Create a maximum of 9 line charts.
-    Create a maximum of 50 points per line chart. Pick the most relevant points.
-    """
+#     Create a maximum of 9 line charts.
+#     Create a maximum of 50 points per line chart. Pick the most relevant points.
+#     """
 
-    charts: list[ScatterOrLineChart] = dspy.OutputField(
-        description="The line chart to create."
-    )
-    overall_title: str = dspy.OutputField(
-        description=(
-            "If providing more than one chart, they will be displayed in a grid. "
-            "This is the overall title for above the grid. "
-            "Otherwise provide an empty string. "
-        ),
-    )
+#     charts: list[ScatterOrLineChart] = dspy.OutputField(
+#         description="The line chart to create."
+#     )
+#     overall_title: str = dspy.OutputField(
+#         description=(
+#             "If providing more than one chart, they will be displayed in a grid. "
+#             "This is the overall title for above the grid. "
+#             "Otherwise provide an empty string. "
+#         ),
+#     )

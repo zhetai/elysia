@@ -1,5 +1,5 @@
 from logging import Logger
-from elysia.objects import Tool
+from elysia.objects import Tool, Error
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.tools.visualisation.objects import (
     ChartResult,
@@ -11,8 +11,7 @@ from elysia.tools.visualisation.util import convert_chart_types_to_matplotlib
 from elysia.tools.visualisation.prompt_templates import (
     CreateBarChart,
     CreateHistogramChart,
-    CreateScatterChart,
-    CreateLineChart,
+    CreateScatterOrLineChart,
 )
 from elysia.objects import Response, Reasoning
 from elysia.util.objects import TrainingUpdate, TreeUpdate
@@ -35,7 +34,7 @@ class Visualise(Tool):
                     "type": "string",
                     "description": (
                         "The type of chart to create. "
-                        "Must be one of: bar, histogram, scatter, line."
+                        "Must be one of: `bar`, `histogram`, `scatter_or_line`."
                     ),
                     "required": True,
                     "default": "",
@@ -55,49 +54,57 @@ class Visualise(Tool):
     ):
         chart_type = inputs["chart_type"]
 
-        type_mapping = {
-            "bar": CreateBarChart,
-            "histogram": CreateHistogramChart,
-            "scatter": CreateScatterChart,
-            "line": CreateLineChart,
-        }
+        try:
+            type_mapping = {
+                "bar": CreateBarChart,
+                "histogram": CreateHistogramChart,
+                "scatter_or_line": CreateScatterOrLineChart,
+            }
 
-        create_chart = ElysiaChainOfThought(
-            type_mapping[chart_type],
-            tree_data=tree_data,
-            environment=True,
-            impossible=True,
-            tasks_completed=True,
-        )
-        prediction = await create_chart.aforward(lm=base_lm)
-        charts = prediction.charts
-        title = prediction.overall_title
-
-        yield Response(text=prediction.message_update)
-        yield Reasoning(reasoning=prediction.reasoning)
-        yield TrainingUpdate(
-            module_name="visualise",
-            inputs={
-                "chart_type": chart_type,
-                **tree_data.to_json(),
-            },
-            outputs=prediction.__dict__["_store"],
-        )
-
-        if prediction.impossible:
-            yield ChartResult(
-                [],
-                chart_type,
-                title,
-                metadata={
-                    "impossible": True,
-                    "impossible_reasoning": prediction.reasoning,
-                },
+            create_chart = ElysiaChainOfThought(
+                type_mapping[chart_type],
+                tree_data=tree_data,
+                environment=True,
+                impossible=True,
+                tasks_completed=True,
             )
-            return
+            prediction = await create_chart.aforward(lm=base_lm)
+            charts = prediction.charts
+            title = prediction.overall_title
 
-        if self.logger and self.logger.level <= 20:
-            fig = convert_chart_types_to_matplotlib(charts, chart_type)
-            fig.show()
+            yield Response(text=prediction.message_update)
+            yield Reasoning(reasoning=prediction.reasoning)
+            yield TrainingUpdate(
+                module_name="visualise",
+                inputs={
+                    "chart_type": chart_type,
+                    **tree_data.to_json(),
+                },
+                outputs=prediction.__dict__["_store"],
+            )
 
-        yield ChartResult(charts, chart_type, title)
+            if prediction.impossible:
+                yield ChartResult(
+                    [],
+                    chart_type,
+                    title,
+                    metadata={
+                        "impossible": True,
+                        "impossible_reasoning": prediction.reasoning,
+                    },
+                )
+                return
+
+            if self.logger and self.logger.level <= 20:
+                fig = convert_chart_types_to_matplotlib(charts, chart_type)
+                fig.show()
+
+            yield ChartResult(charts, chart_type, title)
+        except Exception as e:
+            yield Error(f"Error visualising data: {str(e)}")
+
+    async def is_tool_available(self, tree_data, base_lm, complex_lm, client_manager):
+        """
+        Available when there are relevant objects in the environment.
+        """
+        return not tree_data.environment.is_empty()
