@@ -37,6 +37,7 @@ async def mapping_types():
         content={
             "mapping_types": [
                 {
+                    "name": return_type,
                     "description": specific_return_types[return_type],
                     "fields": types_dict[return_type],
                 }
