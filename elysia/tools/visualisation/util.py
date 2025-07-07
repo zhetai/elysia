@@ -35,7 +35,7 @@ def convert_chart_types_to_matplotlib(
         elif isinstance(chart, HistogramChart):
             _create_histogram(chart, ax, colours)
         elif isinstance(chart, ScatterOrLineChart):
-            _create_scatter_or_line(chart, ax, colours, chart_type)
+            _create_scatter_or_line(chart, ax, colours)
 
         ax.set_title(chart.title)
 
@@ -47,25 +47,26 @@ def convert_chart_types_to_matplotlib(
     return fig
 
 
-def _create_scatter_or_line(chart: ScatterOrLineChart, ax, colours, chart_type):
+def _create_scatter_or_line(chart: ScatterOrLineChart, ax, colours):
 
     x_data_points = [dp.value for dp in chart.data.x_axis]
     num_labels = 0
-    for i, (y_label, y_data) in enumerate(chart.data.y_axis.items()):
+    for i, y_data in enumerate(chart.data.y_axis):
 
-        y_data_points = [d.value for d in y_data]
-        y_data_labels = [d.label for d in y_data]
+        y_data_points = [d.value for d in y_data.data_points]
+        y_data_labels = [d.label for d in y_data.data_points]
+        y_data_kind = y_data.kind
 
         colour = colours[i % len(colours)]
 
         if chart.data.normalize_y_axis:
             y_data_points = [dp / max(y_data_points) for dp in y_data_points]
 
-        if chart_type == "scatter":
-            ax.scatter(x_data_points, y_data_points, label=y_label, color=colour)
+        if y_data_kind == "scatter":
+            ax.scatter(x_data_points, y_data_points, label=y_data.label, color=colour)
 
-        elif chart_type == "line":
-            ax.plot(x_data_points, y_data_points, label=y_label, color=colour)
+        elif y_data_kind == "line":
+            ax.plot(x_data_points, y_data_points, label=y_data.label, color=colour)
 
         for j, y_data_label in enumerate(y_data_labels):
             if y_data_label != "":
@@ -100,7 +101,7 @@ def _create_scatter_or_line(chart: ScatterOrLineChart, ax, colours, chart_type):
         ax.set_ylabel(chart.y_axis_label)
 
     ax.set_title(chart.title)
-    if len(chart.data.y_axis.keys()) > 1:
+    if len(chart.data.y_axis) > 1:
         ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
 
 

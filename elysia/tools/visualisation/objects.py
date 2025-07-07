@@ -51,6 +51,16 @@ class ScatterOrLineDataPoint(BaseModel):
     )
 
 
+class ScatterOrLineYAxisData(BaseModel):
+    label: str = Field(
+        description="The label for the data points going into the y-axis. "
+    )
+    kind: Literal["scatter", "line"] = Field(
+        description="Whether the data points (for this y-axis data) are scatter points, or a line plot. "
+    )
+    data_points: list[ScatterOrLineDataPoint]
+
+
 class ScatterOrLineDataPoints(BaseModel):
     x_axis: list[ScatterOrLineDataPoint] = Field(
         default=[],
@@ -60,22 +70,24 @@ class ScatterOrLineDataPoints(BaseModel):
             "do not leave it empty. X-values are required for Y-values to be plotted. "
         ),
     )
-    y_axis: dict[str, list[ScatterOrLineDataPoint]] = Field(
-        default={},
+    y_axis: list[ScatterOrLineYAxisData] = Field(
+        default=[],
         description=(
-            "Each key in the dictionary is a label for the data going into the y-axis.",
-            "There can be multiple sets of data, under different labels, indicating different groups of data.",
-            "These will be plotted on the same y-axis, but with different colours, shapes, etc.",
+            "Each element of the list has a label for the data points going into the y-axis. "
+            "Each one is either a set of scatter points, or a line plot. "
+            "Which can be combined in a single chart, and will be automatically separated into groups in the same chart (with labels). "
+            "There can be multiple sets of data, under different labels, indicating different groups of data. "
+            "These will be plotted on the same y-axis, but with different colours, shapes, etc."
         ),
         min_length=1,
         max_length=20,
     )
-    normalize_y_axis: bool = Field(
+    normalize_y_axis: Optional[bool] = Field(
         default=False,
         description=(
-            "If true, all values in the y-axis will be normalized to the range 0-1.",
-            "Useful if the two values are not on the same scale.",
-            "Do not modify the labels, or the values, these will be automatically changed.",
+            "If true, all values in the y-axis will be normalized to the range 0-1. "
+            "Useful if the two values are not on the same scale. "
+            "Do not modify the labels, or the values, these will be automatically changed."
         ),
     )
 
@@ -94,11 +106,11 @@ class ChartResult(Result):
     def __init__(
         self,
         charts: list[BarChart | HistogramChart | ScatterOrLineChart],
-        chart_type: Literal["bar", "histogram", "scatter", "line"],
-        title: str,
+        chart_type: Literal["bar", "histogram", "scatter_or_line"],
+        title: str = "",
         metadata: dict[str, Any] = {},
     ):
-        if len(charts) == 1:
+        if len(charts) == 1 and title == "":
             title = charts[0].title
 
         super().__init__(
@@ -111,10 +123,10 @@ class ChartResult(Result):
 
     def llm_parse(self):
         if "impossible" in self.metadata:
-            return (
-                f"Model judged creation of {self.metadata['chart_type']} chart to be impossible for reason: "
-                f"'{self.metadata['impossible_reasoning']}'. "
-                "Returning to the decision tree..."
-            )
+            out = f"Model judged creation of {self.metadata['chart_type']} chart to be impossible for reason: "
+            if "impossible_reasoning" in self.metadata:
+                out += f"'{self.metadata['impossible_reasoning']}'. "
+            out += "Returning to the decision tree..."
+            return out
         else:
             return f"Created {len(self.objects)} {self.metadata['chart_type']} chart(s) titled '{self.metadata['chart_title']}'."
