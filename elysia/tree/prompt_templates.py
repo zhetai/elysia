@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 import dspy
 
@@ -132,7 +132,7 @@ def construct_decision_prompt(
             """.strip()
         )
 
-        function_inputs: dict = dspy.OutputField(
+        function_inputs: dict[str, Any] = dspy.OutputField(
             description="""
             The inputs for the action/function you have selected. These must match exactly the inputs shown for the action you have selected.
             If it does not, the code will error.
@@ -176,7 +176,7 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
     """
 
     user_prompt = dspy.InputField(description="The user's input prompt.")
-    reference: dict = dspy.InputField(
+    reference: dict[str, str] = dspy.InputField(
         desc="""
         Current state information like date/time to frame.
         """.strip(),
@@ -202,7 +202,7 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
         description="Information gathered from completed tasks. These are already shown to the user. Use for context, and to cross reference with data_information.",
         format=str,
     )
-    data_information: dict = dspy.InputField(
+    data_information: dict[str, str | dict] = dspy.InputField(
         desc="""
         Collection metadata to inform query choices. Format per collection:
         {

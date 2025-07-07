@@ -113,7 +113,7 @@ class DataMappingPrompt(dspy.Signature):
         desc="The data types of the input fields, a dictionary with key value pairs corresponding to the field and its data type.",
         format=dict[str, str],
     )
-    collection_information: dict = dspy.InputField(
+    collection_information: dict[str, str | dict] = dspy.InputField(
         desc="""
         Information about the collection.
         This is of the form:

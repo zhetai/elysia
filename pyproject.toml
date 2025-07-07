@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "elysia"
-version = "0.1.0.dev2"
+version = "0.1.0.dev5"
 description = "Elysia is an open-source agentic platform for searching data. It is built with customisation in mind, allowing you to build agents and tools that are tailored to your specific use case. It uses Weaviate as the default retrieval tools, and can interface with your data stored in a Weaviate cluster."
 readme = "README.md"
 authors = [
@@ -15,8 +15,7 @@ classifiers = []
 dependencies = [
     "apscheduler==3.11.0",
     "bcrypt==4.2.1",
-    "dspy-ai==2.6.22",
-    "dspy==2.6.22",
+    "dspy-ai==3.0.0b2",
     "fastapi[standard]>=0.115.11",
     "httpx==0.28.1", 
     "pympler==1.1",

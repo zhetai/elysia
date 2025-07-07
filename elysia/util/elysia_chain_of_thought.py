@@ -2,7 +2,7 @@ from typing import Type
 from copy import copy
 
 import dspy
-from dspy.primitives.program import Module
+from dspy.primitives.module import Module
 from dspy.signatures.signature import Signature, ensure_signature
 from elysia.tree.objects import TreeData, Atlas
 from elysia.util.retrieve_feedback import retrieve_feedback
