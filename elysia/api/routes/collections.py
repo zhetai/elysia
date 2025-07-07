@@ -33,9 +33,19 @@ router = APIRouter()
 
 @router.get("/mapping_types")
 async def mapping_types():
+    headers = {"Cache-Control": "no-cache"}
     return JSONResponse(
-        content={"mapping_types": types_dict},
+        content={
+            "mapping_types": [
+                {
+                    "description": specific_return_types[return_type],
+                    "fields": types_dict[return_type],
+                }
+                for return_type in specific_return_types
+            ]
+        },
         status_code=200,
+        headers=headers,
     )
 
 
