@@ -226,7 +226,7 @@ class QueryCreatorPrompt(dspy.Signature):
         """.strip(),
         format=list[dict],
     )
-    collection_display_types: dict = dspy.InputField(
+    collection_display_types: dict[str, list[str]] = dspy.InputField(
         desc="""
         A dictionary of the display types for each collection. Use this to determine the display type in `display_type`, for each collection.
         The output of `display_type` must be one of the values in the list for the dictionary entry for that collection.

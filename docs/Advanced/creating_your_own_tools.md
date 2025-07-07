@@ -342,7 +342,7 @@ The tool is simple, it is initialised and the descriptions are added to the Tool
 **Note:** If using DSPy within your tool, make sure to always call `aforward` method on the module so that it can be used async.
 
 
-## Example: Dealing Cards Randomly from a Deck (intermediate)
+## Example: Dealing Cards Randomly from a Deck (Intermediate)
 
 Let's create a tool that deals cards, adds them to the environment and displays them on the frontend.
 

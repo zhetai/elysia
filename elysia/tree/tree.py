@@ -11,8 +11,6 @@ from rich import print
 from rich.console import Console
 from rich.panel import Panel
 
-from logging import Logger
-
 import uuid
 
 # Weaviate
@@ -44,7 +42,6 @@ from elysia.tools.visualisation.visualise import Visualise
 from elysia.tools.postprocessing.summarise_items import SummariseItems
 from elysia.tools.text.text import (
     FakeTextResponse,
-    Summarizer,
     CitedSummarizer,
 )
 from elysia.tree.util import ForcedTextResponse
