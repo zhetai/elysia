@@ -1,4 +1,4 @@
-from typing import List
+from typing import AsyncGenerator
 from logging import Logger
 
 
@@ -8,7 +8,7 @@ from rich.panel import Panel
 import dspy
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.objects import Reasoning, Response, Status, Tool, Error, Result
+from elysia.objects import Response, Status, Tool, Error, Result, Return
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
 from elysia.tools.retrieval.objects import (
     BoringGenericRetrieval,
@@ -48,7 +48,7 @@ class Query(Tool):
         logger: Logger | None = None,
         summariser_in_tree: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(
             name="query",
             description="""
@@ -82,7 +82,22 @@ class Query(Tool):
             "document": DocumentRetrieval,
         }
 
-    def _find_previous_queries(self, environment: dict, collection_names: list[str]):
+    async def is_tool_available(
+        self,
+        tree_data: TreeData,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        client_manager: ClientManager,
+    ) -> bool:
+        """
+        Only available when there is a Weaviate connection.
+        If this tool is not available, inform the user that they need to set the WCD_URL and WCD_API_KEY in the settings.
+        """
+        return client_manager.is_client
+
+    def _find_previous_queries(
+        self, environment: dict, collection_names: list[str]
+    ) -> dict:
         previous_queries = {}
         # create a dict of collection_name: previous_queries
         for collection_name in collection_names:
@@ -127,7 +142,7 @@ class Query(Tool):
         display_type: str,
         query_type: str,
         schema: dict,
-        threshold: int = 1000,  # number of characters to be considered large enough to chunk
+        threshold: int = 400,  # number of tokens to be considered large enough to chunk
     ) -> bool:
         mapping = schema["mappings"]
         content_field = self._evaluate_content_field(display_type, mapping)
@@ -140,7 +155,9 @@ class Query(Tool):
             == "document"  # for the moment, the only type we chunk is document
         )
 
-    def _fix_collection_names(self, collection_names: list[str], schemas: dict):
+    def _fix_collection_names(
+        self, collection_names: list[str], schemas: dict
+    ) -> list[str]:
         return [
             correct_collection_name
             for correct_collection_name in list(schemas.keys())
@@ -161,9 +178,9 @@ class Query(Tool):
         inputs: dict,
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
-        client_manager: ClientManager | None = None,
+        client_manager: ClientManager,
         **kwargs,
-    ):
+    ) -> AsyncGenerator[Return | TreeUpdate | Error | TrainingUpdate, None]:
         """
         Can perform three main functions:
         1. Query the knowledge base with Weaviate using hybrid, semantic, or keyword search, applying filters and more.
@@ -268,7 +285,6 @@ class Query(Tool):
 
         # Yield results to front end
         yield Response(text=query.message_update)
-        yield Reasoning(reasoning=query.reasoning)
         yield TrainingUpdate(
             module_name="query",
             inputs={
@@ -283,25 +299,25 @@ class Query(Tool):
         if tree_data.settings.USE_FEEDBACK:
             yield FewShotExamples(uuids=example_uuids)
 
-        if self.summariser_in_tree:
-            yield TreeUpdate(
-                from_node="query",
-                to_node="summarise_items",
-                reasoning=query.reasoning,
-                last_in_branch=(
-                    query.impossible
-                    or query.query_output is None
-                    or not any(
-                        self._evaluate_needs_chunking(
-                            query.data_display[collection_name].display_type,
-                            current_query_output.search_type,
-                            schemas[collection_name],
-                        )
-                        for current_query_output in query.query_output.query_outputs
-                        for collection_name in current_query_output.target_collections
-                    )
-                ),
-            )
+        # if self.summariser_in_tree:
+        #     yield TreeUpdate(
+        #         from_node="query",
+        #         to_node="summarise_items",
+        #         reasoning=query.reasoning,
+        #         last_in_branch=(
+        #             query.impossible
+        #             or query.query_output is None
+        #             or not any(
+        #                 self._evaluate_needs_chunking(
+        #                     query.data_display[collection_name].display_type,
+        #                     current_query_output.search_type,
+        #                     schemas[collection_name],
+        #                 )
+        #                 for current_query_output in query.query_output.query_outputs
+        #                 for collection_name in current_query_output.target_collections
+        #             )
+        #         ),
+        #     )
 
         # Return if model deems query impossible
         if (
@@ -329,14 +345,14 @@ class Query(Tool):
                     f"Model judged query to be impossible. Returning to the decision tree..."
                 )
 
-            if self.summariser_in_tree:
-                yield TreeUpdate(
-                    from_node="query",
-                    to_node="summarise_items",
-                    reasoning=query.reasoning,
-                    last_in_branch=True,
-                )
-                return
+            # if self.summariser_in_tree:
+            #     yield TreeUpdate(
+            #         from_node="query",
+            #         to_node="summarise_items",
+            #         reasoning=query.reasoning,
+            #         last_in_branch=True,
+            #     )
+            #     return
 
         # extract and error handle the query output
         # TODO: replace with assertions when they're released
@@ -411,18 +427,18 @@ class Query(Tool):
 
                 if needs_chunking:
 
-                    if not chunking_status_sent:
-                        yield Status("Chunking collections...")
-                        yield TreeUpdate(
-                            from_node="query_executor",
-                            to_node="chunker",
-                            reasoning="Chunking collections because they are too large to vectorise effectively.",
-                            last_in_branch=not any(
-                                query.data_display[collection_name_0].summarise_items
-                                for collection_name_0 in query.data_display
-                            ),
-                        )
-                        chunking_status_sent = True
+                    # if not chunking_status_sent:
+                    #     yield Status("Chunking collections...")
+                    #     yield TreeUpdate(
+                    #         from_node="query_executor",
+                    #         to_node="chunker",
+                    #         reasoning="Chunking collections because they are too large to vectorise effectively.",
+                    #         last_in_branch=not any(
+                    #             query.data_display[collection_name_0].summarise_items
+                    #             for collection_name_0 in query.data_display
+                    #         ),
+                    #     )
+                    #     chunking_status_sent = True
 
                     if self.logger:
                         self.logger.debug(f"Chunking {collection_name}")
@@ -645,7 +661,7 @@ class SimpleQuery(Tool):
         inputs: dict,
         base_lm: dspy.LM,
         complex_lm: dspy.LM,
-        client_manager: ClientManager | None = None,
+        client_manager: ClientManager,
         **kwargs,
     ):
         """
@@ -743,7 +759,6 @@ class SimpleQuery(Tool):
 
         # Yield results to front end
         yield Response(text=query.message_update)
-        yield Reasoning(reasoning=query.reasoning)
         yield TrainingUpdate(
             module_name="simple_query",
             inputs={

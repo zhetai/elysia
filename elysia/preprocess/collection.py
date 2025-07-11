@@ -1,25 +1,27 @@
 import random
 import dspy
 from rich.progress import Progress
-from logging import Logger
+from typing import AsyncGenerator
 
 # Weaviate
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Metrics
+from weaviate.collections import CollectionAsync
 
 from elysia.config import nlp, Settings, load_base_lm
 from elysia.config import settings as environment_settings
 
 from elysia.util import return_types as rt
-from elysia.preprocess.prompt_executors import (
-    CollectionSummariserExecutor,
-    DataMappingExecutor,
-    ReturnTypeExecutor,
+
+from elysia.preprocess.prompt_templates import (
+    CollectionSummariserPrompt,
+    DataMappingPrompt,
+    ReturnTypePrompt,
 )
-from elysia.util.client import ClientManager
 from elysia.util.collection import async_get_collection_data_types
 from elysia.util.async_util import asyncio_run
 from elysia.util.parsing import format_dict_to_serialisable
+from elysia.util.client import ClientManager
 
 
 class ProcessUpdate:
@@ -58,15 +60,20 @@ class CollectionPreprocessor:
         threshold_for_missing_fields: float = 0.6,
         settings: Settings = environment_settings,
     ):
-        self.collection_summariser_executor = CollectionSummariserExecutor()
-        self.data_mapping_executor = DataMappingExecutor()
-        self.return_type_executor = ReturnTypeExecutor()
-
-        self.collection_summariser_executor = dspy.asyncify(
-            self.collection_summariser_executor
+        """
+        Args:
+            threshold_for_missing_fields (float): A value between 0 and 1.
+                If the number of missing fields in the data mapping is greater than this threshold,
+                the data mapping will not be considered as a potential mapping.
+                In essence, when this percentage of fields are missing from the mapping, it is not a good mapping and ignored.
+            settings (Settings): The settings to use for the LLM.
+                Default to the global `settings` object in `elysia.config`.
+        """
+        self.collection_summariser_prompt = dspy.ChainOfThought(
+            CollectionSummariserPrompt
         )
-        self.data_mapping_executor = dspy.asyncify(self.data_mapping_executor)
-        self.return_type_executor = dspy.asyncify(self.return_type_executor)
+        self.return_type_prompt = dspy.ChainOfThought(ReturnTypePrompt)
+        self.data_mapping_prompt = dspy.ChainOfThought(DataMappingPrompt)
 
         self.threshold_for_missing_fields = threshold_for_missing_fields
         self.lm = load_base_lm(settings)
@@ -77,19 +84,40 @@ class CollectionPreprocessor:
         properties: dict,
         subset_objects: list[dict],
         len_collection: int,
-    ):
-        # Summarise the collection
-        summary = await self.collection_summariser_executor(
+    ) -> tuple[str, dict]:
+
+        prediction = await self.collection_summariser_prompt.aforward(
             data_sample=subset_objects,
             data_fields=list(properties.keys()),
-            len_collection=len_collection,
+            sample_size=f"""
+            {len(subset_objects)} out of a total of {len_collection}.
+            You are seeing {round(len(subset_objects)/len_collection*100, 2)}% of the objects.
+            """,
             lm=self.lm,
         )
-        return summary
+
+        summary_concat = ""
+        for sentence in [
+            prediction.overall_summary,
+            prediction.relationships,
+            prediction.structure,
+            prediction.irregularities,
+        ]:
+            if (
+                sentence.endswith(".")
+                or sentence.endswith("?")
+                or sentence.endswith("!")
+                or sentence.endswith("\n")
+            ):
+                summary_concat += f"{sentence} "
+            else:
+                summary_concat += f"{sentence}."
+
+        return summary_concat, prediction.field_descriptions
 
     async def _evaluate_field_statistics(
         self, collection, properties: dict, property: str, full_response=None
-    ):
+    ) -> dict:
         out = {}
         out["type"] = properties[property]
 
@@ -109,6 +137,9 @@ class CollectionPreprocessor:
 
         # Text (grouping + lengths)
         elif properties[property] == "text":
+
+            # TODO: this returns EVERY SINGLE text value in the collection,
+            # need to make this more efficient, is it possible to specify in metadata to not return the text values?
             response = await collection.aggregate.over_all(
                 total_count=True, group_by=GroupByAggregate(prop=property)
             )
@@ -127,9 +158,6 @@ class CollectionPreprocessor:
                         obj.properties[property], str
                     ):
                         lengths.append(len(nlp(obj.properties[property])))
-                # lengths = [
-                #     len(nlp(obj.properties[property])) for obj in full_response.objects
-                # ]
 
                 out["range"] = [min(lengths), max(lengths)]
                 out["mean"] = sum(lengths) / len(lengths)
@@ -180,14 +208,16 @@ class CollectionPreprocessor:
 
     async def _evaluate_return_types(
         self, collection_summary: str, data_fields: dict, example_objects: list[dict]
-    ):
-        return_types = await self.return_type_executor(
+    ) -> list[str]:
+
+        prediction = await self.return_type_prompt.aforward(
             collection_summary=collection_summary,
             data_fields=data_fields,
             example_objects=example_objects,
             possible_return_types=rt.specific_return_types,
             lm=self.lm,
         )
+        return_types = prediction.return_types
 
         if return_types == []:
             return_types = ["epic_generic"]
@@ -201,8 +231,9 @@ class CollectionPreprocessor:
         properties: dict,
         collection_information: dict,
         example_objects: list[dict],
-    ):
-        mapping, mapper, error_message = await self.data_mapping_executor(
+    ) -> dict:
+
+        prediction = await self.data_mapping_prompt.aforward(
             input_data_fields=input_fields,
             output_data_fields=output_fields,
             input_data_types=properties,
@@ -211,9 +242,9 @@ class CollectionPreprocessor:
             lm=self.lm,
         )
 
-        return mapping, error_message
+        return prediction.field_mapping
 
-    async def _evaluate_index_properties(self, collection):
+    async def _evaluate_index_properties(self, collection: CollectionAsync) -> dict:
         schema_info = await collection.config.get()
 
         index_properties = {
@@ -223,7 +254,7 @@ class CollectionPreprocessor:
         }
         return index_properties
 
-    async def _find_named_vectors(self, collection):
+    async def _find_named_vectors(self, collection: CollectionAsync):
         schema_info = await collection.config.get()
         if not schema_info.vector_config:
             return []
@@ -247,7 +278,21 @@ class CollectionPreprocessor:
         max_sample_size: int = 20,
         num_sample_tokens: int = 30000,
         force: bool = False,
-    ):
+    ) -> AsyncGenerator[dict, None]:
+        """
+        Run the preprocessor for a single collection.
+
+        Args:
+            collection_name (str): The name of the collection to preprocess.
+            client_manager (ClientManager): The client manager to use.
+            min_sample_size (int): The minimum number of objects to sample from the collection to evaluate the statistics/summary. Optional, defaults to 10.
+            max_sample_size (int): The maximum number of objects to sample from the collection to evaluate the statistics/summary. Optional, defaults to 20.
+            num_sample_tokens (int): The number of tokens to approximately sample from the collection to evaluate the summary.
+                The preprocessor will aim to use this many tokens in the sample objects to evaluate the summary.
+                But will not exceed the maximum number of objects specified by `max_sample_size`, and always use at least `min_sample_size` objects.
+            force (bool): Whether to force the preprocessor to run even if the collection already exists. Optional, defaults to False.
+        """
+
         async with client_manager.connect_to_async_client() as client:
             if not await client.collections.exists(collection_name):
                 raise Exception(f"Collection {collection_name} does not exist!")
@@ -262,21 +307,23 @@ class CollectionPreprocessor:
                 self.process_update = ProcessUpdate(collection_name)
                 total = len(rt.specific_return_types) + 1 + 1
                 progress = 0.0
-                error = ""
 
                 # Get the collection and its properties
-                # try:
-                collection = client.collections.get(collection_name)
-                properties = await async_get_collection_data_types(
-                    client, collection_name
-                )
-                # except Exception as e:
-                #     yield await self.process_update(progress=0, error=str(e))
-                #     return
+                try:
+                    collection = client.collections.get(collection_name)
+                    properties = await async_get_collection_data_types(
+                        client, collection_name
+                    )
+                except Exception as e:
+                    yield await self.process_update(
+                        progress=0,
+                        error=f"Error getting collection properties: {str(e)}",
+                    )
+                    return
 
                 # get number of items in collection
                 agg = await collection.aggregate.over_all(total_count=True)
-                len_collection = agg.total_count
+                len_collection: int = agg.total_count  # type: ignore
 
                 # Randomly sample sample_size objects for the summary
                 indices = random.sample(
@@ -287,7 +334,7 @@ class CollectionPreprocessor:
                 # Get first object to estimate token count
                 obj = await collection.query.fetch_objects(limit=1, offset=indices[0])
                 token_count_0 = len(nlp(str(obj.objects[0].properties)))
-                subset_objects = [obj.objects[0].properties]
+                subset_objects: list[dict] = [obj.objects[0].properties]  # type: ignore
 
                 # Get number of objects to sample to get close to num_sample_tokens
                 num_sample_objects = max(
@@ -296,7 +343,7 @@ class CollectionPreprocessor:
 
                 for index in indices[1:num_sample_objects]:
                     obj = await collection.query.fetch_objects(limit=1, offset=index)
-                    subset_objects.append(obj.objects[0].properties)
+                    subset_objects.append(obj.objects[0].properties)  # type: ignore
 
                 # Estimate number of tokens
                 self.logger.debug(
@@ -305,16 +352,17 @@ class CollectionPreprocessor:
                 self.logger.debug(f"Number of objects in sample: {len(subset_objects)}")
 
                 # Summarise the collection using LLM
-                # try:
-                summary, field_descriptions = await self._summarise_collection(
-                    properties,
-                    subset_objects,
-                    len_collection,
-                )
-                # except Exception as e:
-                #     error = str(e)
-                #     yield await self.process_update(progress=0, error=error)
-                #     return
+                try:
+                    summary, field_descriptions = await self._summarise_collection(
+                        properties,
+                        subset_objects,
+                        len_collection,
+                    )
+                except Exception as e:
+                    yield await self.process_update(
+                        progress=0, error=f"Error summarising collection: {str(e)}"
+                    )
+                    return
 
                 yield await self.process_update(progress=1 / float(total))
 
@@ -323,8 +371,10 @@ class CollectionPreprocessor:
                 )
 
                 # Get some example objects
-                example_objects = await collection.query.fetch_objects(limit=3)
-                example_objects = [obj.properties for obj in example_objects.objects]
+                example_objects_response = await collection.query.fetch_objects(limit=3)
+                example_objects: list[dict] = [
+                    obj.properties for obj in example_objects_response.objects  # type: ignore
+                ]
 
                 # Initialise the output
                 out = {
@@ -339,28 +389,36 @@ class CollectionPreprocessor:
                     "mappings": {},
                 }
 
-                # try:
-                # Evaluate the summary statistics of each field
-                for property in properties:
-                    out["fields"][property] = await self._evaluate_field_statistics(
-                        collection, properties, property, full_response
+                try:
+                    # Evaluate the summary statistics of each field
+                    for property in properties:
+                        out["fields"][property] = await self._evaluate_field_statistics(
+                            collection, properties, property, full_response
+                        )
+                        if property in field_descriptions:
+                            out["fields"][property]["description"] = field_descriptions[
+                                property
+                            ]
+                        else:
+                            out["fields"][property]["description"] = ""
+                except Exception as e:
+                    yield await self.process_update(
+                        progress=1 / float(total),
+                        error=f"Error evaluating field statistics: {str(e)}",
                     )
-                    if property in field_descriptions:
-                        out["fields"][property]["description"] = field_descriptions[
-                            property
-                        ]
-                    else:
-                        out["fields"][property]["description"] = ""
-                # except Exception as e:
-                #     yield await self.process_update(
-                #         progress=1 / float(total), error=str(e)
-                #     )
-                #     return
+                    return
 
                 # Evaluate the return types
-                return_types = await self._evaluate_return_types(
-                    summary, properties, example_objects
-                )
+                try:
+                    return_types = await self._evaluate_return_types(
+                        summary, properties, example_objects
+                    )
+                except Exception as e:
+                    yield await self.process_update(
+                        progress=2 / float(total),
+                        error=f"Error evaluating return types: {str(e)}",
+                    )
+                    return
 
                 yield await self.process_update(progress=2 / float(total))
                 progress = 2 / float(total)
@@ -372,17 +430,18 @@ class CollectionPreprocessor:
                 for return_type in return_types:
                     fields = rt.types_dict[return_type]
 
-                    mapping, error_message = await self._define_mappings(
-                        input_fields=list(fields.keys()),
-                        output_fields=list(properties.keys()),
-                        properties=properties,
-                        collection_information=out,
-                        example_objects=example_objects,
-                    )
-
-                    if error_message != "":
+                    try:
+                        mapping = await self._define_mappings(
+                            input_fields=list(fields.keys()),
+                            output_fields=list(properties.keys()),
+                            properties=properties,
+                            collection_information=out,
+                            example_objects=example_objects,
+                        )
+                    except Exception as e:
                         yield await self.process_update(
-                            progress=progress, error=error_message
+                            progress=2 / float(total),
+                            error=f"Error defining mappings: {str(e)}",
                         )
                         return
 
@@ -419,13 +478,20 @@ class CollectionPreprocessor:
                         new_return_types = ["epic_generic"]
 
                         # and re-map for generic
-                        mapping, error_message = await self._define_mappings(
-                            input_fields=list(rt.epic_generic.keys()),
-                            output_fields=list(properties.keys()),
-                            properties=properties,
-                            collection_information=out,
-                            example_objects=example_objects,
-                        )
+                        try:
+                            mapping = await self._define_mappings(
+                                input_fields=list(rt.epic_generic.keys()),
+                                output_fields=list(properties.keys()),
+                                properties=properties,
+                                collection_information=out,
+                                example_objects=example_objects,
+                            )
+                        except Exception as e:
+                            yield await self.process_update(
+                                progress=min(progress, 0.99),
+                                error=f"Error defining generic mappings: {str(e)}",
+                            )
+                            return
 
                         # and if this one fails, set to boring_generic
                         num_missing = sum([m == "" for m in list(mapping.values())])
@@ -446,20 +512,35 @@ class CollectionPreprocessor:
                         for return_type in new_return_types
                     }
 
-                # Save to a collection
-                if await client.collections.exists(
-                    f"ELYSIA_METADATA_{collection_name.lower()}__"
-                ):
-                    await client.collections.delete(
+                try:
+                    # Save to a collection
+                    if await client.collections.exists(
+                        f"ELYSIA_METADATA_{collection_name.lower()}__"
+                    ):
+                        await client.collections.delete(
+                            f"ELYSIA_METADATA_{collection_name.lower()}__"
+                        )
+                except Exception as e:
+                    yield await self.process_update(
+                        progress=min(progress, 0.99),
+                        error=f"Error deleting existing metadata collection: {str(e)}",
+                    )
+                    return
+
+                try:
+                    metadata_collection = await client.collections.create(
                         f"ELYSIA_METADATA_{collection_name.lower()}__"
                     )
-
-                metadata_collection = await client.collections.create(
-                    f"ELYSIA_METADATA_{collection_name.lower()}__"
-                )
-                await metadata_collection.data.insert(out)
+                    await metadata_collection.data.insert(out)
+                except Exception as e:
+                    yield await self.process_update(
+                        progress=min(progress, 0.99),
+                        error=f"Error saving metadata to collection: {str(e)}",
+                    )
+                    return
 
                 yield await self.process_update(progress=1)
+
             else:
                 self.logger.info(
                     f"Preprocessed collection for {collection_name} already exists!"
@@ -475,6 +556,19 @@ async def preprocess_async(
     settings: Settings = environment_settings,
     force: bool = False,
 ):
+    """
+    Asynchronous version of `preprocess`.
+
+    Args:
+        collection_names (list[str]): The names of the collections to preprocess.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created using the environment variables/configured settings.
+        min_sample_size (int): The minimum number of objects to sample from the collection to evaluate the statistics/summary. Optional, defaults to 10.
+        max_sample_size (int): The maximum number of objects to sample from the collection to evaluate the statistics/summary. Optional, defaults to 20.
+        num_sample_tokens (int): The maximum number of tokens in the sample objects used to evaluate the summary. Optional, defaults to 30000.
+        settings (Settings): The settings to use. Optional, defaults to the environment variables/configured settings.
+        force (bool): Whether to force the preprocessor to run even if the collection already exists. Optional, defaults to False.
+    """
     if client_manager is None:
         client_manager = ClientManager(
             wcd_url=settings.WCD_URL, wcd_api_key=settings.WCD_API_KEY
@@ -637,7 +731,7 @@ async def edit_preprocessed_collection(
     named_vectors: list[dict] | None = None,
     summary: str | None = None,
     mappings: dict[str, dict[str, str]] | None = None,
-    fields: list[dict] | None = None,
+    fields: list[dict[str, str] | None] | None = None,
 ):
     """
     Edit a preprocessed collection.
@@ -694,7 +788,7 @@ async def edit_preprocessed_collection(
             metadata_collection = client.collections.get(metadata_name)
             metadata = await metadata_collection.query.fetch_objects(limit=1)
             uuid = metadata.objects[0].uuid
-            properties = metadata.objects[0].properties
+            properties: dict = metadata.objects[0].properties  # type: ignore
 
         # update the named vectors
         if named_vectors is not None:
@@ -721,9 +815,10 @@ async def edit_preprocessed_collection(
         # update the fields
         if fields is not None:
             for field in fields:
-                properties["fields"][field["name"]]["description"] = field[
-                    "description"
-                ]
+                if field is not None:
+                    properties["fields"][field["name"]]["description"] = field[
+                        "description"
+                    ]
 
         format_dict_to_serialisable(properties)
 

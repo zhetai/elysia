@@ -113,7 +113,7 @@ async def remove_tool_from_tree(
         # get tree and remove tool
         tree: Tree = await user_manager.get_tree(user_id, conversation_id)
         tree.remove_tool(
-            tool_class.get_metadata()["name"],
+            tool_class.get_metadata()["name"],  # type: ignore
             data.branch_id,
             from_tool_ids=data.from_tool_ids,
         )

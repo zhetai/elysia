@@ -36,9 +36,15 @@ class CitedSummarizer(Tool):
             end=True,
         )
 
-    async def is_tool_available(self, **kwargs):
-        # when the environment is non empty
-        return not kwargs.get("tree_data").environment.is_empty()
+    async def is_tool_available(
+        self,
+        tree_data: TreeData,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        client_manager: ClientManager | None = None,
+        **kwargs,
+    ):
+        return not tree_data.environment.is_empty()
 
     async def __call__(
         self,
@@ -87,9 +93,16 @@ class Summarizer(Tool):
             end=True,
         )
 
-    async def is_tool_available(self, **kwargs):
+    async def is_tool_available(
+        self,
+        tree_data: TreeData,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        client_manager: ClientManager | None = None,
+        **kwargs,
+    ):
         # when the environment is non empty
-        return not kwargs.get("tree_data").environment.is_empty()
+        return not tree_data.environment.is_empty()
 
     async def __call__(
         self,

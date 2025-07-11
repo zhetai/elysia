@@ -1,23 +1,25 @@
 from logging import Logger
 import os
-from typing import Any, Optional
+from typing import Literal, Optional
 from uuid import uuid4
 
 from elysia.config import Settings
 from elysia.util.client import ClientManager
+
+BranchInitType = Literal["default", "one_branch", "multi_branch", "empty"]
 
 
 class Config:
 
     def __init__(
         self,
-        id: Optional[str] = None,
-        name: Optional[str] = None,
-        settings: Optional[Settings] = None,
-        style: Optional[str] = None,
-        agent_description: Optional[str] = None,
-        end_goal: Optional[str] = None,
-        branch_initialisation: Optional[str] = None,
+        id: str | None = None,
+        name: str | None = None,
+        settings: Settings | None = None,
+        style: str | None = None,
+        agent_description: str | None = None,
+        end_goal: str | None = None,
+        branch_initialisation: BranchInitType = "one_branch",
     ):
 
         if id is None:
@@ -53,10 +55,7 @@ class Config:
         else:
             self.end_goal = end_goal
 
-        if branch_initialisation is None:
-            self.branch_initialisation = "one_branch"
-        else:
-            self.branch_initialisation = branch_initialisation
+        self.branch_initialisation: BranchInitType = branch_initialisation
 
     def to_json(self):
         return {
@@ -105,8 +104,8 @@ class FrontendConfig:
             "client_timeout": client_timeout,
             "tree_timeout": tree_timeout,
         }
-        self.save_location_wcd_url: str | None = os.getenv("WCD_URL", None)
-        self.save_location_wcd_api_key: str | None = os.getenv("WCD_API_KEY", None)
+        self.save_location_wcd_url: str = os.getenv("WCD_URL", "")
+        self.save_location_wcd_api_key: str = os.getenv("WCD_API_KEY", "")
         self.save_location_client_manager: ClientManager = ClientManager(
             wcd_url=self.save_location_wcd_url,
             wcd_api_key=self.save_location_wcd_api_key,

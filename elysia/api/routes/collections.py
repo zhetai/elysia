@@ -32,27 +32,61 @@ router = APIRouter()
 
 @router.get("/mapping_types")
 async def mapping_types():
+    """
+    Retrieve mapping types from hardcoded values.
+
+    Returns:
+        (JSONResponse): A JSON response containing the mapping types.
+    """
+    logger.debug(f"/mapping_types API request received")
+
     headers = {"Cache-Control": "no-cache"}
-    return JSONResponse(
-        content={
-            "mapping_types": [
-                {
-                    "name": return_type,
-                    "description": specific_return_types[return_type],
-                    "fields": types_dict[return_type],
-                }
-                for return_type in specific_return_types
-            ]
-        },
-        status_code=200,
-        headers=headers,
-    )
+    try:
+        return JSONResponse(
+            content={
+                "mapping_types": [
+                    {
+                        "name": return_type,
+                        "description": specific_return_types[return_type],
+                        "fields": types_dict[return_type],
+                    }
+                    for return_type in specific_return_types
+                ],
+                "error": "",
+            },
+            status_code=200,
+            headers=headers,
+        )
+    except Exception as e:
+        logger.exception(f"Error in /mapping_types API")
+        return JSONResponse(
+            content={"mapping_types": [], "error": str(e)},
+            status_code=500,
+            headers=headers,
+        )
 
 
 @router.get("/{user_id}/list")
 async def collections_list(
     user_id: str, user_manager: UserManager = Depends(get_user_manager)
 ):
+    """
+    Retrieve a list of collections from the currently connected Weaviate cluster for the user.
+
+    Args:
+        user_id (str): The ID of the user to retrieve collections for.
+        user_manager (UserManager): The user manager.
+
+    Returns:
+        (JSONResponse): A JSON response containing:
+            - collections (list[dict]): A list of collections with their:
+                - name (str): The name of the collection.
+                - total (int): The total number of objects in the collection.
+                - vectorizer (dict): The vectoriser configuration for the collection.
+                - processed (bool): Whether the collection has been processed.
+                - error (bool): Whether there is an error retrieving _this specific_ collection.
+            - error (str): An overall error message if there is an error in the main function, otherwise an empty string.
+    """
     logger.debug(f"/collections API request received")
 
     headers = {"Cache-Control": "no-cache"}
@@ -196,6 +230,34 @@ async def view_paginated_collection(
     data: ViewPaginatedCollectionData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
+    """
+    Find a list of objects in a collection, with pagination and filtering.
+
+    Args:
+        user_id (str): The ID of the user whose collections to view.
+        collection_name (str): The name of the collection to view.
+        data (ViewPaginatedCollectionData): The data for the request, containing:
+            - page_size (int): The number of objects to return per page.
+            - page_number (int): The page number to return.
+            - query (str): The query to search for. If empty, all objects will be returned.
+                If non-empty, BM25 will be used to search for objects.
+            - sort_on (str): The property to sort on.
+            - ascending (bool): Whether to sort in ascending or descending order.
+            - filter_config (dict): The filter configuration, containing:
+                - type (str): The type of filter to apply, one of 'all' or 'any'.
+                - filters (list[dict]): The filters to apply, containing:
+                    - field (str): The field to filter on.
+                    - operator (str): The operator to apply,
+                        one of 'equal', 'not_equal', 'greater_than', 'less_than', 'greater_than_or_equal',
+                        'less_than_or_equal', 'contains', 'not_contains', 'is_empty', 'is_not_empty'.
+                    - value (str): The value to filter on.
+        user_manager (UserManager): The user manager.
+
+    Returns:
+        (JSONResponse): A JSON response containing:
+            - properties (list[dict]): The properties of the collection.
+            - items (list[dict]): The items in the collection.
+    """
 
     logger.debug(f"/view_paginated_collection API request received")
     logger.debug(f"User ID: {user_id}")
@@ -245,6 +307,21 @@ async def get_object(
     uuid: str,
     user_manager: UserManager = Depends(get_user_manager),
 ):
+    """
+    Get a single object from a collection by its UUID.
+
+    Args:
+        user_id (str): The ID of the user whose object to retrieve.
+        collection_name (str): The name of the collection to retrieve the object from.
+        uuid (str): The UUID of the object to retrieve.
+        user_manager (UserManager): The user manager.
+
+    Returns:
+        (JSONResponse): A JSON response containing:
+            - properties (list[dict]): The data types of the object.
+            - items (list[dict]): The object itself (one element list).
+            - error (str): An error message if there is an error, otherwise an empty string.
+    """
     logger.debug(f"/get_object API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Collection name: {collection_name}")
@@ -299,6 +376,73 @@ async def collection_metadata(
     collection_name: str,
     user_manager: UserManager = Depends(get_user_manager),
 ):
+    """
+    Get the preprocessed metadata for a collection.
+    This retrieves the output of the `.preprocess` function in Elysia.
+
+    Args:
+        user_id (str): The ID of the user whose metadata to retrieve.
+        collection_name (str): The name of the collection to retrieve the metadata for.
+        user_manager (UserManager): The user manager.
+
+    Returns:
+        (JSONResponse): A JSON response containing:
+            - metadata (dict): The metadata for the collection.
+            - error (str): An error message if there is an error, otherwise an empty string.
+
+    Example metadata:
+    ```json
+    {
+        "metadata": dict = {
+
+        # summary statistics of each field in the collection
+            "fields": dict = {
+                field_name_1: dict = {
+                "description": str,
+                "range": list[float],
+                "type": str,
+                "groups": list[str],
+                "mean": float
+            },
+            field_name_2: dict,
+            ...
+        },
+
+        # mapping_1, mapping_2 etc refer to frontend-specific types that the AI has deemed appropriate for this data
+        # then the dict is to map the frontend fields to the data fields
+        "mappings": dict = {
+            mapping_1: dict,
+            mapping_2: dict,
+            ...,
+        },
+
+        # number of items in collection (float but just for consistency)
+        "length": float,
+
+        # AI generated summary of the dataset
+        "summary": str,
+
+        # name of collection
+        "name": str,
+
+        # what named vectors are available (if any)
+        "named_vectors": dict = {
+            "enabled": bool,
+            "source_properties": list,
+            "description": str # defaults to empty
+        },
+
+        # some config settings relevant for queries
+        "index_properties": {
+        "isNullIndexed": bool,
+        "isLengthIndexed": bool,
+        "isTimestampIndexed": bool,
+        }
+        }
+        "error": ""
+    }
+    ```
+    """
     logger.debug(f"/collection_metadata API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Collection name: {collection_name}")
@@ -355,6 +499,26 @@ async def update_metadata(
     data: UpdateCollectionMetadataData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
+    """
+    Update the preprocessed metadata for a collection.
+    This updates the output of the `.preprocess` function in Elysia.
+    Any fields not provided will not be updated.
+
+    Args:
+        user_id (str): The ID of the user whose metadata to update.
+        collection_name (str): The name of the collection to update the metadata for.
+        data (UpdateCollectionMetadataData): The data for the request, containing:
+            - named_vectors (list[dict]): The named vectors to update.
+            - summary (str): The summary to update.
+            - mappings (dict): The mappings to update.
+            - fields (list[dict]): The fields to update.
+        user_manager (UserManager): The user manager.
+
+    Returns:
+        (JSONResponse): A JSON response containing:
+            - metadata (dict): The updated metadata for the collection (same as the "metadata" output of `collection_metadata`).
+            - error (str): An error message if there is an error, otherwise an empty string.
+    """
     logger.debug(f"/update_metadata API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Collection name: {collection_name}")
@@ -403,7 +567,18 @@ async def delete_metadata(
     user_id: str,
     collection_name: str,
     user_manager: UserManager = Depends(get_user_manager),
-):
+) -> JSONResponse:
+    """
+    Delete the metadata for a collection.
+
+    Args:
+        user_id (str): The ID of the user.
+        collection_name (str): The name of the collection.
+        user_manager (UserManager): The user manager.
+
+    Returns:
+        (JSONResponse): A JSON response containing an error message if there is an error, otherwise an empty string.
+    """
     logger.debug(f"/delete_metadata API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Collection name: {collection_name}")

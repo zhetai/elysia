@@ -4,14 +4,14 @@ from elysia.tools.visualisation.objects import (
     ScatterOrLineChart,
 )
 from matplotlib import pyplot as plt
-from typing import Literal
+from matplotlib.figure import Figure
+from datetime import datetime
 import numpy as np
 
 
 def convert_chart_types_to_matplotlib(
     charts: list[BarChart | HistogramChart | ScatterOrLineChart],
-    chart_type: Literal["bar", "histogram", "scatter", "line"],
-) -> plt.Figure:
+) -> Figure:
     plt.style.use("seaborn-v0_8-whitegrid")
     n_charts = len(charts)
     n_cols = min(2, n_charts)  # Max 2 columns
@@ -59,8 +59,12 @@ def _create_scatter_or_line(chart: ScatterOrLineChart, ax, colours):
 
         colour = colours[i % len(colours)]
 
-        if chart.data.normalize_y_axis:
-            y_data_points = [dp / max(y_data_points) for dp in y_data_points]
+        if (
+            chart.data.normalize_y_axis
+            and not any(isinstance(dp, str) for dp in y_data_points)
+            and not any(isinstance(dp, datetime) for dp in y_data_points)
+        ):
+            y_data_points = [dp / max(y_data_points) for dp in y_data_points]  # type: ignore
 
         if y_data_kind == "scatter":
             ax.scatter(x_data_points, y_data_points, label=y_data.label, color=colour)

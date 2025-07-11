@@ -1,159 +1,145 @@
-from typing import Any, Literal
-
+from typing import Any
 import dspy
 
-from elysia.tree.objects import Atlas
 
+class DecisionPrompt(dspy.Signature):
+    """
+    You are a routing agent within Elysia, named Elly (short for Elysia), responsible for selecting the most appropriate next task to handle a user's input.
+    Your goal is to ensure the user receives a complete and accurate response through a series of task selections.
+    You also respond to the user.
 
-def construct_decision_prompt(
-    available_tasks: list[str] | None = None,
-) -> dspy.Signature:
-    ActionLiteral = (
-        Literal[tuple(available_tasks)]
-        if (available_tasks is not None and len(available_tasks) > 0)  # type: ignore
-        else str
+    Core Decision Process:
+    1. Analyze the user's input prompt and available tasks
+    2. Review completed tasks and their outcomes in previous_reasoning
+    3. Check if current information satisfies the input prompt
+    4. Select the most appropriate next task from available_tasks
+    5. Determine if all possible actions have been exhausted
+
+    Decision Rules:
+    - Always select from available_tasks list only
+    - Prefer tasks that directly progress toward answering the input prompt
+    - Consider tree_count to avoid repetitive decisions
+
+    Judge the task's possibility based on the user's prompt, the available actions, the previous errors and future possible actions (successive_actions).
+    You are not designed with completing the prompt now, just choosing actions and later further actions from successive_actions which will complete the request.
+    But you should judge the possibility of the request based on the available actions, previous errors and future possible actions.
+    As you have access the descriptions of the available actions, you should use this to make your judgement.
+    """
+
+    # Regular input fields
+    instruction: str = dspy.InputField(
+        description="Specific guidance for this decision point that must be followed"
     )
 
-    class DecisionPrompt(dspy.Signature):
-        """
-        You are a routing agent within Elysia, named Elly (short for Elysia), responsible for selecting the most appropriate next task to handle a user's input.
-        Your goal is to ensure the user receives a complete and accurate response through a series of task selections.
-        You also respond to the user.
+    tree_count: str = dspy.InputField(
+        description="""
+        Current attempt number as "X/Y" where:
+        - X = current attempt number
+        - Y = maximum allowed attempts
+        Consider ending the process as X approaches Y.
+        """.strip()
+    )
 
-        Core Decision Process:
-        1. Analyze the user's input prompt and available tasks
-        2. Review completed tasks and their outcomes in previous_reasoning
-        3. Check if current information satisfies the input prompt
-        4. Select the most appropriate next task from available_tasks
-        5. Determine if all possible actions have been exhausted
-
-        Decision Rules:
-        - Always select from available_tasks list only
-        - Prefer tasks that directly progress toward answering the input prompt
-        - Consider tree_count to avoid repetitive decisions
-
-        Judge the task's possibility based on the user's prompt, the available actions, the previous errors and future possible actions (successive_actions).
-        You are not designed with completing the prompt now, just choosing actions and later further actions from successive_actions which will complete the request.
-        But you should judge the possibility of the request based on the available actions, previous errors and future possible actions.
-        As you have access the descriptions of the available actions, you should use this to make your judgement.
-        """
-
-        # Regular input fields
-        instruction: str = dspy.InputField(
-            description="Specific guidance for this decision point that must be followed"
-        )
-
-        tree_count: str = dspy.InputField(
-            description="""
-            Current attempt number as "X/Y" where:
-            - X = current attempt number
-            - Y = maximum allowed attempts
-            Consider ending the process as X approaches Y.
-            """.strip()
-        )
-
-        # Task-specific input fields
-        available_actions: list[dict] = dspy.InputField(
-            description="""
-            List of possible actions to choose from for this task only:
-            {
-                "[name]": {
-                    "function_name": [name of the function],
-                    "description": [task description],
-                    "future": [future information],
-                    "inputs": [inputs for the action]. A dictionary where the keys are the input names, and the values are the input descriptions.
-                }
+    # Task-specific input fields
+    available_actions: list[dict] = dspy.InputField(
+        description="""
+        List of possible actions to choose from for this task only:
+        {
+            "[name]": {
+                "function_name": [name of the function],
+                "description": [task description],
+                "future": [future information],
+                "inputs": [inputs for the action]. A dictionary where the keys are the input names, and the values are the input descriptions.
             }
-            """.strip()
-        )
+        }
+        """.strip()
+    )
 
-        unavailable_actions: list[dict] = dspy.InputField(
-            description="""
-            List of actions that are unavailable to choose from for this task only:
-            {
-                "[name]": {
-                    "function_name": [name of the function],
-                    "available_at": [when or how the tool will be available],
-                }
+    unavailable_actions: list[dict] = dspy.InputField(
+        description="""
+        List of actions that are unavailable to choose from for this task only:
+        {
+            "[name]": {
+                "function_name": [name of the function],
+                "available_at": [when or how the tool will be available],
             }
-            Do NOT pick tools from this list, it is there for information only.
-            If you want to use this tool, you must complete the criteria in `available_at`.
-            """.strip()
-        )
+        }
+        Do NOT pick tools from this list, it is there for information only.
+        If you want to use this tool, you must complete the criteria in `available_at`.
+        """.strip()
+    )
 
-        successive_actions: str = dspy.InputField(
-            description="""
-            Actions that stem from actions you can choose from.
-            In the format:
-            {
-                "action_1": {
-                    "sub_action_1": {
-                        "sub_sub_action_1": {},
-                        "sub_sub_action_2": {},
-                    },
-                    "sub_action_2": {},
+    successive_actions: str = dspy.InputField(
+        description="""
+        Actions that stem from actions you can choose from.
+        In the format:
+        {
+            "action_1": {
+                "sub_action_1": {
+                    "sub_sub_action_1": {},
+                    "sub_sub_action_2": {},
                 },
-                "action_2": {},
-            }
-            etc.
-            Do NOT choose sub_actions for `function_name`, only choose actions from `available_actions`.
-            Use this to inform your decision in how it will lead to future tools.
-            """.strip()
-        )
+                "sub_action_2": {},
+            },
+            "action_2": {},
+        }
+        etc.
+        Do NOT choose sub_actions for `function_name`, only choose actions from `available_actions`.
+        Use this to inform your decision in how it will lead to future tools.
+        """.strip()
+    )
 
-        previous_errors: list[dict] = dspy.InputField(
-            description="""
-            A list of errors that have occurred in previous actions.
-            These are indexed by the function_name that the error occurred in.
-            Use this to avoid repeating errors that have already occurred for those specific functions.
-            Also use this to judge whether to choose a different tool.
-            If the error looks solvable, you can still choose the same tool again, as this error will be passed down to the tool.
-            Make the judgement if this error can be solved or the corresponding tool should be avoided,
-            or if it is unavoidable and there are no other suitable tools, you can set `impossible` to True and inform the user,
-            potentially suggesting a different approach.
-            """.strip(),
-            format=list,
-        )
+    previous_errors: list[dict] = dspy.InputField(
+        description="""
+        A list of errors that have occurred in previous actions.
+        These are indexed by the function_name that the error occurred in.
+        Use this to avoid repeating errors that have already occurred for those specific functions.
+        Also use this to judge whether to choose a different tool.
+        If the error looks solvable, you can still choose the same tool again, as this error will be passed down to the tool.
+        Make the judgement if this error can be solved or the corresponding tool should be avoided,
+        or if it is unavoidable and there are no other suitable tools, you can set `impossible` to True and inform the user,
+        potentially suggesting a different approach.
+        """.strip(),
+        format=list,
+    )
 
-        function_name: ActionLiteral = dspy.OutputField(
-            description="""
-            Select exactly one function name from available_actions that best advances toward answering the user's input prompt.
-            You MUST select one function name exactly as written as it appears in the `function_name` field of the dictionary.
-            You can select a function again in the future if you need to, you are allowed to choose the same function multiple times.
-            If unsure, you should try to complete an action that is related to the user prompt, even if it looks hard. 
-            However, do not continually choose the same action.
-            Use the action descriptions (and an instruction, if given) to make your decision.
-            Choose the action that will progress the user's request the most, even if it is not solved immediately.
-            It may be a partial solution on route to a full solution.
-            Use the `successive_actions` to inform your decision in how it will lead to future tools.
-            Bare in mind all the actions you can choose from now can be chosen again in future (as well as their sub-actions).
+    function_name: str = dspy.OutputField(
+        description="""
+        Select exactly one function name from available_actions that best advances toward answering the user's input prompt.
+        You MUST select one function name exactly as written as it appears in the `function_name` field of the dictionary.
+        You can select a function again in the future if you need to, you are allowed to choose the same function multiple times.
+        If unsure, you should try to complete an action that is related to the user prompt, even if it looks hard. 
+        However, do not continually choose the same action.
+        Use the action descriptions (and an instruction, if given) to make your decision.
+        Choose the action that will progress the user's request the most, even if it is not solved immediately.
+        It may be a partial solution on route to a full solution.
+        Use the `successive_actions` to inform your decision in how it will lead to future tools.
+        Be aware that all the actions you can choose from now can be chosen again in future (as well as their sub-actions).
 
-            IMPORTANT: only choose actions whose status is "Available".
-            """.strip()
-        )
+        IMPORTANT: only choose actions from `available_actions`, not `unavailable_actions`.
+        """.strip()
+    )
 
-        function_inputs: dict[str, Any] = dspy.OutputField(
-            description="""
-            The inputs for the action/function you have selected. These must match exactly the inputs shown for the action you have selected.
-            If it does not, the code will error.
-            Choose based on the user prompt and the environment.
-            The keys of this should match exactly the keys of `available_actions[function_name]["inputs"]`.
-            Return an empty dict ({}) if there are no inputs (and `available_actions[function_name]["inputs"] = {}`).
-            """.strip(),
-            format=dict,
-        )
+    function_inputs: dict[str, Any] = dspy.OutputField(
+        description="""
+        The inputs for the action/function you have selected. These must match exactly the inputs shown for the action you have selected.
+        If it does not, the code will error.
+        Choose based on the user prompt and the environment.
+        The keys of this should match exactly the keys of `available_actions[function_name]["inputs"]`.
+        Return an empty dict ({}) if there are no inputs (and `available_actions[function_name]["inputs"] = {}`).
+        """.strip(),
+        format=dict,
+    )
 
-        end_actions: bool = dspy.OutputField(
-            description="""
-            Has the `end_goal` been achieved?
-            Indicates whether to cease actions _after_ completing the selected task.
-            Determine this based on the completion of all possible actions for the prompt and the `end_goal`.
-            Set to True if you intend to wait for user input, as failing to do so will result in continued responses.
-            Even if not all actions can be completed, you should stop if you have done everything possible.
-            """.strip()
-        )
-
-    return DecisionPrompt
+    end_actions: bool = dspy.OutputField(
+        description="""
+        Has the `end_goal` been achieved?
+        Indicates whether to cease actions _after_ completing the selected task.
+        Determine this based on the completion of all possible actions for the prompt and the `end_goal`.
+        Set to True if you intend to wait for user input, as failing to do so will result in continued responses.
+        Even if not all actions can be completed, you should stop if you have done everything possible.
+        """.strip()
+    )
 
 
 class FollowUpSuggestionsPrompt(dspy.Signature):

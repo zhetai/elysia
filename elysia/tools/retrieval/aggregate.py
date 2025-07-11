@@ -7,7 +7,7 @@ from rich.panel import Panel
 import dspy
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.objects import Reasoning, Response, Status, Tool, Warning, Error
+from elysia.objects import Response, Status, Tool, Warning, Error
 from elysia.tools.retrieval.objects import Aggregation
 from elysia.tools.retrieval.prompt_templates import AggregationPrompt
 from elysia.tools.retrieval.util import execute_weaviate_aggregation
@@ -47,6 +47,19 @@ class Aggregate(Tool):
             },
             end=False,
         )
+
+    async def is_tool_available(
+        self,
+        tree_data: TreeData,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        client_manager: ClientManager,
+    ) -> bool:
+        """
+        Only available when there is a Weaviate connection.
+        If this tool is not available, inform the user that they need to set the WCD_URL and WCD_API_KEY in the settings.
+        """
+        return client_manager.is_client
 
     def _find_previous_aggregations(
         self, environment: dict, collection_names: list[str]
@@ -156,7 +169,6 @@ class Aggregate(Tool):
 
         # Yield results to front end
         yield Response(text=aggregation.message_update)
-        yield Reasoning(reasoning=aggregation.reasoning)
         yield TrainingUpdate(
             module_name="aggregate",
             inputs={
@@ -189,12 +201,12 @@ class Aggregate(Tool):
                 }
                 yield Aggregation([], metadata)
 
-            yield TreeUpdate(
-                from_node="aggregate",
-                to_node="aggregate_executor",
-                reasoning=aggregation.reasoning,
-                last_in_branch=True,
-            )
+            # yield TreeUpdate(
+            #     from_node="aggregate",
+            #     to_node="aggregate_executor",
+            #     reasoning=aggregation.reasoning,
+            #     last_in_branch=True,
+            # )
             return
 
         # Go through each response

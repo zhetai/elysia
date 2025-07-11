@@ -1,7 +1,9 @@
 import datetime
 
 
-def create_reference(date: datetime.datetime = datetime.datetime.now()) -> str:
+def create_reference(
+    date: datetime.datetime = datetime.datetime.now(),
+) -> dict[str, str]:
     return {
         "datetime": date.isoformat(),
         "day_of_week": date.strftime("%A"),

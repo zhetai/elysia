@@ -26,7 +26,7 @@ router = APIRouter()
 
 
 async def process_collection(
-    data: ProcessCollectionData, websocket: WebSocket, user_manager: UserManager
+    data: dict, websocket: WebSocket, user_manager: UserManager
 ):
     logger.debug(f"/process_collection API request received")
     logger.debug(f"User ID: {data['user_id']}")

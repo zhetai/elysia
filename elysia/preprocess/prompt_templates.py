@@ -93,11 +93,6 @@ class ReturnTypePrompt(dspy.Signature):
     )
 
 
-class FieldMapping(BaseModel):
-    input_field_name: str
-    output_field_name: str
-
-
 class DataMappingPrompt(dspy.Signature):
     """
     You are an expert at mapping data fields to existing field names.

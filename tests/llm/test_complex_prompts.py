@@ -9,7 +9,7 @@ from copy import deepcopy
 from deepeval import evaluate, metrics
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams, ToolCall
 
-from elysia import Tree, Settings, ClientManager
+from elysia import Tree, Settings
 from elysia import configure
 
 configure(logging_level="DEBUG")
@@ -166,10 +166,3 @@ class TestComplexPrompts:
         res = evaluate(test_cases=[test_case], metrics=[metric])
         for test_case in res.test_results:
             assert test_case.success
-
-
-if __name__ == "__main__":
-    test = TestComplexPrompts()
-    import asyncio
-
-    asyncio.run(test.test_aggregation_and_query())

@@ -75,7 +75,7 @@ async def process(data: dict, websocket: WebSocket, user_manager: UserManager):
         if "route" in data:
             route = data["route"]
         else:
-            route = None
+            route = ""
 
         # send ner response in advance
         await websocket.send_json(
