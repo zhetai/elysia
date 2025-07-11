@@ -31,7 +31,7 @@ class Visualise(Tool):
             end=True,
             inputs={
                 "chart_type": {
-                    "type": "string",
+                    "type": str,
                     "description": (
                         "The type of chart to create. "
                         "Must be one of: `bar`, `histogram`, `scatter_or_line`."

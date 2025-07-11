@@ -1,7 +1,9 @@
 
-# Tool Construction Overview
+# Advanced Tool Construction Overview
 
-To create a custom Elysia tool, you just need to make a Python class that inherits `Tool` and add it to the decision tree via the `.add_tool` of the `Tree` object.
+This page details how to create more custom and flexible tools in Elysia, by inheriting the `Tool` class and adding it to the decision tree via the `.add_tool` of the `Tree` object.
+
+To see an easier method of creating tools, see the [Creating a Tool](../creating_tools.md) guide.
 
 This page will detail all relevant information for tool construction, to get started with an example, see
 - [A basic text response example](#example-text-response-basic)

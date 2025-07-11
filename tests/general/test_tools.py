@@ -7,7 +7,7 @@ from elysia.objects import Result
 from copy import deepcopy
 from elysia import Tool
 from elysia.tree.objects import TreeData
-from elysia.objects import Response, elysia_tool
+from elysia.objects import Response, tool
 from elysia.config import Settings, configure
 from elysia.tree.tree import Tree
 from elysia.tools.text.text import TextResponse

@@ -127,6 +127,7 @@ class DecisionPrompt(dspy.Signature):
         Choose based on the user prompt and the environment.
         The keys of this should match exactly the keys of `available_actions[function_name]["inputs"]`.
         Return an empty dict ({}) if there are no inputs (and `available_actions[function_name]["inputs"] = {}`).
+        Follow the schema of the inputs for the action/function you have selected.
         """.strip(),
         format=dict,
     )

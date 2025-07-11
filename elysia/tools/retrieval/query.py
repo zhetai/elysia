@@ -1,6 +1,6 @@
 from typing import AsyncGenerator
 from logging import Logger
-
+from pydantic import BaseModel, Field
 
 from rich import print
 from rich.panel import Panel
@@ -62,7 +62,7 @@ class Query(Tool):
             inputs={
                 "collection_names": {
                     "description": "the names of the collections that are most relevant to the query. If you are unsure, give all collections.",
-                    "type": "list",
+                    "type": list[str],
                     "default": [],
                 },
             },

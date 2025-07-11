@@ -172,7 +172,7 @@ class FakeTextResponse(Tool):
             status="Writing response...",
             inputs={
                 "text": {
-                    "type": "string",
+                    "type": str,
                     "description": (
                         "The text to display to the user. Speak directly to them, do not say 'the user' or similar. "
                         "If you have achieved the goal, give a satisfying answer to their original prompt (user_prompt). "

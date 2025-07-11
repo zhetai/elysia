@@ -1,7 +1,10 @@
 import uuid
 import inspect
 import ast
-from typing import Any, AsyncGenerator, Callable
+from typing import Any, AsyncGenerator, Callable, TYPE_CHECKING, overload
+
+if TYPE_CHECKING:
+    from elysia.tree.tree import Tree
 
 
 class ToolMeta(type):
@@ -229,146 +232,201 @@ class Tool(metaclass=ToolMeta):
         yield None
 
 
-def elysia_tool(
-    tool: Callable,
+@overload
+def tool(
+    function: Callable,
+    *,
     status: str | None = None,
     end: bool = False,
-) -> Tool:
+    tree: "Tree | None" = None,
+    branch_id: str | None = None,
+) -> Tool: ...
+
+
+@overload
+def tool(
+    function: None = None,
+    *,
+    status: str | None = None,
+    end: bool = False,
+    tree: "Tree | None" = None,
+    branch_id: str | None = None,
+) -> Callable[[Callable], Tool]: ...
+
+
+def tool(
+    function: Callable | None = None,
+    *,
+    status: str | None = None,
+    end: bool = False,
+    tree: "Tree | None" = None,
+    branch_id: str | None = None,
+) -> Callable[[Callable], Tool] | Tool:
     """
-    Create a tool from a function.
+    Create a tool from a python function.
     Use this decorator to create a tool from a function.
     The function must be an async function or async generator function.
 
     Args:
-        tool (Callable): The function to create a tool from.
+        function (Callable): The function to create a tool from.
         status (str | None): The status message to display while the tool is running.
             Optional, defaults to None, which will use the default status message "Running {tool_name}...".
         end (bool): Whether the tool can be at the end of the decision tree.
             Set to True when this tool is allowed to end the conversation.
             Optional, defaults to False.
+        tree (Tree | None): The tree to add the tool to.
+            Optional, defaults to None, which will not add the tool to the tree.
+        branch_id (str | None): The branch of the tree to add the tool to.
+            Optional, defaults to None, which will add the tool to the root branch.
 
     Returns:
         (Tool): The tool object which can be added to the tree (via `tree.add_tool(...)`).
     """
 
-    async_function = inspect.iscoroutinefunction(tool)
-    async_generator_function = inspect.isasyncgenfunction(tool)
+    def decorator(function: Callable) -> Tool:
+        async_function = inspect.iscoroutinefunction(function)
+        async_generator_function = inspect.isasyncgenfunction(function)
 
-    if not async_function and not async_generator_function:
-        raise TypeError(
-            "The provided function must be an async function or async generator function."
-        )
+        if not async_function and not async_generator_function:
+            raise TypeError(
+                "The provided function must be an async function or async generator function."
+            )
 
-    if "inputs" in list(tool.__annotations__.keys()):
-        raise TypeError(
-            "The `inputs` argument is reserved in tool functions, please choose another name."
-        )
+        if "inputs" in list(function.__annotations__.keys()):
+            raise TypeError(
+                "The `inputs` argument is reserved in tool functions, please choose another name."
+            )
 
-    sig = inspect.signature(tool)
-    defaults_mapping = {
-        k: v.default
-        for k, v in sig.parameters.items()
-        if v.default is not inspect.Parameter.empty
-    }
+        sig = inspect.signature(function)
+        defaults_mapping = {
+            k: v.default
+            for k, v in sig.parameters.items()
+            if v.default is not inspect.Parameter.empty
+        }
 
-    def list_to_list_of_dicts(result: list) -> list[dict]:
-        objects = []
-        for obj in result:
-            if isinstance(obj, dict):
-                objects.append(obj)
-            elif isinstance(obj, int | float | bool):
-                objects.append(
-                    {
-                        "tool_result": obj,
-                    }
+        def list_to_list_of_dicts(result: list) -> list[dict]:
+            objects = []
+            for obj in result:
+                if isinstance(obj, dict):
+                    objects.append(obj)
+                elif isinstance(obj, int | float | bool):
+                    objects.append(
+                        {
+                            "tool_result": obj,
+                        }
+                    )
+                elif isinstance(obj, list):
+                    objects.append(list_to_list_of_dicts(obj))
+                else:
+                    objects.append(
+                        {
+                            "tool_result": obj,
+                        }
+                    )
+            return objects
+
+        def return_mapping(result, inputs: dict):
+            if isinstance(result, Result | Text | Update | Status | Error):
+                return result
+            elif isinstance(result, str):
+                return Response(result)
+            elif isinstance(result, int | float | bool):
+                return Result(
+                    objects=[
+                        {
+                            "tool_result": result,
+                        }
+                    ],
+                    metadata={
+                        "tool_name": function.__name__,
+                        "inputs_used": inputs,
+                    },
                 )
-            elif isinstance(obj, list):
-                objects.append(list_to_list_of_dicts(obj))
+            elif isinstance(result, dict):
+                return Result(
+                    objects=[result],
+                    metadata={
+                        "tool_name": function.__name__,
+                        "inputs_used": inputs,
+                    },
+                )
+            elif isinstance(result, list):
+                return Result(
+                    objects=list_to_list_of_dicts(result),
+                    metadata={
+                        "tool_name": function.__name__,
+                        "inputs_used": inputs,
+                    },
+                )
             else:
-                objects.append(
-                    {
-                        "tool_result": obj,
-                    }
+                return Result(
+                    objects=[
+                        {
+                            "tool_result": result,
+                        }
+                    ],
+                    metadata={
+                        "tool_name": function.__name__,
+                        "inputs_used": inputs,
+                    },
                 )
-        return objects
 
-    def return_mapping(result):
-        if isinstance(result, Result | Text | Update | Status | Error):
-            return result
-        elif isinstance(result, str):
-            return Response(result)
-        elif isinstance(result, int | float | bool):
-            return Result(
-                objects=[
-                    {
-                        "tool_result": result,
-                    }
-                ],
-                metadata={
-                    "tool_name": tool.__name__,
-                },
-            )
-        elif isinstance(result, dict):
-            return Result(
-                objects=[result],
-                metadata={
-                    "tool_name": tool.__name__,
-                },
-            )
-        elif isinstance(result, list):
-            return Result(
-                objects=list_to_list_of_dicts(result),
-                metadata={
-                    "tool_name": tool.__name__,
-                },
-            )
-        else:
-            return Result(
-                objects=[
-                    {
-                        "tool_result": result,
-                    }
-                ],
-                metadata={
-                    "tool_name": tool.__name__,
-                },
-            )
+        class ToolClass(Tool):
+            def __init__(self, **kwargs):
+                super().__init__(
+                    name=function.__name__,
+                    description=function.__doc__ or "",
+                    status=(
+                        status
+                        if status is not None
+                        else f"Running {function.__name__}..."
+                    ),
+                    inputs={
+                        input_key: {
+                            "description": "",
+                            "type": input_value,
+                            "default": defaults_mapping.get(input_key, None),
+                            "required": defaults_mapping.get(input_key, None)
+                            is not None,
+                        }
+                        for input_key, input_value in function.__annotations__.items()
+                        if input_key
+                        not in [
+                            "tree_data",
+                            "base_lm",
+                            "complex_lm",
+                            "client_manager",
+                            "return",
+                        ]
+                    },
+                    end=end,
+                )
+                self._original_function = function
 
-    class ToolClass(Tool):
-        def __init__(self, **kwargs):
-            super().__init__(
-                name=tool.__name__,
-                description=tool.__doc__ or "",
-                status=(
-                    status if status is not None else f"Running {tool.__name__}..."
-                ),
-                inputs={
-                    input_key: {
-                        "description": "",
-                        "type": input_value,
-                        "default": defaults_mapping.get(input_key, None),
-                        "required": defaults_mapping.get(input_key, None) is not None,
-                    }
-                    for input_key, input_value in tool.__annotations__.items()
-                    if input_key
-                    not in [
-                        "tree_data",
-                        "base_lm",
-                        "complex_lm",
-                        "client_manager",
-                        "return",
+            async def __call__(
+                self, tree_data, inputs, base_lm, complex_lm, client_manager, **kwargs
+            ):
+
+                if async_function:
+                    tool_output = [
+                        await function(
+                            **inputs,
+                            **{
+                                k: v
+                                for k, v in {
+                                    "tree_data": tree_data,
+                                    "base_lm": base_lm,
+                                    "complex_lm": complex_lm,
+                                    "client_manager": client_manager,
+                                    **kwargs,
+                                }.items()
+                                if k in function.__annotations__
+                            },
+                        )
                     ]
-                },
-                end=end,
-            )
-
-        async def __call__(
-            self, tree_data, inputs, base_lm, complex_lm, client_manager, **kwargs
-        ):
-
-            if async_function:
-                tool_output = [
-                    await tool(
+                elif async_generator_function:
+                    results = []
+                    async for result in function(
                         **inputs,
                         **{
                             k: v
@@ -379,34 +437,27 @@ def elysia_tool(
                                 "client_manager": client_manager,
                                 **kwargs,
                             }.items()
-                            if k in tool.__annotations__
+                            if k in function.__annotations__
                         },
-                    )
-                ]
-            elif async_generator_function:
-                results = []
-                async for result in tool(
-                    **inputs,
-                    **{
-                        k: v
-                        for k, v in {
-                            "tree_data": tree_data,
-                            "base_lm": base_lm,
-                            "complex_lm": complex_lm,
-                            "client_manager": client_manager,
-                            **kwargs,
-                        }.items()
-                        if k in tool.__annotations__
-                    },
-                ):
-                    results.append(result)
-                tool_output = results
+                    ):
+                        results.append(result)
+                    tool_output = results
 
-            for result in tool_output:
-                mapped_result = return_mapping(result)
-                yield mapped_result
+                for result in tool_output:
+                    mapped_result = return_mapping(result, inputs)
+                    yield mapped_result
 
-    return ToolClass()
+        tool_class = ToolClass()
+
+        if tree is not None:
+            tree.add_tool(tool_class, branch_id=branch_id)
+
+        return tool_class
+
+    if function is not None:
+        return decorator(function)
+    else:
+        return decorator
 
 
 class Return:
