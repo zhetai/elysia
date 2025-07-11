@@ -31,10 +31,11 @@ nav:
   - Setting Up: setting_up.md
   - Basic Usage: basic.md
   - Customising Elysia: advanced_usage.md
+  - Creating a Tool: creating_tools.md
   - Advanced Elysia:
     - Overview: Advanced/index.md
     - Technical Overview: Advanced/technical_overview.md
-    - Tool Construction: Advanced/creating_your_own_tools.md
+    - Tool Construction: Advanced/advanced_tool_construction.md
     - Custom Objects: Advanced/custom_objects.md
     - Environment: Advanced/environment.md
   - API: 

@@ -1,5 +1,6 @@
 from typing import List
 from logging import Logger
+from pydantic import BaseModel
 
 from rich import print
 from rich.panel import Panel
@@ -41,7 +42,7 @@ class Aggregate(Tool):
             inputs={
                 "collection_names": {
                     "description": "the names of the collections that are most relevant to the aggregation. If you are unsure, give all collections.",
-                    "type": "list",
+                    "type": list[str],
                     "default": [],
                 },
             },

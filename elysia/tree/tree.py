@@ -30,6 +30,7 @@ from elysia.objects import (
     Completed,
     Result,
     Return,
+    Update,
     Text,
     Tool,
     Warning,
@@ -1173,6 +1174,7 @@ class Tree:
             task=decision.function_name,
             num_trees_completed=self.tree_data.num_trees_completed,
             reasoning=decision.reasoning,
+            inputs=decision.function_inputs,
             parsed_info=result.llm_parse(),
             action=True,
         )
@@ -1188,7 +1190,7 @@ class Tree:
 
     async def _evaluate_result(
         self,
-        result: Result | TreeUpdate | Error | TrainingUpdate | Text,
+        result: Result | TreeUpdate | Error | TrainingUpdate | Text | Update,
         decision: Decision,
     ) -> tuple[dict | None, bool]:
         error = False

@@ -303,8 +303,21 @@ class DecisionNode:
             out[node] = {
                 "function_name": node,
                 "description": self.options[node]["description"],
-                "inputs": self.options[node]["inputs"],
             }
+
+            if self.options[node]["inputs"] != {}:
+                out[node]["inputs"] = self.options[node]["inputs"]
+
+                for input_dict in out[node]["inputs"].values():
+                    if hasattr(input_dict["type"], "model_json_schema"):
+                        type_overwrite = f"A JSON object of the following properties: {input_dict['type'].model_json_schema()['properties']}"
+                        if "$defs" in input_dict["type"].model_json_schema():
+                            type_overwrite += f"\nWhere the values are: {input_dict['type'].model_json_schema()['$defs']}"
+                        input_dict["type"] = type_overwrite
+
+            else:
+                out[node]["inputs"] = "No inputs are needed for this function."
+
         return out
 
     def _unavailable_options_to_json(self, unavailable_tools: list[tuple[str, str]]):
@@ -377,7 +390,7 @@ class DecisionNode:
         successive_actions: dict,
         client_manager: ClientManager,
         **kwargs,
-    ):
+    ) -> tuple[Decision, list[Update]]:
         available_options = self._options_to_json(available_tools)
         unavailable_options = self._unavailable_options_to_json(unavailable_tools)
 
@@ -394,12 +407,6 @@ class DecisionNode:
             all(option["inputs"] == {} for option in available_options.values())
             and len(available_options) == 1
         )
-
-        for option in available_options:
-            if available_options[option]["inputs"] == {}:
-                available_options[option][
-                    "inputs"
-                ] = "No inputs are needed for this function."
 
         if not one_choice:
 

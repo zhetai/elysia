@@ -2,7 +2,7 @@ Let's create a tool which performs a least squares regression on numeric data re
 
 ## Initial Setup
 
-Let's [follow the basic guideline for creating a tool](../Advanced/creating_your_own_tools.md), and create the skeleton of the tool below.
+Let's [follow the basic guideline for creating a tool](../Advanced/advanced_tool_construction.md), and create the skeleton of the tool below.
 
 ```python
 from elysia import Error, Tool, Result

@@ -20,6 +20,6 @@ from elysia.objects import (
     Completed,
     Result,
     Retrieval,
-    elysia_tool,
+    tool,
 )
 from elysia.config import Settings, settings, configure
