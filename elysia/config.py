@@ -1,7 +1,7 @@
 import os
 from typing import Callable, Literal
-from logging import Logger
-from rich.logging import logging, RichHandler
+import logging
+from rich.logging import RichHandler
 
 import spacy
 import uuid
@@ -13,8 +13,8 @@ load_dotenv(override=True)
 
 try:
     nlp = spacy.load("en_core_web_sm")
-except Exception as e:
-    spacy.cli.download("en_core_web_sm")
+except Exception:
+    spacy.cli.download("en_core_web_sm")  # type: ignore
     nlp = spacy.load("en_core_web_sm")
 
 
@@ -51,9 +51,12 @@ class Settings:
         self.COMPLEX_MODEL: str | None = None
         self.COMPLEX_PROVIDER: str | None = None
 
+        self.WCD_URL: str = ""
+        self.WCD_API_KEY: str = ""
+
         self.MODEL_API_BASE: str | None = None
 
-        self.API_KEYS = {}
+        self.API_KEYS: dict[str, str] = {}
 
         self.logger = logging.getLogger("rich")
         self.logger.setLevel(logging.INFO)
@@ -70,7 +73,7 @@ class Settings:
         # Experimental features
         self.USE_FEEDBACK = False
 
-    def setup_app_logger(self, logger: Logger):
+    def setup_app_logger(self, logger: logging.Logger):
         """
         Override existing logger with the app-level logger.
 
@@ -100,10 +103,10 @@ class Settings:
         self.LOGGING_LEVEL = level
         self.LOGGING_LEVEL_INT = logging.getLevelNamesMapping()[level]
 
-    def set_api_key(self, api_key: str, api_key_name: str):
+    def set_api_key(self, api_key: str, api_key_name: str) -> None:
         self.API_KEYS[api_key_name] = api_key
 
-    def get_api_key(self, api_key_name: str):
+    def get_api_key(self, api_key_name: str) -> str:
         return self.API_KEYS[api_key_name]
 
     def load_settings(self, settings: dict):
@@ -141,7 +144,7 @@ class Settings:
         self.WCD_API_KEY = os.getenv("WCD_API_KEY", "")
 
         self.API_KEYS = {
-            env_var.lower(): os.getenv(env_var)
+            env_var.lower(): os.getenv(env_var, "")
             for env_var in os.environ
             if (
                 (
@@ -251,7 +254,7 @@ class Settings:
                 )
 
             if kwargs["base_provider"] == "ollama" and (
-                not kwargs["model_api_base"] or "MODEL_API_BASE" not in self
+                not kwargs["model_api_base"] or "MODEL_API_BASE" not in dir(self)
             ):
                 raise ValueError(
                     "Using local models via ollama requires MODEL_API_BASE to be set. "
@@ -275,7 +278,7 @@ class Settings:
                 )
 
             if kwargs["complex_provider"] == "ollama" and (
-                not kwargs["model_api_base"] or "MODEL_API_BASE" not in self
+                not kwargs["model_api_base"] or "MODEL_API_BASE" not in dir(self)
             ):
                 raise ValueError(
                     "Using local models via ollama requires MODEL_API_BASE to be set. "
@@ -439,7 +442,7 @@ def check_complex_lm_settings(settings: Settings):
         )
 
 
-def load_base_lm(settings: Settings):
+def load_base_lm(settings: Settings) -> LM:
     check_base_lm_settings(settings)
 
     return load_lm(
@@ -449,7 +452,7 @@ def load_base_lm(settings: Settings):
     )
 
 
-def load_complex_lm(settings: Settings):
+def load_complex_lm(settings: Settings) -> LM:
     check_complex_lm_settings(settings)
 
     return load_lm(
@@ -460,10 +463,14 @@ def load_complex_lm(settings: Settings):
 
 
 def load_lm(
-    provider: str,
-    lm_name: str,
+    provider: str | None,
+    lm_name: str | None,
     model_api_base: str | None = None,
-):
+) -> LM:
+
+    if provider is None or lm_name is None:
+        raise ValueError("Provider and LM name must be set")
+
     api_base = model_api_base if provider == "ollama" else None
     full_lm_name = f"{provider}/{lm_name}"
 
@@ -484,12 +491,12 @@ DEFAULT_SETTINGS = Settings()
 DEFAULT_SETTINGS.smart_setup()
 
 
-def reset_settings():
+def reset_settings() -> None:
     settings.reset()
     settings.smart_setup()
 
 
-def configure(**kwargs):
+def configure(**kwargs) -> None:
     """
     Configure the settings for Elysia for the global settings object.
 

@@ -4,16 +4,14 @@ import os
 import uuid
 from dotenv import load_dotenv
 from weaviate.util import generate_uuid5
-from uuid import uuid4
 
 # Load environment variables from .env file
 load_dotenv(override=True)
 
-from elysia.config import Settings
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
 from elysia.tree.util import delete_tree_from_weaviate
-from elysia.api.utils.config import Config
+from elysia.api.utils.config import Config, BranchInitType
 
 
 class TreeManager:
@@ -322,7 +320,7 @@ class TreeManager:
             self.trees[conversation_id]["tree"].change_end_goal(end_goal)
 
     def change_branch_initialisation(
-        self, branch_initialisation: str, conversation_id: str | None = None
+        self, branch_initialisation: BranchInitType, conversation_id: str | None = None
     ):
         """
         Change the branch initialisation for a tree in the TreeManager.

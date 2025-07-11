@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any
 from logging import Logger
 from datetime import datetime
 from pydantic import BaseModel, Field

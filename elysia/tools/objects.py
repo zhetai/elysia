@@ -1,4 +1,4 @@
-from elysia.objects import Result, Update
+from ..objects import Result
 
 
 class BoringGeneric(Result):

@@ -4,11 +4,17 @@ from typing_extensions import TypeAlias
 
 import weaviate
 from dateutil import parser
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from weaviate.classes.query import Filter, Metrics, QueryReference, Sort
+from weaviate.collections.classes.filters import _Filters
+from weaviate.collections.classes.grpc import Sorting
+from weaviate.outputs.aggregate import AggregateGroupByReturn, AggregateReturn
+from weaviate.outputs.query import QueryReturn
+
+# == Define Pydantic models for structured outputs of LLMs
 
 
-# == Filters
+# -- Filters
 class NumberPropertyFilter(BaseModel):
     property_name: str
     operator: Literal["=", "<", ">", "<=", ">=", "IS_NULL"]
@@ -46,7 +52,7 @@ class CreationTimeFilter(BaseModel):
     value: str
 
 
-# == Aggregation Fields
+# -- Aggregation Fields
 class NumberAggregation(BaseModel):
     property_name: str
     metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE", "SUM", "COUNT"]]
@@ -72,7 +78,7 @@ class DateAggregation(BaseModel):
     metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE", "COUNT"]]
 
 
-# == Define FilterBucket type recursively
+# -- Define FilterBucket type recursively
 class FilterBucket(BaseModel):
     filters: List[
         Union[
@@ -111,10 +117,7 @@ class ListQueryOutputs(BaseModel):
     query_outputs: List[QueryOutput] | None = None
 
 
-# QueryOutputType: TypeAlias = ListQueryOutputs | None
-
-
-# == Full Aggregation Definition
+# -- Full Aggregation Definition
 class AggregationOutput(BaseModel):
     target_collections: List[str]
     search_query: Optional[str] = Field(default=None)
@@ -136,7 +139,7 @@ class ListAggregationOutputs(BaseModel):
     aggregation_outputs: List[AggregationOutput] | None = None
 
 
-# == Schema for collections/data
+# -- Schema for collections/data
 class FieldSchema(BaseModel):
     type: Literal[
         "text", "number", "boolean", "date", "text[]", "number[]", "boolean[]", "date[]"
@@ -152,22 +155,25 @@ class CollectionSchema(BaseModel):
     properties: dict[str, FieldSchema]
 
 
-# == Additional output fields
+# -- Additional output fields
 class DataDisplay(BaseModel):
     display_type: str
     summarise_items: bool
+
+
+# == Define functions for executing queries and aggregations
 
 
 async def execute_weaviate_query(
     weaviate_client: weaviate.WeaviateAsyncClient,
     predicted_query: QueryOutput,
     reference_property: str | None = None,
-    named_vector_fields: dict[str, List[str]] | None = None,
-):
+    named_vector_fields: dict[str, list[str]] | None = None,
+) -> tuple[list[QueryReturn], list[str]]:
     """Execute from a QueryOutput and return response."""
 
     # Convert WeaviateQuery to tool args format
-    tool_args = {
+    tool_args: dict[str, Any] = {
         "collection_names": predicted_query.target_collections,
     }
 
@@ -196,14 +202,14 @@ async def execute_weaviate_query(
     if named_vector_fields:
         tool_args["named_vector_fields"] = named_vector_fields
 
-    final_response, str_response = await _handle_search(weaviate_client, tool_args)
+    final_responses, str_responses = await _handle_search(weaviate_client, tool_args)
 
-    return final_response, str_response
+    return final_responses, str_responses
 
 
 async def _handle_search(
     weaviate_client: weaviate.WeaviateAsyncClient, tool_args: dict
-):
+) -> tuple[list[QueryReturn], list[str]]:
     """Do vector/keyword/hybrid search from a QueryOutput."""
 
     collection_names = tool_args["collection_names"]
@@ -245,7 +251,11 @@ async def _handle_search(
                     limit=tool_args["limit"],
                     filters=combined_filter,
                     return_references=reference,
-                    target_vector=named_vector_fields[collection.name],
+                    target_vector=(
+                        named_vector_fields[collection.name]
+                        if named_vector_fields
+                        else None
+                    ),
                 )
 
             elif tool_args["search_type"] == "vector":
@@ -254,7 +264,11 @@ async def _handle_search(
                     limit=tool_args["limit"],
                     filters=combined_filter,
                     return_references=reference,
-                    target_vector=named_vector_fields[collection.name],
+                    target_vector=(
+                        named_vector_fields[collection.name]
+                        if named_vector_fields
+                        else None
+                    ),
                 )
 
             elif tool_args["search_type"] == "keyword":
@@ -272,7 +286,7 @@ async def _handle_search(
     return responses, str_responses
 
 
-def _build_sort(tool_args: dict):
+def _build_sort(tool_args: dict) -> Sorting | None:
     """Build a sort object from a QueryOutput."""
 
     if "sort_by" in tool_args and tool_args["search_type"] == "filter_only":
@@ -293,26 +307,36 @@ def _build_single_filter(
         | CreationTimeFilter
     ),
     reference_property: str | None = None,
-):
+) -> Filter:
     """Build a Weaviate Filter from a typed Filter object."""
 
     if isinstance(filter, CreationTimeFilter):
+        prop_name = ""
         filter_operator = filter.operator
         filter_value = filter.value
+        filter_length = False
     else:
         prop_name = filter.property_name
         filter_operator = filter.operator
         filter_value = filter.value
-        try:
+        if not (
+            isinstance(filter, TextPropertyFilter)
+            or isinstance(filter, DatePropertyFilter)
+            or isinstance(filter, BooleanPropertyFilter)
+        ):
             filter_length = filter.length
-        except AttributeError:
+        else:
             filter_length = False
 
-    if isinstance(filter, NumberPropertyFilter) and filter_operator != "IS_NULL":
+    if (
+        isinstance(filter, NumberPropertyFilter)
+        and filter_operator != "IS_NULL"
+        and isinstance(filter_value, (int, float, bool))
+    ):
         filter_value = float(filter_value)
-    elif isinstance(filter, DatePropertyFilter):
+    elif isinstance(filter, DatePropertyFilter) and isinstance(filter_value, str):
         filter_value = parser.parse(filter_value).replace(tzinfo=timezone.utc)
-    elif isinstance(filter, CreationTimeFilter):
+    elif isinstance(filter, CreationTimeFilter) and isinstance(filter_value, str):
         filter_value = parser.parse(filter_value).replace(tzinfo=timezone.utc)
 
     if reference_property:
@@ -323,35 +347,37 @@ def _build_single_filter(
     if isinstance(filter, CreationTimeFilter):
         filter_obj = filter_obj.by_creation_time()
     else:
-        filter_obj = filter_obj.by_property(prop_name, length=filter_length)
+        filter_obj = filter_obj.by_property(
+            prop_name, length=filter_length if filter_length else False
+        )
 
     if filter_operator == "=":
-        return filter_obj.equal(filter_value)
+        return filter_obj.equal(filter_value)  # type: ignore
     elif filter_operator == "!=":
-        return filter_obj.not_equal(filter_value)
+        return filter_obj.not_equal(filter_value)  # type: ignore
     elif filter_operator == ">":
-        return filter_obj.greater_than(filter_value)
+        return filter_obj.greater_than(filter_value)  # type: ignore
     elif filter_operator == "<":
-        return filter_obj.less_than(filter_value)
+        return filter_obj.less_than(filter_value)  # type: ignore
     elif filter_operator == ">=":
-        return filter_obj.greater_or_equal(filter_value)
+        return filter_obj.greater_or_equal(filter_value)  # type: ignore
     elif filter_operator == "<=":
-        return filter_obj.less_or_equal(filter_value)
+        return filter_obj.less_or_equal(filter_value)  # type: ignore
     elif filter_operator == "LIKE":
-        return filter_obj.like(filter_value)
+        return filter_obj.like(filter_value)  # type: ignore
     elif filter_operator == "CONTAINS_ANY":
-        return filter_obj.contains_any(filter_value)
+        return filter_obj.contains_any(filter_value)  # type: ignore
     elif filter_operator == "CONTAINS_ALL":
-        return filter_obj.contains_all(filter_value)
+        return filter_obj.contains_all(filter_value)  # type: ignore
     elif filter_operator == "IS_NULL":
-        return filter_obj.is_none(filter_value)
+        return filter_obj.is_none(filter_value)  # type: ignore
     else:
         raise ValueError(f"Invalid filter operator: {filter_operator}")
 
 
 def _build_filter_bucket(
     filter_bucket: FilterBucket, reference_collection: str | None = None
-):
+) -> _Filters:
     """
     Build a collection of individual filters from a FilterBucket.
     Recursively build the filters if it finds more FilterBuckets.
@@ -379,7 +405,7 @@ def _build_filter_bucket(
         raise ValueError(f"Invalid bucket operator: {bucket_operator}")
 
 
-def _build_filters(tool_args: dict):
+def _build_filters(tool_args: dict) -> _Filters | None:
     """
     Build all filters from a QueryOutput.
     """
@@ -393,22 +419,17 @@ def _build_filters(tool_args: dict):
         bucket_filters = _build_filter_bucket(bucket)
         filters.append(bucket_filters)
 
-    if len(filters) > 1:
-        return Filter.all_of(filters)
-    elif len(filters) == 1:
-        return filters[0]
+    return Filter.all_of(filters)
 
 
 # -- Aggregation
-
-
 async def execute_weaviate_aggregation(
     weaviate_client: weaviate.WeaviateAsyncClient, predicted_query: AggregationOutput
-) -> str:
+) -> tuple[list[AggregateReturn], list[str]]:
     """Execute a predicted WeaviateAggregation and return formatted results."""
 
     # Convert WeaviateAggregation to tool args format
-    tool_args = {
+    tool_args: dict[str, Any] = {
         "collection_names": predicted_query.target_collections,
     }
 
@@ -463,7 +484,7 @@ async def execute_weaviate_aggregation(
 
 async def _handle_aggregation_query(
     weaviate_client: weaviate.WeaviateAsyncClient, tool_args: dict
-) -> str:
+) -> tuple[list[AggregateReturn], list[str]]:
     collection_names = tool_args["collection_names"]
     collections = [weaviate_client.collections.get(name) for name in collection_names]
 
@@ -495,7 +516,7 @@ async def _handle_aggregation_query(
     return responses, str_responses
 
 
-def _build_return_metrics(tool_args: dict):
+def _build_return_metrics(tool_args: dict) -> list[Metrics] | None:
     metrics_types = [
         "number_property_aggregations",
         "text_property_aggregations",
@@ -520,7 +541,7 @@ def _build_return_metrics(tool_args: dict):
                             "COUNT": "count",
                         }
                         metric_names = [
-                            metric_mapping.get(m, m.lower()) for m in metrics
+                            metric_mapping.get(m, m.lower()) for m in metrics  # type: ignore
                         ]
                         full_metrics.append(
                             Metrics(prop_name).number(
@@ -540,7 +561,7 @@ def _build_return_metrics(tool_args: dict):
                         metric_names = [
                             metric_name
                             for m in metrics
-                            for metric_name in metric_mapping.get(m, m.lower())
+                            for metric_name in metric_mapping.get(m, m.lower())  # type: ignore
                         ]
 
                         if (
@@ -574,11 +595,11 @@ def _build_return_metrics(tool_args: dict):
                             "TOTAL_FALSE": "total_false",
                             "COUNT": "count",
                         }
-                        metric_names = [
-                            metric_mapping.get(m, m.lower()) for m in metrics
+                        metric_names: list[str] = [
+                            metric_mapping.get(m, m.lower()) for m in metrics.keys()  # type: ignore
                         ]
                         return Metrics(prop_name).boolean(
-                            **{metric_name: True for metric_name in metric_names}
+                            **{metric_name: True for metric_name in metric_names}  # type: ignore
                         )
 
                     elif agg_type.startswith("date"):
@@ -591,7 +612,7 @@ def _build_return_metrics(tool_args: dict):
                             "MODE": "mode",
                             "COUNT": "count",
                         }
-                        metric_name = metric_mapping.get(metrics, metrics.lower())
+                        metric_name = metric_mapping.get(metrics, metrics.lower())  # type: ignore
                         full_metrics.append(
                             Metrics(prop_name).date_(**{metric_name: True})
                         )
@@ -611,8 +632,8 @@ def _build_aggregation_args(tool_args: dict) -> dict:
 
 
 async def _execute_aggregation_with_search(
-    collection, tool_args: dict, agg_args: dict, combined_filter: Filter | None
-):
+    collection, tool_args: dict, agg_args: dict, combined_filter: _Filters | None
+) -> AggregateReturn | AggregateGroupByReturn:
     if tool_args["search_type"] == "hybrid" or tool_args["search_type"] is None:
         search = collection.aggregate.hybrid
     elif tool_args["search_type"] == "keyword":
@@ -633,8 +654,8 @@ async def _execute_aggregation_with_search(
 
 
 async def _execute_aggregation_over_all(
-    collection, agg_args: dict, combined_filter: Filter | None
-):
+    collection, agg_args: dict, combined_filter: _Filters | None
+) -> AggregateReturn | AggregateGroupByReturn:
     return await collection.aggregate.over_all(
         total_count=agg_args["total_count"],
         group_by=agg_args.get("group_by"),
@@ -643,9 +664,8 @@ async def _execute_aggregation_over_all(
     )
 
 
-# -- Strings for code display
-# --
-# -- Repeats of the same functions above but string output
+# == Strings for code display
+# Repeats of the same functions above but string output
 def _build_single_filter_string(
     filter: (
         NumberPropertyFilter
@@ -664,9 +684,13 @@ def _build_single_filter_string(
         prop_name = filter.property_name
         filter_operator = filter.operator
         filter_value = filter.value
-        try:
+        if not (
+            isinstance(filter, TextPropertyFilter)
+            or isinstance(filter, DatePropertyFilter)
+            or isinstance(filter, BooleanPropertyFilter)
+        ):
             filter_length = filter.length
-        except AttributeError:
+        else:
             filter_length = False
 
     # Format value based on type
@@ -731,7 +755,7 @@ def _build_filter_bucket_string(filter_bucket: FilterBucket) -> str:
         raise ValueError(f"Invalid bucket operator: {bucket_operator}")
 
 
-def _build_filter_string(tool_args: dict):
+def _build_filter_string(tool_args: dict) -> str:
     if "filter_buckets" not in tool_args:
         return "None"
 
@@ -751,7 +775,7 @@ def _build_filter_string(tool_args: dict):
 
 
 def _construct_string_search_query(
-    tool_args: dict, combined_filter: Filter | None
+    tool_args: dict, combined_filter: _Filters | None
 ) -> str:
     if tool_args["search_type"] == "hybrid":
         search_type = "hybrid"
@@ -812,11 +836,9 @@ def _construct_string_search_query(
 
 
 # -- Aggregation Strings
-
-
 def _get_string_aggregation_with_search(
-    tool_args: dict, combined_filter: Filter | None
-):
+    tool_args: dict, combined_filter: _Filters | None
+) -> str:
     metrics_str = _build_return_metrics_string(tool_args)
 
     if tool_args["search_type"] == "hybrid":
@@ -862,7 +884,9 @@ def _get_string_aggregation_with_search(
 )"""
 
 
-def _get_string_aggregation_over_all(tool_args: dict, combined_filter: Filter | None):
+def _get_string_aggregation_over_all(
+    tool_args: dict, combined_filter: _Filters | None
+) -> str:
     metrics_str = _build_return_metrics_string(tool_args)
 
     params = ["total_count=True"]
@@ -940,7 +964,7 @@ def _build_return_metrics_string(tool_args: dict) -> str:
                     metric_names = [
                         metric_name
                         for m in metrics
-                        for metric_name in metric_mapping.get(m, m.lower())
+                        for metric_name in metric_mapping.get(m, m.lower())  # type: ignore
                     ]
                     metric_bools = [f"{m}=True" for m in metric_names]
                     limit_part = ""

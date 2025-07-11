@@ -1,19 +1,16 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 
 from weaviate.collections.classes.aggregate import (
-    AggregateReturn,
     AggregateGroupByReturn,
 )
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Filter, Metrics
 from weaviate.util import generate_uuid5
 
-from elysia.api.utils.default_payloads import error_payload
 from elysia.tree.tree import Tree
 from elysia.util.parsing import format_datetime
 from elysia.api.core.log import logger
-import weaviate.classes as wvc
 import weaviate.classes.config as wc
 
 
@@ -349,7 +346,7 @@ async def feedback_metadata(client, user_id: str):
 
             for date_group in agg_feedback_i.groups:
 
-                date_val = datetime.fromisoformat(date_group.grouped_by.value).strftime(
+                date_val = datetime.fromisoformat(date_group.grouped_by.value).strftime(  # type: ignore
                     "%Y-%m-%d"
                 )
 
@@ -362,7 +359,7 @@ async def feedback_metadata(client, user_id: str):
 
                 feedback_by_date[date_val][feedback_name] += date_group.properties[
                     "feedback"
-                ].count
+                ].count  # type: ignore
 
     for date in feedback_by_date:
         for feedback_name in feedback_values:
@@ -378,14 +375,14 @@ async def feedback_metadata(client, user_id: str):
 
         for date_group in agg_feedback.groups:
 
-            date_val = datetime.fromisoformat(date_group.grouped_by.value).strftime(
+            date_val = datetime.fromisoformat(date_group.grouped_by.value).strftime(  # type: ignore
                 "%Y-%m-%d"
             )
 
-            feedback_by_date[date_val]["mean"] = date_group.properties["feedback"].mean
+            feedback_by_date[date_val]["mean"] = date_group.properties["feedback"].mean  # type: ignore
             feedback_by_date[date_val]["count"] = date_group.properties[
                 "feedback"
-            ].count
+            ].count  # type: ignore
 
     return {
         "total_feedback": total_feedback,

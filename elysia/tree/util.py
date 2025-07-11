@@ -1,23 +1,24 @@
 import uuid
-from typing import Any
 
 # dspy requires a 'base' LM but this should not be used
 import dspy
 from pympler import asizeof
 from logging import Logger
 
+from typing import Callable, Union
+
 from weaviate.util import generate_uuid5
 from weaviate.classes.query import MetadataQuery, Sort, Filter
 
 from elysia.objects import (
     Response,
-    Return,
+    Result,
+    Text,
     Tool,
     Update,
     Status,
 )
 
-# Objects
 from elysia.tree.objects import TreeData
 from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
@@ -25,18 +26,21 @@ from elysia.util.reference import create_reference
 from elysia.util.parsing import format_datetime
 from elysia.util.client import ClientManager
 from elysia.tree.prompt_templates import (
-    construct_decision_prompt,
     FollowUpSuggestionsPrompt,
     TitleCreatorPrompt,
+    DecisionPrompt,
 )
 from elysia.tools.text.prompt_templates import TextResponsePrompt
-
-# Settings
-from elysia.config import Settings, load_base_lm, load_complex_lm
 from elysia.util.retrieve_feedback import retrieve_feedback
 
 
 class ForcedTextResponse(Tool):
+    """
+    A tool that creates a new text response via a new LLM call.
+    This is used in the decision tree when the tree reaches the end of its process, but no text is being displayed to the user.
+    Then this tool is automaticaly called to create a new text response.
+    """
+
     def __init__(self, **kwargs):
         super().__init__(
             name="final_text_response",
@@ -70,11 +74,152 @@ class ForcedTextResponse(Tool):
         yield Response(text=output.response)
 
 
-class RecursionLimitException(Exception):
-    pass
+class CopiedModule(dspy.Module):
+    """
+    A module that copies another module and adds a previous_feedbacks field to the signature.
+    This is used to store the previous errored decision attempts for the decision node.
+    This is one part of the feedback loop for the decision node, the other part is in the AssertedModule class.
+    """
+
+    def __init__(
+        self,
+        module: ElysiaChainOfThought,
+        **kwargs,
+    ):
+        self.module = module
+
+        feedback_desc = (
+            "Pairs of INCORRECT previous attempts at this action, and the feedback received for each attempt. "
+            "Judge what was incorrect in the previous attempts. "
+            "Follow the feedback to improve your next attempt."
+        )
+        feedback_prefix = "${previous_feedback}"
+        feedback_field: str = dspy.InputField(
+            prefix=feedback_prefix, desc=feedback_desc
+        )
+
+        signature = self.module.predict.signature
+        signature = signature.prepend(
+            name="previous_feedbacks",
+            field=feedback_field,
+            type_=str,
+        )
+
+        self.module.predict.signature = signature  # type: ignore
+
+    def _format_feedbacks(
+        self, previous_feedbacks: list[str], previous_attempts: list[dict]
+    ):
+        feedbacks: list[str] = [
+            f"ATTEMPT {i+1}:\n"
+            + f"PREVIOUS INPUT: {str(attempt)}\n"
+            + f"PREVIOUS FEEDBACK FOR THIS INPUT: {feedback}\n"
+            for i, (attempt, feedback) in enumerate(
+                zip(previous_attempts, previous_feedbacks)
+            )
+        ]
+        return "\n".join(feedbacks)
+
+    async def aforward(
+        self,
+        previous_feedbacks: list[str],
+        previous_attempts: list[dict],
+        **kwargs,
+    ):
+        pred = await self.module.acall(
+            previous_feedbacks=self._format_feedbacks(
+                previous_feedbacks, previous_attempts
+            ),
+            **kwargs,
+        )
+        return pred
+
+    async def aforward_with_feedback_examples(
+        self,
+        previous_feedbacks: list[str],
+        previous_attempts: list[dict],
+        **kwargs,
+    ):
+        pred, uuids = await self.module.aforward_with_feedback_examples(
+            previous_feedbacks=self._format_feedbacks(
+                previous_feedbacks, previous_attempts
+            ),
+            **kwargs,
+        )
+        return pred, uuids
+
+
+class AssertedModule(dspy.Module):
+    """
+    A module that calls another module until it passes an assertion function.
+    This function returns a tuple of (asserted, feedback).
+    If the assertion is false, the module is called again with the previous feedbacks and attempts.
+    This is used to improve the module's performance and iteratively trying to get it to pass the assertion.
+    """
+
+    def __init__(
+        self,
+        module: ElysiaChainOfThought,
+        assertion: Callable[[dict, dspy.Prediction], tuple[bool, str]],
+        max_tries: int = 3,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.assertion = assertion
+        self.module = module
+        self.max_tries = max_tries
+
+        self.previous_feedbacks = []
+        self.previous_attempts = []
+
+    def modify_signature_on_feedback(self, pred, feedback, **kwargs):
+        self.previous_feedbacks.append(feedback)
+        self.previous_attempts.append(pred.toDict())
+        return CopiedModule(self.module.deepcopy(), **kwargs)
+
+    async def aforward(self, **kwargs):
+
+        pred = await self.module.acall(**kwargs)
+        num_tries = 0
+
+        asserted, feedback = self.assertion(kwargs, pred)
+
+        while not asserted and num_tries <= self.max_tries:
+            asserted_module = self.modify_signature_on_feedback(pred, feedback)
+            pred = await asserted_module.aforward(
+                previous_feedbacks=self.previous_feedbacks,
+                previous_attempts=self.previous_attempts,
+                **kwargs,
+            )
+            asserted, feedback = self.assertion(kwargs, pred)
+            num_tries += 1
+
+        return pred
+
+    async def aforward_with_feedback_examples(self, **kwargs):
+        pred, uuids = await self.module.aforward_with_feedback_examples(**kwargs)
+        num_tries = 0
+
+        asserted, feedback = self.assertion(kwargs, pred)
+
+        while not asserted and num_tries <= self.max_tries:
+            asserted_module = self.modify_signature_on_feedback(pred, feedback)
+            pred, uuids = await asserted_module.aforward_with_feedback_examples(
+                previous_feedbacks=self.previous_feedbacks,
+                previous_attempts=self.previous_attempts,
+                **kwargs,
+            )
+            asserted, feedback = self.assertion(kwargs, pred)
+            num_tries += 1
+
+        return pred, uuids
 
 
 class Decision:
+    """
+    Simple decision object to store the decision made by the decision node.
+    """
+
     def __init__(
         self,
         function_name: str,
@@ -93,13 +238,20 @@ class Decision:
 
 
 class DecisionNode:
+    """
+    A decision node is a node in the tree that makes a decision based on the available options.
+    This class is essentially the executor of the decision node.
+    """
+
     def __init__(
         self,
         id: str,
         instruction: str,
-        options: dict[str, dict[str, str | bool | Tool | None]],
+        options: dict[
+            str, dict[str, Union[str, dict, bool, Tool, "DecisionNode", None]]
+        ],
         root: bool = False,
-        logger: Logger = None,
+        logger: Logger | None = None,
         use_elysia_collections: bool = True,
     ):
         self.id = id
@@ -120,18 +272,18 @@ class DecisionNode:
         action: Tool | None = None,
         end: bool = True,
         status: str = "",
-        next: str | None = None,
+        next: "DecisionNode | None" = None,
     ):
         if status == "":
             status = f"Running {id}..."
 
         self.options[id] = {
-            "description": description,
-            "inputs": inputs,
-            "action": action,
-            "end": end,
-            "status": status,
-            "next": next,
+            "description": description,  # type: str
+            "inputs": inputs,  # type: dict
+            "action": action,  # type: Tool | None
+            "end": end,  # type: bool
+            "status": status,  # type: str
+            "next": next,  # type: DecisionNode | None
         }
 
     def remove_option(self, id: str):
@@ -169,10 +321,7 @@ class DecisionNode:
             }
         return out
 
-    def decide_from_route(self, route: str):
-        """
-        Decide from a route.
-        """
+    def decide_from_route(self, route: list[str]):
         possible_nodes = self._get_options()
 
         next_route = route[0]
@@ -192,7 +341,7 @@ class DecisionNode:
                 function_inputs={},
                 end_actions=completed,
             ),
-            route,
+            "/".join(route),
         )
 
     async def load_model_from_examples(
@@ -211,15 +360,22 @@ class DecisionNode:
         compiled_executor = optimizer.compile(decision_executor, trainset=examples)
         return compiled_executor
 
+    def _tool_assertion(self, kwargs, pred):
+        return (
+            pred.function_name in self.options,
+            f"You picked the action `{pred.function_name}` - that is not in `available_actions`! "
+            f"Your output MUST be one of the following: {list(self.options.keys())}",
+        )
+
     async def __call__(
         self,
         tree_data: TreeData,
-        base_lm: dspy.LM = None,
-        complex_lm: dspy.LM = None,
-        available_tools: list[str] = [],
-        unavailable_tools: list[str] = [],
-        successive_actions: dict = {},
-        client_manager: ClientManager | None = None,
+        base_lm: dspy.LM,
+        complex_lm: dspy.LM,
+        available_tools: list[str],
+        unavailable_tools: list[tuple[str, str]],
+        successive_actions: dict,
+        client_manager: ClientManager,
         **kwargs,
     ):
         available_options = self._options_to_json(available_tools)
@@ -246,8 +402,9 @@ class DecisionNode:
                 ] = "No inputs are needed for this function."
 
         if not one_choice:
-            decision_executor = ElysiaChainOfThought(
-                construct_decision_prompt(available_tools),
+
+            decision_module = ElysiaChainOfThought(
+                DecisionPrompt,
                 tree_data=tree_data,
                 environment=True,
                 collection_schemas=self.use_elysia_collections,
@@ -255,7 +412,20 @@ class DecisionNode:
                 message_update=True,
             )
 
+            decision_executor = AssertedModule(
+                decision_module,
+                assertion=self._tool_assertion,
+                max_tries=2,
+            )
+
             if tree_data.settings.USE_FEEDBACK:
+                if not client_manager.is_client:
+                    raise ValueError(
+                        "A Weaviate conneciton is required for the experimental `use_feedback` method. "
+                        "Please set the WCD_URL and WCD_API_KEY in the settings. "
+                        "Or, set `use_feedback` to False."
+                    )
+
                 output, uuids = await decision_executor.aforward_with_feedback_examples(
                     feedback_model="decision",
                     client_manager=client_manager,
@@ -279,12 +449,17 @@ class DecisionNode:
                     lm=base_lm,
                 )
 
+            if output.function_name not in available_tools:
+                raise Exception(
+                    f"Model picked an action `{output.function_name}` that is not in the available tools: {available_tools}"
+                )
+
             decision = Decision(
                 output.function_name,
                 output.function_inputs,
                 output.reasoning,
                 output.impossible,
-                output.end_actions and self.options[output.function_name]["end"],
+                output.end_actions and bool(self.options[output.function_name]["end"]),
             )
 
             results = [
@@ -299,7 +474,7 @@ class DecisionNode:
                     reasoning=output.reasoning,
                     last_in_branch=True,
                 ),
-                Status(self.options[output.function_name]["status"]),
+                Status(str(self.options[output.function_name]["status"])),
             ]
 
             if output.function_name != "text_response":
@@ -315,7 +490,7 @@ class DecisionNode:
                 impossible=False,
                 function_inputs={},
                 end_actions=(
-                    self.options[list(available_options.keys())[0]]["end"]
+                    bool(self.options[list(available_options.keys())[0]]["end"])
                     and self.options[list(available_options.keys())[0]]["next"] is None
                 ),
             )
@@ -327,7 +502,7 @@ class DecisionNode:
                     reasoning=decision.reasoning,
                     last_in_branch=True,
                 ),
-                Status(self.options[list(available_options.keys())[0]]["status"]),
+                Status(str(self.options[list(available_options.keys())[0]]["status"])),
             ]
 
         return decision, results
@@ -420,18 +595,12 @@ class TreeReturner:
 
     async def __call__(
         self,
-        result: Return | TreeUpdate,
+        result: Result | TreeUpdate | Update | Text,
         query_id: str,
         last_in_tree: bool = False,
-    ):
-        if isinstance(result, Update):
-            payload = await result.to_frontend(
-                self.user_id, self.conversation_id, query_id
-            )
-            self.store.append(payload)
-            return payload
+    ) -> dict[str, str | dict] | None:
 
-        if isinstance(result, Return):
+        if isinstance(result, (Update, Text, Result)):
             payload = await result.to_frontend(
                 self.user_id, self.conversation_id, query_id
             )
@@ -552,7 +721,7 @@ async def get_saved_trees_weaviate(
         )
 
     if close_after_use:
-        client_manager.close_clients()
+        await client_manager.close_clients()
 
     trees = {
         obj.properties["conversation_id"]: {
@@ -570,6 +739,16 @@ async def delete_tree_from_weaviate(
     collection_name: str,
     client_manager: ClientManager | None = None,
 ):
+    """
+    Delete a tree from a Weaviate collection.
+
+    Args:
+        conversation_id (str): The conversation ID of the tree to delete.
+        collection_name (str): The name of the collection to delete the tree from.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created from environment variables.
+    """
+
     if client_manager is None:
         client_manager = ClientManager()
 

@@ -1,10 +1,15 @@
-__version__ = "0.2.0"
-
+from elysia.__metadata__ import (
+    __version__,
+    __name__,
+    __description__,
+    __url__,
+    __author__,
+    __author_email__,
+)
 
 from elysia.tree.tree import Tree
 from elysia.objects import (
     Tool,
-    Reasoning,
     Return,
     Text,
     Response,
@@ -15,11 +20,6 @@ from elysia.objects import (
     Completed,
     Result,
     Retrieval,
+    elysia_tool,
 )
 from elysia.config import Settings, settings, configure
-from elysia.preprocess.collection import (
-    preprocess,
-    preprocessed_collection_exists,
-    delete_preprocessed_collection,
-)
-from elysia.util.client import ClientManager

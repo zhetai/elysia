@@ -59,7 +59,8 @@ async def retrieve_feedback(
 
     # get training updates
     training_updates = [
-        json.loads(f.properties["training_updates"]) for f in feedback_objects
+        json.loads(f.properties["training_updates"])  # type: ignore
+        for f in feedback_objects
     ]
     uuids = [str(f.uuid) for f in feedback_objects]
 

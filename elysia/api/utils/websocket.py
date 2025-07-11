@@ -2,8 +2,8 @@ import asyncio
 import time
 
 import psutil
-from fastapi import Request, WebSocket
-from fastapi.dependencies.utils import solve_dependencies
+from typing import Callable
+from fastapi import WebSocket
 from starlette.websockets import WebSocketDisconnect
 
 # Logging
@@ -13,7 +13,7 @@ from elysia.api.core.log import logger
 from elysia.api.utils.default_payloads import error_payload
 
 
-async def help_websocket(websocket: WebSocket, ws_route: callable):
+async def help_websocket(websocket: WebSocket, ws_route: Callable):
     memory_process = psutil.Process()
     # initial_memory = memory_process.memory_info().rss
     try:

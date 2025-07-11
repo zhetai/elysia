@@ -13,7 +13,7 @@ from elysia.tools.visualisation.prompt_templates import (
     CreateHistogramChart,
     CreateScatterOrLineChart,
 )
-from elysia.objects import Response, Reasoning
+from elysia.objects import Response
 from elysia.util.objects import TrainingUpdate, TreeUpdate
 
 
@@ -73,7 +73,6 @@ class Visualise(Tool):
             title = prediction.overall_title
 
             yield Response(text=prediction.message_update)
-            yield Reasoning(reasoning=prediction.reasoning)
             yield TrainingUpdate(
                 module_name="visualise",
                 inputs={
@@ -96,7 +95,7 @@ class Visualise(Tool):
                 return
 
             if self.logger and self.logger.level <= 20:
-                fig = convert_chart_types_to_matplotlib(charts, chart_type)
+                fig = convert_chart_types_to_matplotlib(charts)
                 fig.show()
 
             yield ChartResult(charts, chart_type, title)

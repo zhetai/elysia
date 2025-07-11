@@ -16,14 +16,14 @@ class QueryData(BaseModel):
 class ViewPaginatedCollectionData(BaseModel):
     page_size: int
     page_number: int
-    query: Optional[str] = ""
+    query: str = ""
     sort_on: Optional[str] = None
-    ascending: Optional[bool] = False
-    filter_config: Optional[dict[str, Any]] = {}
+    ascending: bool = False
+    filter_config: dict[str, Any] = {}
 
 
 class InitialiseTreeData(BaseModel):
-    low_memory: Optional[bool] = False
+    low_memory: bool = False
 
 
 class MetadataNamedVectorData(BaseModel):

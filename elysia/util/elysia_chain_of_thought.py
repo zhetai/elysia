@@ -111,7 +111,7 @@ class ElysiaChainOfThought(Module):
 
         super().__init__()
 
-        signature = ensure_signature(signature)
+        signature = ensure_signature(signature)  # type: ignore
 
         # Create a shallow copy of the tree_data
         self.tree_data = copy(tree_data)
@@ -296,7 +296,7 @@ class ElysiaChainOfThought(Module):
 
         # -- Predict --
         self.predict = dspy.Predict(extended_signature, **config)
-        self.predict.signature.instructions += elysia_meta_prompt
+        self.predict.signature.instructions += elysia_meta_prompt  # type: ignore
 
     def _add_tree_data_inputs(self, kwargs: dict):
 
@@ -344,7 +344,7 @@ class ElysiaChainOfThought(Module):
         num_base_lm_examples: int = 3,
         return_example_uuids: bool = False,
         **kwargs,
-    ) -> dspy.Prediction:
+    ) -> tuple[dspy.Prediction, list[str]] | dspy.Prediction:
         """
         Use the forward pass of the module with feedback examples.
         This will first retrieve examples from the feedback collection, and use those as few-shot examples to run the module.
