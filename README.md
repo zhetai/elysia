@@ -6,7 +6,7 @@ Elysia is an agentic platform designed to use tools in a decision tree. A decisi
 
 ## Get Started
 
-To use Elysia, you need to either set up your models and API keys in your `.env` file, or specify them in the config. [See the setup page to get started.](setting_up.md)
+To use Elysia, you need to either set up your models and API keys in your `.env` file, or specify them in the config. [See the setup page to get started.](https://weaviate.github.io/elysia/setting_up/)
 
 Elysia can be used very simply:
 ```python
