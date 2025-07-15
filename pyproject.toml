@@ -14,7 +14,7 @@ requires-python = ">=3.10.0,<3.13.0"
 classifiers = []
 dependencies = [
     "apscheduler==3.11.0",
-    "bcrypt==4.2.1",
+    "bcrypt>=4.3.0",
     "dspy-ai==3.0.0b2",
     "fastapi[standard]>=0.115.11",
     "httpx==0.28.1", 
