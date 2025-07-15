@@ -1,17 +1,53 @@
+# Welcome to Elysia
 
-# Elysia Python Client + API
+Elysia is an agentic platform designed to use tools in a decision tree. A decision agent decides which tools to use dynamically based on its environment and context. You can use custom tools or use the pre-built tools designed to retrieve your data in a Weaviate cluster.
 
-Welcome to Elysia, the agentic platform for searching and retrieving data in Weaviate. Elysia is also designed to handle any custom tools, and it will be automatically handled by a decision agent.
+[Read the docs!](https://weaviate.github.io/elysia/)
 
-[View the docs](https://weaviate.github.io/elysia/)
+## Get Started
+
+To use Elysia, you need to either set up your models and API keys in your `.env` file, or specify them in the config. [See the setup page to get started.](setting_up.md)
+
+Elysia can be used very simply:
+```python
+from elysia import tool, Tree
+
+tree = Tree()
+
+@tool(tree=tree)
+async def add(x: int, y: int) -> int:
+    return x + y
+
+tree("What is the sum of 9009 and 6006?")
+```
+
+Elysia is pre-configured to be capable of connecting to and interacting with your [Weaviate](https://weaviate.io/deployment/serverless) clusters!
+```python
+import elysia
+tree = elysia.Tree()
+response, objects = tree(
+    "What are the 10 most expensive items in the Ecommerce collection?",
+    collection_names = ["Ecommerce"]
+)
+```
+This will use the built-in open source _query_ tool or _aggregate_ tool to interact with your Weaviate collections. To get started connecting to Weaviate, [see the setting up page in the docs](https://weaviate.github.io/elysia/setting_up/).
 
 ## Installation (bash) (Linux/MacOS)
 
-From your bash terminal, clone the repository via
+### PyPi (Recommended)
+Simply run 
+```bash
+pip install elysia-ai
+```
+to install straight away!
+
+### GitHub
+
+To get the latest development version, you can do
 ```bash
 git clone https://github.com/weaviate/elysia
 ```
-move to the working directory
+move to the working directory via
 ```bash
 cd elysia
 ```
@@ -26,7 +62,11 @@ pip install -e .
 ```
 Done! You can now use the Elysia python package
 
-### Running the Backend
+
+## Running the Elysia App
+
+### Backend 
+
 Just simply run
 ```bash
 elysia start
@@ -72,20 +112,3 @@ The 'default' config for Elysia is to use [OpenRouter](https://openrouter.ai/) t
 OPENROUTER_API_KEY=...
 ```
 and OpenAI as the vectorisers for the alpha datasets, so you need `OPENAI_API_KEY` too.
-
-## Basic Usage
-
-For a comprehensive overview of how to get started with Elysia, [view the documentation here](https://weaviate.github.io/elysia/basic_example/).
-
-The simplest way to use Elysia would be to configure your API keys via the environment variables above, and then run, for example
-```python
-from elysia import settings, Tree
-settings.smart_setup()
-
-tree = Tree()
-tree(
-    "how many t-shirts are in my shopping dataset?"
-)
-```
-
-The `settings.smart_setup()` gives the recommended configuration for Elysia - using Gemini 2.5 Flash for both the base model and the complex model, both via OpenRouter.
