@@ -421,7 +421,7 @@ class CollectionData:
                     metadata_collection = client.collections.get(metadata_name)
                     metadata = await metadata_collection.query.fetch_objects(limit=1)
                     properties = metadata.objects[0].properties
-                    format_dict_to_serialisable(properties)
+                    format_dict_to_serialisable(properties)  # type: ignore
                     temp_metadata[collection_name] = properties
 
                 # if the metadata collection does not exist, it is not preprocessed
