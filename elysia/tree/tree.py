@@ -1003,7 +1003,9 @@ class Tree:
             )
             raise ValueError(
                 "Cannot remove the root branch when there is only one root branch. "
-                "Create a new root branch via .add_branch(..., root=True) first."
+                "Create a new root branch via .add_branch(..., root=True) first. "
+                "(You could be trying to replace a root branch with the same ID as the one you are trying to remove. "
+                "Try a different name for the new root branch.)"
             )
 
         for decision_node_id in self.decision_nodes:

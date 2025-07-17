@@ -20,6 +20,7 @@ class Config:
         agent_description: str | None = None,
         end_goal: str | None = None,
         branch_initialisation: BranchInitType = "one_branch",
+        use_elysia_collections: bool = True,
     ):
 
         if id is None:
@@ -56,6 +57,7 @@ class Config:
             self.end_goal = end_goal
 
         self.branch_initialisation: BranchInitType = branch_initialisation
+        self.use_elysia_collections: bool = use_elysia_collections
 
     def to_json(self):
         return {
@@ -66,6 +68,7 @@ class Config:
             "agent_description": self.agent_description,
             "end_goal": self.end_goal,
             "branch_initialisation": self.branch_initialisation,
+            "use_elysia_collections": self.use_elysia_collections,
         }
 
 
