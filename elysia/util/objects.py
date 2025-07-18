@@ -85,7 +85,7 @@ class Tracker:
 
             cost = 0
             for h in history:
-                if "cost" in h:
+                if "cost" in h and h["cost"] is not None:
                     cost += h["cost"]
 
             if self.trackers["models"][model_type]["input_tokens"] is None:
