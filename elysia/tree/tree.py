@@ -1585,6 +1585,8 @@ class Tree:
                         result, self.current_decision
                     )
                     successful_action = not error and successful_action
+                    if not successful_action:
+                        completed = False
 
                     if action_result is not None:
                         yield action_result
