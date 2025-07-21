@@ -98,14 +98,19 @@ class FollowUpSuggestionsData(BaseModel):
     conversation_id: str
 
 
+# class BackendConfig(BaseModel):
+#     settings: dict[str, Any]
+#     style: str
+#     agent_description: str
+#     end_goal: str
+#     branch_initialisation: str
+
+
 class SaveConfigUserData(BaseModel):
-    name: Optional[str] = None
-    settings: Optional[dict[str, Any]] = None
-    style: Optional[str] = None
-    agent_description: Optional[str] = None
-    end_goal: Optional[str] = None
-    branch_initialisation: Optional[str] = None
-    frontend_config: Optional[dict[str, Any]] = None
+    name: str
+    config: dict[str, Any]
+    frontend_config: dict[str, Any]
+    default: bool
 
 
 class SaveConfigTreeData(BaseModel):

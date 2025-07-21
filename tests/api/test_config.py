@@ -42,9 +42,12 @@ async def delete_config_after_completion(
 ):
     client_manager = user_manager.users[user_id]["client_manager"]
     async with client_manager.connect_to_async_client() as client:
+        if not await client.collections.exists("ELYSIA_CONFIG__"):
+            return
+
         collection = client.collections.get("ELYSIA_CONFIG__")
         uuid = generate_uuid5(config_id)
-        if collection.data.exists(uuid):
+        if await collection.data.exists(uuid):
             await collection.data.delete_by_id(uuid)
 
     if os.path.exists(f"elysia/api/user_configs/frontend_config_{user_id}.json"):
@@ -58,6 +61,8 @@ async def initialise_user_and_tree(user_id: str, conversation_id: str):
         user_id,
         user_manager,
     )
+    response = read_response(response)
+    assert response["error"] == ""
 
     response = await initialise_tree(
         user_id,
@@ -67,6 +72,8 @@ async def initialise_user_and_tree(user_id: str, conversation_id: str):
         ),
         user_manager,
     )
+    response = read_response(response)
+    assert response["error"] == ""
 
 
 class TestConfig:
@@ -77,6 +84,7 @@ class TestConfig:
         user_id = "test_user_set_save_location"
         conversation_id = "test_conversation_set_save_location"
         config_id = "test_config_set_save_location"
+        config_name = "Test set save location"
         try:
             await initialise_user_and_tree(user_id, conversation_id)
 
@@ -92,6 +100,9 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
+                    name=config_name,
+                    default=False,
+                    config={},
                     frontend_config={
                         "save_location_wcd_url": "test_wcd_url",
                         "save_location_wcd_api_key": "test_wcd_api_key",
@@ -114,6 +125,9 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
+                    name=config_name,
+                    default=False,
+                    config={},
                     frontend_config={
                         "save_location_wcd_api_key": "test_wcd_api_key_2",
                     },
@@ -182,6 +196,7 @@ class TestConfig:
         user_id = "test_user_change_config_user"
         conversation_id = "test_conversation_change_config_user"
         config_id = f"test_config_conversation_change_config_user"
+        config_name = "Test change config user"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id)
@@ -195,10 +210,15 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
+                    name=config_name,
+                    default=False,
+                    config={},
                     frontend_config={"save_configs_to_weaviate": False},
                 ),
                 user_manager=self.user_manager,
             )
+            response = read_response(response)
+            assert response["error"] == ""
 
             # Change user config
             new_settings = {
@@ -216,10 +236,15 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=new_settings,
-                    style=new_style,
-                    agent_description=new_agent_description,
-                    branch_initialisation=new_branch_init,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": new_settings,
+                        "style": new_style,
+                        "agent_description": new_agent_description,
+                        "branch_initialisation": new_branch_init,
+                    },
+                    frontend_config={},
                 ),
                 user_manager=self.user_manager,
             )
@@ -233,6 +258,7 @@ class TestConfig:
             assert tree_manager.settings.BASE_PROVIDER == "openai"
             assert tree_manager.settings.COMPLEX_PROVIDER == "openai"
 
+            assert tree_manager.config.id == config_id
             assert tree_manager.config.style == new_style
             assert tree_manager.config.agent_description == new_agent_description
             assert (
@@ -332,6 +358,7 @@ class TestConfig:
         conversation_id_1 = "test_conversation_workflow_1"
         conversation_id_2 = "test_conversation_workflow_2"
         config_id = f"test_config_conversation_config_workflow"
+        config_name = "Test config workflow"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id_1)
@@ -347,8 +374,12 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=user_settings,
-                    style="Professional style for user",
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": user_settings,
+                        "style": "Professional style for user",
+                    },
                     frontend_config={
                         "save_configs_to_weaviate": False,
                     },
@@ -427,7 +458,12 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=new_user_settings,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": new_user_settings,
+                    },
+                    frontend_config={},
                 ),
                 user_manager=self.user_manager,
             )
@@ -477,6 +513,7 @@ class TestConfig:
         user_id = "test_user_save_config"
         conversation_id = "test_conversation_save_config"
         config_id = f"test_config_conversation_save_config"
+        config_name = "Test config save"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id)
@@ -490,11 +527,16 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=tree_manager.settings.to_json(),
-                    style=tree_manager.config.style,
-                    agent_description=tree_manager.config.agent_description,
-                    end_goal=tree_manager.config.end_goal,
-                    branch_initialisation=tree_manager.config.branch_initialisation,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": tree_manager.settings.to_json(),
+                        "style": tree_manager.config.style,
+                        "agent_description": tree_manager.config.agent_description,
+                        "end_goal": tree_manager.config.end_goal,
+                        "branch_initialisation": tree_manager.config.branch_initialisation,
+                    },
+                    frontend_config={},
                 ),
                 user_manager=self.user_manager,
             )
@@ -519,7 +561,8 @@ class TestConfig:
     async def test_load_config_user(self):
         user_id = "test_user_load_config_user"
         conversation_id = "test_conversation_load_config_user"
-        config_id = f"test_config_user_{random.randint(0, 1000000)}"
+        config_id = f"test_config_user"
+        config_name = "Test config user"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id)
@@ -543,11 +586,16 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=settings,
-                    style=custom_style,
-                    agent_description=custom_agent_description,
-                    end_goal=custom_end_goal,
-                    branch_initialisation=custom_branch_init,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": settings,
+                        "style": custom_style,
+                        "agent_description": custom_agent_description,
+                        "end_goal": custom_end_goal,
+                        "branch_initialisation": custom_branch_init,
+                    },
+                    frontend_config={},
                 ),
                 user_manager=self.user_manager,
             )
@@ -559,16 +607,20 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings={
-                        "BASE_MODEL": "claude-3-haiku",
-                        "COMPLEX_MODEL": "claude-3-opus",
-                        "BASE_PROVIDER": "anthropic",
-                        "COMPLEX_PROVIDER": "anthropic",
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "claude-3-haiku",
+                            "COMPLEX_MODEL": "claude-3-opus",
+                            "BASE_PROVIDER": "anthropic",
+                            "COMPLEX_PROVIDER": "anthropic",
+                        },
+                        "style": "Conversational and friendly.",
+                        "agent_description": "You are a friendly assistant.",
+                        "end_goal": "Provide helpful and friendly responses.",
+                        "branch_initialisation": "one_branch",
                     },
-                    style="Conversational and friendly.",
-                    agent_description="You are a friendly assistant.",
-                    end_goal="Provide helpful and friendly responses.",
-                    branch_initialisation="one_branch",
                     frontend_config={
                         "save_configs_to_weaviate": False,
                     },
@@ -608,9 +660,9 @@ class TestConfig:
     async def test_load_config_tree(self):
         """Test loading a config for a tree from the Weaviate database."""
         user_id = "test_user_load_config_tree"
-        config_id = f"test_config_tree_{random.randint(0, 1000000)}"
+        config_id = "test_config_tree"
         conversation_id = "test_conversation_load_config_tree"
-
+        config_name = "Test config tree"
         try:
             await initialise_user_and_tree(user_id, conversation_id)
 
@@ -632,11 +684,16 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=settings,
-                    style=custom_style,
-                    agent_description=custom_agent_description,
-                    end_goal=custom_end_goal,
-                    branch_initialisation=custom_branch_init,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": settings,
+                        "style": custom_style,
+                        "agent_description": custom_agent_description,
+                        "end_goal": custom_end_goal,
+                        "branch_initialisation": custom_branch_init,
+                    },
+                    frontend_config={},
                 ),
                 user_manager=self.user_manager,
             )
@@ -704,16 +761,21 @@ class TestConfig:
             # Save multiple configs
             for i, config_id in enumerate(config_ids):
                 config = SaveConfigUserData(
-                    settings={
-                        "BASE_MODEL": f"model-{i}",
-                        "COMPLEX_MODEL": f"complex-model-{i}",
-                        "BASE_PROVIDER": "test-provider",
-                        "COMPLEX_PROVIDER": "test-provider",
+                    name=f"Test config list {i}",
+                    default=False,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": f"model-{i}",
+                            "COMPLEX_MODEL": f"complex-model-{i}",
+                            "BASE_PROVIDER": "test-provider",
+                            "COMPLEX_PROVIDER": "test-provider",
+                        },
+                        "style": f"Style {i}",
+                        "agent_description": f"Agent description {i}",
+                        "end_goal": f"End goal {i}",
+                        "branch_initialisation": "one_branch",
                     },
-                    style=f"Style {i}",
-                    agent_description=f"Agent description {i}",
-                    end_goal=f"End goal {i}",
-                    branch_initialisation="one_branch",
+                    frontend_config={},
                 )
 
                 response = await save_config_user(
@@ -748,7 +810,8 @@ class TestConfig:
         user_id_1 = "test_user_config_workflow_1"
         conversation_id_1 = "test_conversation_workflow_1"
         conversation_id_2 = "test_conversation_workflow_2"
-        config_id = f"test_shared_config_workflow"
+        config_id = "test_shared_config_workflow"
+        config_name = "Test shared config workflow"
 
         try:
             await initialise_user_and_tree(user_id_1, conversation_id_1)
@@ -772,11 +835,15 @@ class TestConfig:
                 user_id=user_id_1,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=tree_manager1.settings.to_json(),
-                    style=custom_style,
-                    agent_description=custom_agent_description,
-                    end_goal=custom_end_goal,
-                    branch_initialisation=tree_manager1.config.branch_initialisation,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": tree_manager1.settings.to_json(),
+                        "style": custom_style,
+                        "agent_description": custom_agent_description,
+                        "end_goal": custom_end_goal,
+                        "branch_initialisation": tree_manager1.config.branch_initialisation,
+                    },
                     frontend_config={
                         "save_configs_to_weaviate": False,
                     },
@@ -791,11 +858,15 @@ class TestConfig:
                 user_id=user_id_1,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=custom_settings,
-                    style=custom_style,
-                    agent_description=custom_agent_description,
-                    end_goal=custom_end_goal,
-                    branch_initialisation=tree_manager1.config.branch_initialisation,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": custom_settings,
+                        "style": custom_style,
+                        "agent_description": custom_agent_description,
+                        "end_goal": custom_end_goal,
+                        "branch_initialisation": tree_manager1.config.branch_initialisation,
+                    },
                     frontend_config={
                         "save_location_wcd_url": os.getenv("WCD_URL"),
                         "save_location_wcd_api_key": os.getenv("WCD_API_KEY"),
@@ -821,14 +892,18 @@ class TestConfig:
                 user_id=user_id_1,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings={
-                        "BASE_MODEL": "claude-3-haiku",
-                        "BASE_PROVIDER": "anthropic",
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "claude-3-haiku",
+                            "BASE_PROVIDER": "anthropic",
+                        },
+                        "style": "New incorrect style",
+                        "agent_description": "New incorrect agent description",
+                        "end_goal": "New incorrect end goal",
+                        "branch_initialisation": tree_manager1.config.branch_initialisation,
                     },
-                    style="New incorrect style",
-                    agent_description="New incorrect agent description",
-                    end_goal="New incorrect end goal",
-                    branch_initialisation=tree_manager1.config.branch_initialisation,
                     frontend_config={
                         "save_configs_to_weaviate": False,
                     },
@@ -902,14 +977,19 @@ class TestConfig:
                 user_id=user_id_1,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings={
-                        "BASE_MODEL": "claude-3-5-sonnet",
-                        "BASE_PROVIDER": "anthropic",
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "claude-3-5-sonnet",
+                            "BASE_PROVIDER": "anthropic",
+                        },
+                        "style": "New updated style",
+                        "agent_description": "New updated agent description",
+                        "end_goal": "New updated end goal",
+                        "branch_initialisation": tree_manager1.config.branch_initialisation,
                     },
-                    style="New updated style",
-                    agent_description="New updated agent description",
-                    end_goal="New updated end goal",
-                    branch_initialisation=tree_manager1.config.branch_initialisation,
+                    frontend_config={},
                 ),
                 user_manager=self.user_manager,
             )
@@ -956,8 +1036,8 @@ class TestConfig:
         """Test deleting a config from the Weaviate database."""
         user_id = "test_user_delete_config"
         conversation_id = "test_conversation_delete_config"
-        config_id = f"test_delete_config_{random.randint(0, 1000000)}"
-
+        config_id = "test_delete_config"
+        config_name = "Test delete config"
         try:
             await initialise_user_and_tree(user_id, conversation_id)
 
@@ -970,11 +1050,16 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
-                    settings=tree_manager.settings.to_json(),
-                    style=tree_manager.config.style,
-                    agent_description=tree_manager.config.agent_description,
-                    end_goal=tree_manager.config.end_goal,
-                    branch_initialisation=tree_manager.config.branch_initialisation,
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": tree_manager.settings.to_json(),
+                        "style": tree_manager.config.style,
+                        "agent_description": tree_manager.config.agent_description,
+                        "end_goal": tree_manager.config.end_goal,
+                        "branch_initialisation": tree_manager.config.branch_initialisation,
+                    },
+                    frontend_config={},
                 ),
                 user_manager=self.user_manager,
             )
@@ -1018,6 +1103,7 @@ class TestConfig:
         user_id = "test_user_frontend_config_local"
         conversation_id = "test_conversation_frontend_config_local"
         config_id = f"test_frontend_config_local"
+        config_name = "Test frontend config local"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id)
@@ -1031,6 +1117,9 @@ class TestConfig:
                 user_id=user_id,
                 config_id=config_id,
                 data=SaveConfigUserData(
+                    name=config_name,
+                    default=False,
+                    config={},
                     frontend_config={
                         "save_trees_to_weaviate": False,
                         "save_configs_to_weaviate": False,
@@ -1070,6 +1159,173 @@ class TestConfig:
             )
             assert user["frontend_config"].config["save_trees_to_weaviate"] == False
             assert user["frontend_config"].config["save_configs_to_weaviate"] == False
+
+        finally:
+            await self.user_manager.close_all_clients()
+            await delete_config_after_completion(self.user_manager, user_id, config_id)
+
+    @pytest.mark.asyncio
+    async def test_default_config_for_user(self):
+        user_id = "test_user_default_config_for_user"
+        conversation_id = "test_conversation_default_config_for_user"
+        config_id = f"test_default_config_for_user"
+        config_id_2 = f"test_default_config_for_user_2"
+        config_name = "Test default config for user"
+
+        try:
+            # create new user
+            await initialise_user_and_tree(user_id, conversation_id)
+
+            # save a config
+            response = await save_config_user(
+                user_id=user_id,
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    name=config_name,
+                    default=True,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "gpt-4o-mini",
+                            "BASE_PROVIDER": "openai",
+                            "WCD_URL": os.getenv("WCD_URL"),
+                            "WCD_API_KEY": os.getenv("WCD_API_KEY"),
+                            "API_KEYS": {
+                                "openai_api_key": os.getenv("OPENAI_API_KEY"),
+                            },
+                        },
+                        "style": "New style for default",
+                        "agent_description": "New agent description for default",
+                        "end_goal": "New end goal for default",
+                        "branch_initialisation": "one_branch",
+                    },
+                    frontend_config={
+                        "save_trees_to_weaviate": False,
+                        "save_configs_to_weaviate": True,
+                    },
+                ),
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
+            # check the config was saved
+            response = await list_configs(
+                user_id=user_id,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert config_id in [c["config_id"] for c in response["configs"]]
+
+            # remove the user from the user manager
+            del self.user_manager.users[user_id]
+
+            # add the user back to the user manager
+            response = await initialise_user(
+                user_id,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
+            assert response["config"]["id"] == config_id
+            assert response["config"]["settings"]["BASE_MODEL"] == "gpt-4o-mini"
+            assert response["config"]["settings"]["BASE_PROVIDER"] == "openai"
+            assert response["config"]["style"] == "New style for default"
+            assert (
+                response["config"]["agent_description"]
+                == "New agent description for default"
+            )
+            assert response["config"]["end_goal"] == "New end goal for default"
+            assert response["config"]["branch_initialisation"] == "one_branch"
+
+            assert response["frontend_config"]["save_trees_to_weaviate"] == False
+            assert response["frontend_config"]["save_configs_to_weaviate"] == True
+
+            # save a new config which is not default
+            response = await save_config_user(
+                user_id=user_id,
+                config_id=config_id_2,
+                data=SaveConfigUserData(
+                    name=config_name,
+                    default=False,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "gpt-4.1-mini",
+                            "BASE_PROVIDER": "openai",
+                            "WCD_URL": os.getenv("WCD_URL"),
+                            "WCD_API_KEY": os.getenv("WCD_API_KEY"),
+                            "API_KEYS": {
+                                "openai_api_key": os.getenv("OPENAI_API_KEY"),
+                            },
+                        },
+                        "style": "New style for non-default",
+                        "agent_description": "New agent description for non-default",
+                        "end_goal": "New end goal for non-default",
+                        "branch_initialisation": "one_branch",
+                    },
+                    frontend_config={
+                        "save_location_wcd_url": os.getenv("WCD_URL"),
+                        "save_location_wcd_api_key": os.getenv("WCD_API_KEY"),
+                        "save_trees_to_weaviate": False,
+                        "save_configs_to_weaviate": True,
+                    },
+                ),
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
+            # delete and create the user
+            del self.user_manager.users[user_id]
+            response = await initialise_user(
+                user_id,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
+            # should still have the old config, not the new one
+            assert response["config"]["id"] == config_id
+            assert response["config"]["settings"]["BASE_MODEL"] == "gpt-4o-mini"
+            assert response["config"]["settings"]["BASE_PROVIDER"] == "openai"
+            assert response["config"]["style"] == "New style for default"
+            assert (
+                response["config"]["agent_description"]
+                == "New agent description for default"
+            )
+            assert response["config"]["end_goal"] == "New end goal for default"
+            assert response["config"]["branch_initialisation"] == "one_branch"
+
+            assert response["frontend_config"]["save_trees_to_weaviate"] == False
+            assert response["frontend_config"]["save_configs_to_weaviate"] == True
+
+            # but we can still see the old one in the list
+            response = await list_configs(
+                user_id=user_id,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert config_id_2 in [c["config_id"] for c in response["configs"]]
+
+            # and load it
+            response = await load_config_user(
+                user_id=user_id,
+                config_id=config_id_2,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
+            # check the config was loaded
+            user = await self.user_manager.get_user_local(user_id)
+            assert user["tree_manager"].config.style == "New style for non-default"
+            assert (
+                user["tree_manager"].config.agent_description
+                == "New agent description for non-default"
+            )
+            assert (
+                user["tree_manager"].config.end_goal == "New end goal for non-default"
+            )
 
         finally:
             await self.user_manager.close_all_clients()

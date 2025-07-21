@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import os
+from typing import Any
 import uuid
 from dotenv import load_dotenv
 from weaviate.util import generate_uuid5
@@ -60,6 +61,40 @@ class TreeManager:
             self.config = config
 
         self.settings = self.config.settings
+
+    def update_config(
+        self,
+        conversation_id: str | None = None,
+        config_id: str | None = None,
+        settings: dict[str, Any] | None = None,
+        style: str | None = None,
+        agent_description: str | None = None,
+        end_goal: str | None = None,
+        branch_initialisation: BranchInitType | None = None,
+    ):
+        if config_id is not None:
+            self.config.id = config_id
+
+        if settings is not None:
+            if conversation_id is None:
+                self.configure(conversation_id=conversation_id, **settings)
+            else:
+                tree: Tree = self.get_tree(conversation_id)
+                tree.configure(**settings)
+
+        if style is not None:
+            self.change_style(style, conversation_id)
+
+        if agent_description is not None:
+            self.change_agent_description(agent_description, conversation_id)
+
+        if end_goal is not None:
+            self.change_end_goal(end_goal, conversation_id)
+
+        # if branch_initialisation is not None:
+        #     self.change_branch_initialisation(
+        #         branch_initialisation, conversation_id
+        #     )
 
     def add_tree(
         self,
@@ -232,7 +267,7 @@ class TreeManager:
         """
         return self.trees[conversation_id]["event"]
 
-    def configure(self, conversation_id: str | None = None, **kwargs):
+    def configure(self, conversation_id: str | None = None, **kwargs: Any):
         """
         Configure the settings for a tree in the TreeManager.
 
