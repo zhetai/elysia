@@ -105,6 +105,7 @@ class SaveConfigUserData(BaseModel):
     agent_description: Optional[str] = None
     end_goal: Optional[str] = None
     branch_initialisation: Optional[str] = None
+    frontend_config: Optional[dict[str, Any]] = None
 
 
 class SaveConfigTreeData(BaseModel):

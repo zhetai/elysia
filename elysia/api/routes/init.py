@@ -5,9 +5,6 @@ from elysia.api.api_types import InitialiseTreeData
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.api.core.log import logger
-from elysia.config import Settings
-
-from uuid import uuid4
 
 router = APIRouter()
 
@@ -34,14 +31,14 @@ async def initialise_user(
 
         # if a user does not exist, create a user and set up the configs
         if not user_exists:
-            user_manager.add_user_local(
+            await user_manager.add_user_local(
                 user_id,
             )  # leave config empty to create defaults for a new user
 
         # if a user exists, get the existing configs
         user = await user_manager.get_user_local(user_id)
         config = user["tree_manager"].config.to_json()
-        frontend_config = user["frontend_config"].config
+        frontend_config = user["frontend_config"].to_json()
 
     except Exception as e:
         logger.exception(f"Error in /initialise_user API")

@@ -1,6 +1,7 @@
 import datetime
 import os
 import random
+import json
 
 from dotenv import load_dotenv
 from typing import Any
@@ -89,7 +90,7 @@ class UserManager:
         frontend_config: FrontendConfig = local_user["frontend_config"]
         await frontend_config.configure(**config)
 
-    def add_user_local(
+    async def add_user_local(
         self,
         user_id: str,
         config: Config | None = None,
@@ -106,8 +107,17 @@ class UserManager:
         if user_id not in self.users:
             self.users[user_id] = {}
 
-            # each user has their own frontend config (frontend-specific config options)
-            fe_config = FrontendConfig(logger=logger)
+            # check for a local frontend config file
+            if os.path.exists(
+                f"elysia/api/user_configs/frontend_config_{user_id}.json"
+            ):
+                with open(
+                    f"elysia/api/user_configs/frontend_config_{user_id}.json", "r"
+                ) as f:
+                    fe_config = await FrontendConfig.from_json(json.load(f), logger)
+            else:
+                fe_config = FrontendConfig(logger=logger)
+
             self.users[user_id]["frontend_config"] = fe_config
 
             self.users[user_id]["tree_manager"] = TreeManager(
