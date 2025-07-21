@@ -5,6 +5,7 @@ from rich.logging import RichHandler
 
 import spacy
 import uuid
+import random
 
 from dotenv import load_dotenv
 from dspy import LM
@@ -44,7 +45,7 @@ class Settings:
         These are all settings initialised to None, and should be set using the `configure` method.
         """
         # Default settings
-        self.SETTINGS_ID = str(uuid.uuid4())
+        self.SETTINGS_ID = str(random.randint(100000000000000, 999999999999999))
 
         self.BASE_MODEL: str | None = None
         self.BASE_PROVIDER: str | None = None

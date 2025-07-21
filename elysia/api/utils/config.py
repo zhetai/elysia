@@ -68,9 +68,33 @@ class Config:
             "style": self.style,
             "agent_description": self.agent_description,
             "end_goal": self.end_goal,
-            "branch_initialisation": self.branch_initialisation,
+            "branch_initialisation": (
+                self.branch_initialisation
+                if self.branch_initialisation is not None
+                else "one_branch"
+            ),
             "use_elysia_collections": self.use_elysia_collections,
         }
+
+    @classmethod
+    def from_json(cls, json: dict):
+        if "id" not in json and "config_id" in json:
+            json["id"] = json["config_id"]
+
+        return cls(
+            id=json["id"],
+            name=json["name"],
+            settings=Settings.from_json(json["settings"]),
+            style=json["style"],
+            agent_description=json["agent_description"],
+            end_goal=json["end_goal"],
+            branch_initialisation=json["branch_initialisation"],
+            use_elysia_collections=(
+                json["use_elysia_collections"]
+                if "use_elysia_collections" in json
+                else True
+            ),
+        )
 
 
 class FrontendConfig:

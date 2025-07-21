@@ -78,8 +78,33 @@ class UserManager:
     def user_exists(self, user_id: str):
         return user_id in self.users
 
-    def update_config(self, user_id: str, config: Config):
-        pass
+    async def update_config(
+        self,
+        user_id: str,
+        conversation_id: str | None = None,
+        config_id: str | None = None,
+        settings: dict[str, Any] | None = None,
+        style: str | None = None,
+        agent_description: str | None = None,
+        end_goal: str | None = None,
+        branch_initialisation: str | None = None,
+    ):
+        local_user = await self.get_user_local(user_id)
+        local_user["tree_manager"].update_config(
+            conversation_id,
+            config_id,
+            settings,
+            style,
+            agent_description,
+            end_goal,
+            branch_initialisation,
+        )
+
+        await local_user["client_manager"].reset_keys(
+            wcd_url=local_user["tree_manager"].settings.WCD_URL,
+            wcd_api_key=local_user["tree_manager"].settings.WCD_API_KEY,
+            api_keys=local_user["tree_manager"].settings.API_KEYS,
+        )
 
     async def update_frontend_config(
         self,
@@ -111,10 +136,17 @@ class UserManager:
             if os.path.exists(
                 f"elysia/api/user_configs/frontend_config_{user_id}.json"
             ):
-                with open(
-                    f"elysia/api/user_configs/frontend_config_{user_id}.json", "r"
-                ) as f:
-                    fe_config = await FrontendConfig.from_json(json.load(f), logger)
+                try:
+                    with open(
+                        f"elysia/api/user_configs/frontend_config_{user_id}.json", "r"
+                    ) as f:
+                        fe_config = await FrontendConfig.from_json(json.load(f), logger)
+                except Exception as e:
+                    logger.warning(
+                        f"In /add_user_local API during frontend config loading. "
+                        f"Using default frontend config. Error: {str(e)}"
+                    )
+                    fe_config = FrontendConfig(logger=logger)
             else:
                 fe_config = FrontendConfig(logger=logger)
 

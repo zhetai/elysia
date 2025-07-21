@@ -334,6 +334,7 @@ async def test_add_branch_to_branch():
     )
     assert read_response(response)["error"] == ""
     config_id = read_response(response)["config"]["id"]
+    config_name = read_response(response)["config"]["name"]
 
     # set no configs saved to weaviate
     response = await update_frontend_config(
@@ -350,7 +351,12 @@ async def test_add_branch_to_branch():
         user_id,
         config_id,
         SaveConfigUserData(
-            branch_initialisation="multi_branch",
+            name=config_name,
+            config={
+                "branch_initialisation": "multi_branch",
+            },
+            frontend_config={},
+            default=False,
         ),
         user_manager,
     )
@@ -429,6 +435,7 @@ async def test_full_cycle():
     )
     assert read_response(response)["error"] == ""
     config_id = read_response(response)["config"]["id"]
+    config_name = read_response(response)["config"]["name"]
 
     # set no configs saved to weaviate
     response = await update_frontend_config(
@@ -445,7 +452,12 @@ async def test_full_cycle():
         user_id,
         config_id,
         SaveConfigUserData(
-            branch_initialisation="multi_branch",
+            name=config_name,
+            config={
+                "branch_initialisation": "multi_branch",
+            },
+            frontend_config={},
+            default=False,
         ),
         user_manager,
     )

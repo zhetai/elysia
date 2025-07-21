@@ -12,6 +12,7 @@ from elysia.api.api_types import (
     SaveConfigUserData,
     UpdateFrontendConfigData,
 )
+from elysia.api.utils.config import Config
 from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
@@ -20,10 +21,12 @@ from elysia.util.parsing import format_dict_to_serialisable, format_datetime
 from elysia.config import Settings
 from elysia.api.services.tree import TreeManager
 from elysia.api.utils.config import FrontendConfig
+from elysia.api.utils.encryption import encrypt_api_keys, decrypt_api_keys
 
 import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
 from weaviate.classes.query import MetadataQuery, Sort, Filter
+from weaviate.classes.config import Property, DataType
 from uuid import uuid4
 
 
@@ -137,6 +140,7 @@ async def new_user_config(
     try:
         user = await user_manager.get_user_local(user_id)
         tree_manager: TreeManager = user["tree_manager"]
+        frontend_config: FrontendConfig = user["frontend_config"]
 
         settings = Settings()
         settings.smart_setup()
@@ -153,11 +157,32 @@ async def new_user_config(
         tree_manager.config.name = "New Config"
         tree_manager.config.id = str(uuid4())
 
+        frontend_config.save_location_wcd_url = os.getenv("WCD_URL", "")
+        frontend_config.save_location_wcd_api_key = os.getenv("WCD_API_KEY", "")
+        frontend_config.config = {
+            "save_trees_to_weaviate": True,
+            "save_configs_to_weaviate": True,
+            "client_timeout": int(os.getenv("CLIENT_TIMEOUT", 3)),
+            "tree_timeout": int(os.getenv("TREE_TIMEOUT", 10)),
+        }
+
     except Exception as e:
         logger.exception(f"Error in /new_user_config API")
-        return JSONResponse(content={"error": str(e), "config": {}})
+        return JSONResponse(
+            content={
+                "error": str(e),
+                "config": tree_manager.config.to_json(),
+                "frontend_config": user["frontend_config"].to_json(),
+            }
+        )
 
-    return JSONResponse(content={"error": "", "config": tree_manager.config.to_json()})
+    return JSONResponse(
+        content={
+            "error": "",
+            "config": tree_manager.config.to_json(),
+            "frontend_config": user["frontend_config"].to_json(),
+        }
+    )
 
 
 @router.post("/{user_id}/{config_id}")
@@ -198,16 +223,13 @@ async def save_config_user(
             error (str): An error message. Empty if no error.
             config (dict): A dictionary of the updated config values.
     """
-    logger.debug(f"/change_config_user API request received")
+    logger.debug(f"/save_config_user API request received")
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Config ID: {config_id}")
     logger.debug(f"Name: {data.name}")
-    logger.debug(f"Settings: {data.settings}")
-    logger.debug(f"Style: {data.style}")
-    logger.debug(f"Agent description: {data.agent_description}")
-    logger.debug(f"End goal: {data.end_goal}")
-    logger.debug(f"Branch initialisation: {data.branch_initialisation}")
+    logger.debug(f"Backend Config: {data.config}")
     logger.debug(f"Frontend config: {data.frontend_config}")
+    logger.debug(f"Default: {data.default}")
 
     try:
         user = await user_manager.get_user_local(user_id)
@@ -252,33 +274,15 @@ async def save_config_user(
 
     # Save the config in memory for this user (Apply step)
     try:
-
-        if data.settings is not None:
-            tree_manager.settings.configure(**data.settings)
-
-        if data.style is not None:
-            tree_manager.change_style(data.style)
-
-        if data.agent_description is not None:
-            tree_manager.change_agent_description(data.agent_description)
-
-        if data.end_goal is not None:
-            tree_manager.change_end_goal(data.end_goal)
-
-        if data.branch_initialisation is not None:
-            assert data.branch_initialisation in [
-                "default",
-                "one_branch",
-                "multi_branch",
-                "empty",
-            ]
-            tree_manager.change_branch_initialisation(data.branch_initialisation)  # type: ignore
-
-        client_manager: ClientManager = user["client_manager"]
-        await client_manager.reset_keys(
-            wcd_url=tree_manager.settings.WCD_URL,
-            wcd_api_key=tree_manager.settings.WCD_API_KEY,
-            api_keys=tree_manager.settings.API_KEYS,
+        await user_manager.update_config(
+            user_id,
+            conversation_id=None,
+            config_id=config_id,
+            settings=data.config.get("settings"),
+            style=data.config.get("style"),
+            agent_description=data.config.get("agent_description"),
+            end_goal=data.config.get("end_goal"),
+            branch_initialisation=data.config.get("branch_initialisation"),
         )
 
     except Exception as e:
@@ -331,25 +335,7 @@ async def save_config_user(
                 "Please update the save location using the /update_save_location API."
             )
 
-        # Check if an auth key is set in the environment variables
-        if "FERNET_KEY" in os.environ:
-            auth_key = os.environ["FERNET_KEY"]
-        else:  # create one
-            auth_key = Fernet.generate_key().decode("utf-8")
-            set_key(".env", "FERNET_KEY", auth_key)
-
-        # Encode all api keys
-        f = Fernet(auth_key.encode("utf-8"))
-        if "API_KEYS" in settings_dict:
-            for key in settings_dict["API_KEYS"]:
-                settings_dict["API_KEYS"][key] = f.encrypt(
-                    settings_dict["API_KEYS"][key].encode("utf-8")
-                ).decode("utf-8")
-
-        if "WCD_API_KEY" in settings_dict:
-            settings_dict["WCD_API_KEY"] = f.encrypt(
-                settings_dict["WCD_API_KEY"].encode("utf-8")
-            ).decode("utf-8")
+        settings_dict = encrypt_api_keys(settings_dict)
 
         # Connect to the weaviate database
         async with user[
@@ -368,6 +354,40 @@ async def save_config_user(
                     inverted_index_config=wc.Configure.inverted_index(
                         index_timestamps=True
                     ),
+                    properties=[
+                        Property(
+                            name="name",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="style",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="agent_description",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="end_goal",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="branch_initialisation",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="user_id",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="config_id",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="default",
+                            data_type=DataType.BOOL,
+                        ),
+                    ],
                 )
 
             format_dict_to_serialisable(settings_dict)
@@ -382,8 +402,20 @@ async def save_config_user(
                 "frontend_config": user["frontend_config"].config,
                 "config_id": config_id,
                 "user_id": user_id,
+                "default": data.default,
             }
 
+            # if the config is a default config, set all other default configs to False
+            if data.default:
+                existing_default_config = await collection.query.fetch_objects(
+                    filters=Filter.by_property("default").equal(True)
+                )
+                for item in existing_default_config.objects:
+                    await collection.data.update(
+                        properties={"default": False}, uuid=item.uuid
+                    )
+
+            # save the config to the weaviate database
             if await collection.data.exists(uuid=uuid):
                 await collection.data.update(properties=config_item, uuid=uuid)
             else:
@@ -440,6 +472,7 @@ async def load_config_user(
     try:
         user = await user_manager.get_user_local(user_id)
         tree_manager: TreeManager = user["tree_manager"]
+        frontend_config: FrontendConfig = user["frontend_config"]
     except Exception as e:
         logger.exception(f"Error in /load_config_user API during user retrieval")
         return JSONResponse(
@@ -447,90 +480,59 @@ async def load_config_user(
         )
 
     try:
-        settings: Settings = tree_manager.settings
-        client_manager: ClientManager = user["client_manager"]
-        frontend_config: FrontendConfig = user["frontend_config"]
 
         # check if the user has a valid save location
         if (
-            "frontend_config" not in user
-            or user["frontend_config"].save_location_wcd_url == ""
-            or user["frontend_config"].save_location_wcd_api_key == ""
+            frontend_config.save_location_wcd_url == ""
+            or frontend_config.save_location_wcd_api_key == ""
         ):
             raise Exception("WCD URL or API key not found.")
 
         if (
-            user["frontend_config"].save_location_wcd_url is None
-            or user["frontend_config"].save_location_wcd_api_key is None
+            frontend_config.save_location_wcd_url == ""
+            or frontend_config.save_location_wcd_api_key == ""
         ):
             raise Exception(
                 "No valid destination for config load location found. "
                 "Please update the save location using the /update_save_location API."
             )
 
-        # check if the auth key is set in the environment variables
-        if "FERNET_KEY" in os.environ:
-            auth_key = os.environ["FERNET_KEY"]
-        else:
-            raise Exception(
-                "API key auth key not found, cannot decode API keys in config."
-            )
-
         # Retrieve the config from the weaviate database
-        async with user[
-            "frontend_config"
-        ].save_location_client_manager.connect_to_async_client() as client:
+        async with (
+            frontend_config.save_location_client_manager.connect_to_async_client() as client
+        ):
             uuid = generate_uuid5(config_id)
             collection = client.collections.get("ELYSIA_CONFIG__")
-            config_item = await collection.query.fetch_object_by_id(uuid=uuid)
+            config_response = await collection.query.fetch_object_by_id(uuid=uuid)
+            if config_response is None:
+                raise Exception(f"Config with ID {config_id} not found.")
 
-        # Load the configs to the current user
-        format_dict_to_serialisable(config_item.properties)
+            config_item: dict = config_response.properties  # type: ignore
 
-        # decode all api keys
-        f = Fernet(auth_key.encode("utf-8"))
+        format_dict_to_serialisable(config_item)
 
-        if (
-            "settings" in config_item.properties
-            and "API_KEYS" in config_item.properties["settings"]
-        ):
-            for key in config_item.properties["settings"]["API_KEYS"]:
-                config_item.properties["settings"]["API_KEYS"][key] = f.decrypt(
-                    config_item.properties["settings"]["API_KEYS"][key].encode("utf-8")
-                ).decode("utf-8")
-
-        if (
-            "settings" in config_item.properties
-            and "WCD_API_KEY" in config_item.properties["settings"]
-        ):
-            config_item.properties["settings"]["WCD_API_KEY"] = f.decrypt(
-                config_item.properties["settings"]["WCD_API_KEY"].encode("utf-8")
-            ).decode("utf-8")
+        if "settings" in config_item:
+            config_item["settings"] = decrypt_api_keys(config_item["settings"])
 
         # Rename the keys to the correct format
-        renamed_config = rename_keys(config_item.properties)
+        renamed_config = rename_keys(config_item)
 
         # Load the settings
-        settings.load_settings(renamed_config["settings"])
-
-        # Restart the client manager with new WCD_URL and WCD_API_KEY etc.
-        await client_manager.reset_keys(
-            wcd_url=settings.WCD_URL,
-            wcd_api_key=settings.WCD_API_KEY,
-            api_keys=settings.API_KEYS,
+        await user_manager.update_config(
+            user_id,
+            conversation_id=None,
+            config_id=renamed_config["config_id"],
+            settings=renamed_config["settings"],
+            style=renamed_config["style"],
+            agent_description=renamed_config["agent_description"],
+            end_goal=renamed_config["end_goal"],
+            branch_initialisation=renamed_config["branch_initialisation"],
         )
 
-        # Update the style, agent_description, end_goal, branch_initialisation in the tree manager
-        tree_manager.change_style(renamed_config["style"])
-        tree_manager.change_agent_description(renamed_config["agent_description"])
-        tree_manager.change_end_goal(renamed_config["end_goal"])
-
-        # tree_manager.change_branch_initialisation(
-        #     renamed_config["branch_initialisation"]
-        # )
-
         # Update the frontend config
-        frontend_config.config = renamed_config["frontend_config"]
+        await user_manager.update_frontend_config(
+            user_id, renamed_config["frontend_config"]
+        )
 
     except Exception as e:
         logger.exception(f"Error in /load_config API")
