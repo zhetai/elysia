@@ -157,3 +157,6 @@ elysia/api/static/*
 
 # resources
 resources.txt
+
+# local user configs
+elysia/api/user_configs/*

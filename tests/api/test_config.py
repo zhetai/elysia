@@ -47,6 +47,9 @@ async def delete_config_after_completion(
         if collection.data.exists(uuid):
             await collection.data.delete_by_id(uuid)
 
+    if os.path.exists(f"elysia/api/user_configs/frontend_config_{user_id}.json"):
+        os.remove(f"elysia/api/user_configs/frontend_config_{user_id}.json")
+
 
 async def initialise_user_and_tree(user_id: str, conversation_id: str):
     user_manager = get_user_manager()
@@ -73,6 +76,7 @@ class TestConfig:
     async def test_set_save_location(self):
         user_id = "test_user_set_save_location"
         conversation_id = "test_conversation_set_save_location"
+        config_id = "test_config_set_save_location"
         try:
             await initialise_user_and_tree(user_id, conversation_id)
 
@@ -84,10 +88,11 @@ class TestConfig:
             )
 
             # update the save location to an invalid one
-            response = await update_frontend_config(
+            response = await save_config_user(
                 user_id=user_id,
-                data=UpdateFrontendConfigData(
-                    config={
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    frontend_config={
                         "save_location_wcd_url": "test_wcd_url",
                         "save_location_wcd_api_key": "test_wcd_api_key",
                     },
@@ -105,10 +110,11 @@ class TestConfig:
             )
 
             # just update one
-            response = await update_frontend_config(
+            response = await save_config_user(
                 user_id=user_id,
-                data=UpdateFrontendConfigData(
-                    config={
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    frontend_config={
                         "save_location_wcd_api_key": "test_wcd_api_key_2",
                     },
                 ),
@@ -175,7 +181,7 @@ class TestConfig:
     async def test_change_config_user(self):
         user_id = "test_user_change_config_user"
         conversation_id = "test_conversation_change_config_user"
-        config_id = f"test_config_{random.randint(0, 1000000)}"
+        config_id = f"test_config_conversation_change_config_user"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id)
@@ -185,10 +191,11 @@ class TestConfig:
             tree_manager = user["tree_manager"]
 
             # Set frontend config to not save configs to weaviate
-            response = await update_frontend_config(
+            response = await save_config_user(
                 user_id=user_id,
-                data=UpdateFrontendConfigData(
-                    config={"save_configs_to_weaviate": False},
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    frontend_config={"save_configs_to_weaviate": False},
                 ),
                 user_manager=self.user_manager,
             )
@@ -324,23 +331,10 @@ class TestConfig:
         user_id = "test_user_config_workflow"
         conversation_id_1 = "test_conversation_workflow_1"
         conversation_id_2 = "test_conversation_workflow_2"
-        config_id = f"test_config_{random.randint(0, 1000000)}"
+        config_id = f"test_config_conversation_config_workflow"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id_1)
-
-            # Set so that configs are not saved to weaviate
-            response = await update_frontend_config(
-                user_id=user_id,
-                data=UpdateFrontendConfigData(
-                    config={
-                        "save_configs_to_weaviate": False,
-                    },
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
 
             # Test changing config
             user_settings = {
@@ -355,6 +349,9 @@ class TestConfig:
                 data=SaveConfigUserData(
                     settings=user_settings,
                     style="Professional style for user",
+                    frontend_config={
+                        "save_configs_to_weaviate": False,
+                    },
                 ),
                 user_manager=self.user_manager,
             )
@@ -479,7 +476,7 @@ class TestConfig:
     async def test_save_config(self):
         user_id = "test_user_save_config"
         conversation_id = "test_conversation_save_config"
-        config_id = f"test_config_{random.randint(0, 1000000)}"
+        config_id = f"test_config_conversation_save_config"
 
         try:
             await initialise_user_and_tree(user_id, conversation_id)
@@ -558,19 +555,6 @@ class TestConfig:
             assert response["error"] == ""
 
             # now change settings to something else WITHOUT saving
-            response = await update_frontend_config(
-                user_id=user_id,
-                data=UpdateFrontendConfigData(
-                    config={
-                        "save_configs_to_weaviate": False,
-                    },
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # change user settings to something different for testing
             response = await save_config_user(
                 user_id=user_id,
                 config_id=config_id,
@@ -585,6 +569,9 @@ class TestConfig:
                     agent_description="You are a friendly assistant.",
                     end_goal="Provide helpful and friendly responses.",
                     branch_initialisation="one_branch",
+                    frontend_config={
+                        "save_configs_to_weaviate": False,
+                    },
                 ),
                 user_manager=self.user_manager,
             )
@@ -727,7 +714,6 @@ class TestConfig:
                     agent_description=f"Agent description {i}",
                     end_goal=f"End goal {i}",
                     branch_initialisation="one_branch",
-                    config_id=config_id,
                 )
 
                 response = await save_config_user(
@@ -762,23 +748,10 @@ class TestConfig:
         user_id_1 = "test_user_config_workflow_1"
         conversation_id_1 = "test_conversation_workflow_1"
         conversation_id_2 = "test_conversation_workflow_2"
-        config_id = f"test_shared_config_{random.randint(0, 1000000)}"
+        config_id = f"test_shared_config_workflow"
 
         try:
             await initialise_user_and_tree(user_id_1, conversation_id_1)
-
-            # Set so that configs are not saved to weaviate
-            response = await update_frontend_config(
-                user_id=user_id_1,
-                data=UpdateFrontendConfigData(
-                    config={
-                        "save_configs_to_weaviate": False,
-                    }
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
 
             # Initialize the user with custom settings
             custom_settings = {
@@ -804,21 +777,8 @@ class TestConfig:
                     agent_description=custom_agent_description,
                     end_goal=custom_end_goal,
                     branch_initialisation=tree_manager1.config.branch_initialisation,
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # update frontend config so that configs are saved to weaviate
-            response = await update_frontend_config(
-                user_id=user_id_1,
-                data=UpdateFrontendConfigData(
-                    config={
-                        "save_location_wcd_url": os.getenv("WCD_URL"),
-                        "save_location_wcd_api_key": os.getenv("WCD_API_KEY"),
-                        "save_trees_to_weaviate": False,
-                        "save_configs_to_weaviate": True,
+                    frontend_config={
+                        "save_configs_to_weaviate": False,
                     },
                 ),
                 user_manager=self.user_manager,
@@ -826,6 +786,7 @@ class TestConfig:
             response = read_response(response)
             assert response["error"] == ""
 
+            # update frontend config so that configs are saved to weaviate
             response = await save_config_user(
                 user_id=user_id_1,
                 config_id=config_id,
@@ -835,6 +796,12 @@ class TestConfig:
                     agent_description=custom_agent_description,
                     end_goal=custom_end_goal,
                     branch_initialisation=tree_manager1.config.branch_initialisation,
+                    frontend_config={
+                        "save_location_wcd_url": os.getenv("WCD_URL"),
+                        "save_location_wcd_api_key": os.getenv("WCD_API_KEY"),
+                        "save_trees_to_weaviate": False,
+                        "save_configs_to_weaviate": True,
+                    },
                 ),
                 user_manager=self.user_manager,
             )
@@ -850,19 +817,6 @@ class TestConfig:
             assert config_id in [c["config_id"] for c in list_response1["configs"]]
 
             # change the config only in-memory
-            response = await update_frontend_config(
-                user_id=user_id_1,
-                data=UpdateFrontendConfigData(
-                    config={
-                        "save_configs_to_weaviate": False,
-                    },
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # apply random changes to the config
             response = await save_config_user(
                 user_id=user_id_1,
                 config_id=config_id,
@@ -875,6 +829,9 @@ class TestConfig:
                     agent_description="New incorrect agent description",
                     end_goal="New incorrect end goal",
                     branch_initialisation=tree_manager1.config.branch_initialisation,
+                    frontend_config={
+                        "save_configs_to_weaviate": False,
+                    },
                 ),
                 user_manager=self.user_manager,
             )
@@ -1018,7 +975,6 @@ class TestConfig:
                     agent_description=tree_manager.config.agent_description,
                     end_goal=tree_manager.config.end_goal,
                     branch_initialisation=tree_manager.config.branch_initialisation,
-                    config_id=config_id,
                 ),
                 user_manager=self.user_manager,
             )
@@ -1052,6 +1008,68 @@ class TestConfig:
             response = read_response(response)
             assert response["error"] == ""
             assert config_id not in [c["config_id"] for c in response["configs"]]
+
+        finally:
+            await self.user_manager.close_all_clients()
+            await delete_config_after_completion(self.user_manager, user_id, config_id)
+
+    @pytest.mark.asyncio
+    async def test_frontend_config_local(self):
+        user_id = "test_user_frontend_config_local"
+        conversation_id = "test_conversation_frontend_config_local"
+        config_id = f"test_frontend_config_local"
+
+        try:
+            await initialise_user_and_tree(user_id, conversation_id)
+
+            # create a config and save
+            user = await self.user_manager.get_user_local(user_id)
+            tree_manager: TreeManager = user["tree_manager"]
+
+            # change config
+            response = await save_config_user(
+                user_id=user_id,
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    frontend_config={
+                        "save_trees_to_weaviate": False,
+                        "save_configs_to_weaviate": False,
+                    },
+                ),
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+
+            # check existence of local file
+            assert os.path.exists(
+                f"elysia/api/user_configs/frontend_config_{user_id}.json"
+            )
+
+            # check the local file has the correct values
+            with open(
+                f"elysia/api/user_configs/frontend_config_{user_id}.json", "r"
+            ) as f:
+                fe_config = json.load(f)
+
+            assert fe_config["save_location_wcd_url"] == os.getenv("WCD_URL")
+            assert fe_config["save_location_wcd_api_key"] == os.getenv("WCD_API_KEY")
+            assert fe_config["save_trees_to_weaviate"] == False
+            assert fe_config["save_configs_to_weaviate"] == False
+
+            # remove user from user manager
+            del self.user_manager.users[user_id]
+
+            # add user back to user manager
+            await self.user_manager.add_user_local(user_id)
+
+            # check the frontend config is loaded from the local file
+            user = await self.user_manager.get_user_local(user_id)
+            assert user["frontend_config"].save_location_wcd_url == os.getenv("WCD_URL")
+            assert user["frontend_config"].save_location_wcd_api_key == os.getenv(
+                "WCD_API_KEY"
+            )
+            assert user["frontend_config"].config["save_trees_to_weaviate"] == False
+            assert user["frontend_config"].config["save_configs_to_weaviate"] == False
 
         finally:
             await self.user_manager.close_all_clients()

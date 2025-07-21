@@ -1,5 +1,6 @@
 import os
 from cryptography.fernet import Fernet
+import json
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -11,7 +12,6 @@ from elysia.api.api_types import (
     SaveConfigUserData,
     UpdateFrontendConfigData,
 )
-from elysia.api.utils.config import Config
 from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
@@ -84,7 +84,7 @@ async def get_current_user_config(
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
-    Get the currnet config for a single user (in memory).
+    Get the current config for a single user (in memory).
     """
     logger.debug(f"/get_current_user_config API request received")
     logger.debug(f"User ID: {user_id}")
@@ -94,7 +94,7 @@ async def get_current_user_config(
     try:
         user = await user_manager.get_user_local(user_id)
         config = user["tree_manager"].config.to_json()
-        frontend_config = user["frontend_config"].config
+        frontend_config = user["frontend_config"].to_json()
 
     except Exception as e:
         logger.exception(f"Error in /get_current_user_config API")
@@ -142,7 +142,7 @@ async def new_user_config(
         settings.smart_setup()
 
         tree_manager.settings.load_settings(settings.to_json())
-        tree_manager.config.settings = settings.to_json()
+        tree_manager.config.settings = settings
         tree_manager.config.style = "Informative, polite and friendly."
         tree_manager.config.agent_description = "You search and query Weaviate to satisfy the user's query, providing a concise summary of the results."
         tree_manager.config.end_goal = (
@@ -207,11 +207,51 @@ async def save_config_user(
     logger.debug(f"Agent description: {data.agent_description}")
     logger.debug(f"End goal: {data.end_goal}")
     logger.debug(f"Branch initialisation: {data.branch_initialisation}")
+    logger.debug(f"Frontend config: {data.frontend_config}")
 
-    # Save the config in memory for this user (Apply step)
     try:
         user = await user_manager.get_user_local(user_id)
         tree_manager: TreeManager = user["tree_manager"]
+    except Exception as e:
+        logger.exception(f"Error in /save_config_user API during user retrieval")
+        return JSONResponse(
+            content={"error": str(e), "config": {}, "frontend_config": {}}
+        )
+
+    if data.frontend_config is not None:
+        try:
+            await user_manager.update_frontend_config(user_id, data.frontend_config)
+
+            # save frontend config locally
+            with open(
+                f"elysia/api/user_configs/frontend_config_{user_id}.json", "w"
+            ) as f:
+                json.dump(user["frontend_config"].to_json(), f)
+            logger.debug(
+                f"Frontend config saved to local file: elysia/api/user_configs/frontend_config_{user_id}.json"
+            )
+
+        except Exception as e:
+            if "Could not connect to Weaviate" in str(e):
+                return JSONResponse(
+                    content={
+                        "error": "Could not connect to Weaviate. Double check that the WCD_URL and WCD_API_KEY are correct."
+                    }
+                )
+            else:
+                logger.exception(
+                    f"Error in /save_config_user API during frontend config update"
+                )
+                return JSONResponse(
+                    content={
+                        "error": str(e),
+                        "config": tree_manager.config.to_json(),
+                        "frontend_config": user["frontend_config"].to_json(),
+                    }
+                )
+
+    # Save the config in memory for this user (Apply step)
+    try:
 
         if data.settings is not None:
             tree_manager.settings.configure(**data.settings)
@@ -226,7 +266,13 @@ async def save_config_user(
             tree_manager.change_end_goal(data.end_goal)
 
         if data.branch_initialisation is not None:
-            tree_manager.change_branch_initialisation(data.branch_initialisation)
+            assert data.branch_initialisation in [
+                "default",
+                "one_branch",
+                "multi_branch",
+                "empty",
+            ]
+            tree_manager.change_branch_initialisation(data.branch_initialisation)  # type: ignore
 
         client_manager: ClientManager = user["client_manager"]
         await client_manager.reset_keys(
@@ -237,14 +283,20 @@ async def save_config_user(
 
     except Exception as e:
         logger.exception(f"Error in /save_config_user API during in-memory update")
-        return JSONResponse(content={"error": str(e), "config": {}})
+        return JSONResponse(
+            content={
+                "error": str(e),
+                "config": tree_manager.config.to_json(),
+                "frontend_config": user["frontend_config"].to_json(),
+            }
+        )
 
     if not user["frontend_config"].config["save_configs_to_weaviate"]:
         return JSONResponse(
             content={
                 "error": "",
                 "config": tree_manager.config.to_json(),
-                "frontend_config": user["frontend_config"].config,
+                "frontend_config": user["frontend_config"].to_json(),
             }
         )
 
@@ -271,8 +323,8 @@ async def save_config_user(
             raise Exception("WCD URL or API key not found.")
 
         if (
-            user["frontend_config"].save_location_wcd_url is None
-            or user["frontend_config"].save_location_wcd_api_key is None
+            user["frontend_config"].save_location_wcd_url == ""
+            or user["frontend_config"].save_location_wcd_api_key == ""
         ):
             raise Exception(
                 "No valid destination for config save location found. "
@@ -340,14 +392,18 @@ async def save_config_user(
     except Exception as e:
         logger.exception(f"Error in /save_config_user API during weaviate save")
         return JSONResponse(
-            content={"error": str(e), "config": {}, "frontend_config": {}}
+            content={
+                "error": str(e),
+                "config": tree_manager.config.to_json(),
+                "frontend_config": user["frontend_config"].to_json(),
+            }
         )
 
     return JSONResponse(
         content={
             "error": "",
             "config": tree_manager.config.to_json(),
-            "frontend_config": user["frontend_config"].config,
+            "frontend_config": user["frontend_config"].to_json(),
         }
     )
 
@@ -380,10 +436,17 @@ async def load_config_user(
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Config ID: {config_id}")
 
+    # Retrieve the user info
     try:
-        # Retrieve the user info
         user = await user_manager.get_user_local(user_id)
         tree_manager: TreeManager = user["tree_manager"]
+    except Exception as e:
+        logger.exception(f"Error in /load_config_user API during user retrieval")
+        return JSONResponse(
+            content={"error": str(e), "config": {}, "frontend_config": {}}
+        )
+
+    try:
         settings: Settings = tree_manager.settings
         client_manager: ClientManager = user["client_manager"]
         frontend_config: FrontendConfig = user["frontend_config"]
@@ -391,8 +454,8 @@ async def load_config_user(
         # check if the user has a valid save location
         if (
             "frontend_config" not in user
-            or "save_location_wcd_url" not in user["frontend_config"].__dict__
-            or "save_location_wcd_api_key" not in user["frontend_config"].__dict__
+            or user["frontend_config"].save_location_wcd_url == ""
+            or user["frontend_config"].save_location_wcd_api_key == ""
         ):
             raise Exception("WCD URL or API key not found.")
 
@@ -472,14 +535,18 @@ async def load_config_user(
     except Exception as e:
         logger.exception(f"Error in /load_config API")
         return JSONResponse(
-            content={"error": str(e), "config": {}, "frontend_config": {}}
+            content={
+                "error": str(e),
+                "config": tree_manager.config.to_json(),
+                "frontend_config": frontend_config.to_json(),
+            }
         )
 
     return JSONResponse(
         content={
             "error": "",
             "config": tree_manager.config.to_json(),
-            "frontend_config": frontend_config.config,
+            "frontend_config": frontend_config.to_json(),
         }
     )
 

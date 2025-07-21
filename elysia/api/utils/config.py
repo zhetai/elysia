@@ -1,4 +1,5 @@
 from logging import Logger
+import datetime
 import os
 from typing import Literal, Optional
 from uuid import uuid4
@@ -82,18 +83,6 @@ class FrontendConfig:
         """
         Args:
             logger (Logger): The logger to use for logging.
-
-        Config options:
-            - save_trees_to_weaviate (bool): Whether to save trees to Weaviate.
-            - save_config_to_weaviate (bool): Whether to save config to Weaviate.
-            - tree_timeout (int): Optional.
-                The length of time in minutes a tree can be idle before being timed out.
-                Defaults to 10 minutes or the value of the TREE_TIMEOUT environment variable (integer, minutes).
-                If an integer is provided, it is interpreted as the number of minutes.
-            - client_timeout (int): Optional.
-                The length of time in minutes a client can be idle before being timed out.
-                Defaults to 3 minutes or the value of the CLIENT_TIMEOUT environment variable (integer, minutes).
-                If an integer is provided, it is interpreted as the number of minutes.
         """
 
         self.logger = logger
@@ -101,7 +90,7 @@ class FrontendConfig:
         client_timeout = int(os.getenv("CLIENT_TIMEOUT", 3))
         tree_timeout = int(os.getenv("TREE_TIMEOUT", 10))
 
-        self.config: dict = {
+        self.config: dict = {  # default values
             "save_trees_to_weaviate": True,
             "save_configs_to_weaviate": True,
             "client_timeout": client_timeout,
@@ -123,7 +112,37 @@ class FrontendConfig:
     def get_save_location(self):
         return self.save_location_wcd_url, self.save_location_wcd_api_key
 
+    def to_json(self):
+        return {
+            "save_trees_to_weaviate": self.config["save_trees_to_weaviate"],
+            "save_configs_to_weaviate": self.config["save_configs_to_weaviate"],
+            "save_location_wcd_url": self.save_location_wcd_url,
+            "save_location_wcd_api_key": self.save_location_wcd_api_key,
+            "client_timeout": self.config["client_timeout"],
+            "tree_timeout": self.config["tree_timeout"],
+        }
+
     async def configure(self, **kwargs):
+        """
+        Args:
+            **kwargs:
+                - save_trees_to_weaviate (bool): Whether to save trees to Weaviate.
+                - save_config_to_weaviate (bool): Whether to save config to Weaviate.
+                - tree_timeout (int): Optional.
+                    The length of time in minutes a tree can be idle before being timed out.
+                    Defaults to 10 minutes or the value of the TREE_TIMEOUT environment variable (integer, minutes).
+                    If an integer is provided, it is interpreted as the number of minutes.
+                - client_timeout (int): Optional.
+                    The length of time in minutes a client can be idle before being timed out.
+                    Defaults to 3 minutes or the value of the CLIENT_TIMEOUT environment variable (integer, minutes).
+                    If an integer is provided, it is interpreted as the number of minutes.
+                - save_location_wcd_url (str): Optional.
+                    The URL of the Weaviate database to save trees/configs to.
+                    Defaults to the value of the WCD_URL environment variable.
+                - save_location_wcd_api_key (str): Optional.
+                    The API key for the Weaviate database to save trees/configs to.
+                    Defaults to the value of the WCD_API_KEY environment variable.
+        """
 
         reload_client_manager = False
         if "save_location_wcd_url" in kwargs:
@@ -136,9 +155,23 @@ class FrontendConfig:
             self.config["save_trees_to_weaviate"] = kwargs["save_trees_to_weaviate"]
         if "save_configs_to_weaviate" in kwargs:
             self.config["save_configs_to_weaviate"] = kwargs["save_configs_to_weaviate"]
+        if "client_timeout" in kwargs:
+            self.config["client_timeout"] = kwargs["client_timeout"]
+            self.save_location_client_manager.client_timeout = datetime.timedelta(
+                minutes=self.config["client_timeout"]
+            )
+        if "tree_timeout" in kwargs:
+            self.config["tree_timeout"] = kwargs["tree_timeout"]
 
         if reload_client_manager:
             await self.save_location_client_manager.reset_keys(
                 wcd_url=self.save_location_wcd_url,
                 wcd_api_key=self.save_location_wcd_api_key,
             )
+
+    @classmethod
+    async def from_json(cls, json: dict, logger: Logger):
+        fe_config = cls(logger=logger)
+        await fe_config.configure(**json)
+
+        return fe_config

@@ -24,7 +24,7 @@ class TestUserManager:
             await user_manager.get_user_local(user_id)
 
         # add a user
-        user_manager.add_user_local(user_id)
+        await user_manager.add_user_local(user_id)
 
         # get user
         user = await user_manager.get_user_local(user_id)
@@ -67,7 +67,7 @@ class TestUserManager:
         user_manager = UserManager()
 
         # add a tree manager to the user manager without a settings
-        user_manager.add_user_local(user_id)
+        await user_manager.add_user_local(user_id)
 
         # add a tree to the user manager
         await user_manager.initialise_tree(user_id, conversation_id, low_memory=True)
@@ -105,7 +105,7 @@ class TestUserManager:
             complex_provider="openai",
         )
 
-        user_manager.add_user_local(
+        await user_manager.add_user_local(
             user_id_2,
             config=Config(
                 id="new_config",

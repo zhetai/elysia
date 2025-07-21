@@ -52,11 +52,6 @@ api_key_map = {
 }
 
 
-# TODO: make client manager have some error messages when WCD_URL etc is not set.
-# e.g. client_manager = ClientManager() is fine, but if no env vars, it will give a warning.
-#      but the warning will say "this is fine if you are not going to use weaviate for retrieval"
-#      however, if a tool is called that tries to retrieve, it should raise an error within the client manager.
-#      i.e. client_manager is never None, so when doing things like this, it should raise an error/warning
 class ClientManager:
     """
     Handles the creation and management of the Weaviate client.
