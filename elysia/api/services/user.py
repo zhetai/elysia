@@ -83,6 +83,7 @@ class UserManager:
         user_id: str,
         conversation_id: str | None = None,
         config_id: str | None = None,
+        config_name: str | None = None,
         settings: dict[str, Any] | None = None,
         style: str | None = None,
         agent_description: str | None = None,
@@ -93,6 +94,7 @@ class UserManager:
         local_user["tree_manager"].update_config(
             conversation_id,
             config_id,
+            config_name,
             settings,
             style,
             agent_description,

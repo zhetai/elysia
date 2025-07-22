@@ -6,7 +6,6 @@ from dotenv import set_key, load_dotenv
 def encrypt_api_keys(settings_dict: dict):
 
     load_dotenv()
-    print(f"\n\nFERNET_KEY (Encryption): {os.getenv('FERNET_KEY')}\n\n")
 
     # Check if an auth key is set in the environment variables
     if "FERNET_KEY" in os.environ:
@@ -34,7 +33,6 @@ def encrypt_api_keys(settings_dict: dict):
 def decrypt_api_keys(settings_dict: dict):
 
     load_dotenv()
-    print(f"\n\nFERNET_KEY (Decryption): {os.getenv('FERNET_KEY')}\n\n")
 
     if "FERNET_KEY" in os.environ:
         auth_key = os.environ["FERNET_KEY"]

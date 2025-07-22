@@ -1,5 +1,5 @@
 import os
-from cryptography.fernet import Fernet
+from cryptography.fernet import InvalidToken
 import json
 
 from fastapi import APIRouter, Depends
@@ -408,7 +408,12 @@ async def save_config_user(
             # if the config is a default config, set all other default configs to False
             if data.default:
                 existing_default_config = await collection.query.fetch_objects(
-                    filters=Filter.by_property("default").equal(True)
+                    filters=Filter.all_of(
+                        [
+                            Filter.by_property("default").equal(True),
+                            Filter.by_property("user_id").equal(user_id),
+                        ]
+                    )
                 )
                 for item in existing_default_config.objects:
                     await collection.data.update(
@@ -511,8 +516,17 @@ async def load_config_user(
 
         format_dict_to_serialisable(config_item)
 
+        invalid_token = False
         if "settings" in config_item:
-            config_item["settings"] = decrypt_api_keys(config_item["settings"])
+            try:
+                config_item["settings"] = decrypt_api_keys(config_item["settings"])
+            except InvalidToken:
+                invalid_token = True
+                logger.warning(
+                    f"Invalid token for config {config_id}, returning empty API keys. You will need to update the API keys in the frontend."
+                )
+                config_item["settings"]["API_KEYS"] = {}
+                config_item["settings"]["WCD_API_KEY"] = ""
 
         # Rename the keys to the correct format
         renamed_config = rename_keys(config_item)
@@ -522,6 +536,7 @@ async def load_config_user(
             user_id,
             conversation_id=None,
             config_id=renamed_config["config_id"],
+            config_name=renamed_config["name"],
             settings=renamed_config["settings"],
             style=renamed_config["style"],
             agent_description=renamed_config["agent_description"],
@@ -546,7 +561,11 @@ async def load_config_user(
 
     return JSONResponse(
         content={
-            "error": "",
+            "error": (
+                "Invalid token for config. You will need to supply the API keys in the frontend."
+                if invalid_token
+                else ""
+            ),
             "config": tree_manager.config.to_json(),
             "frontend_config": frontend_config.to_json(),
         }
