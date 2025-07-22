@@ -66,6 +66,7 @@ class TreeManager:
         self,
         conversation_id: str | None = None,
         config_id: str | None = None,
+        config_name: str | None = None,
         settings: dict[str, Any] | None = None,
         style: str | None = None,
         agent_description: str | None = None,
@@ -74,6 +75,9 @@ class TreeManager:
     ):
         if config_id is not None:
             self.config.id = config_id
+
+        if config_name is not None:
+            self.config.name = config_name
 
         if settings is not None:
             if conversation_id is None:
