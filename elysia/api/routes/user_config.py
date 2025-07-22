@@ -665,6 +665,7 @@ async def list_configs(
                 {
                     "config_id": obj.properties["config_id"],
                     "name": obj.properties["name"],
+                    "default": obj.properties["default"],
                     "last_update_time": format_datetime(obj.metadata.last_update_time),
                 }
                 for obj in response.objects
