@@ -17,6 +17,7 @@ from elysia.api.routes.user_config import (
     load_config_user,
     delete_config,
     save_config_user,
+    new_user_config,
     list_configs,
     update_frontend_config,
 )
@@ -522,6 +523,19 @@ class TestConfig:
             user = await self.user_manager.get_user_local(user_id)
             tree_manager: TreeManager = user["tree_manager"]
 
+            new_settings = {
+                "WCD_URL": os.getenv("TESTING_WCD_URL"),
+                "WCD_API_KEY": os.getenv("TESTING_WCD_API_KEY"),
+            }
+
+            # check that the first WCD_URL etc is the env one and not the new_settings ones
+            config = user["tree_manager"].config.to_json()
+            assert config["settings"]["WCD_URL"] == os.getenv("WCD_URL")
+            assert config["settings"]["WCD_API_KEY"] == os.getenv("WCD_API_KEY")
+
+            assert config["settings"]["WCD_URL"] != new_settings["WCD_URL"]
+            assert config["settings"]["WCD_API_KEY"] != new_settings["WCD_API_KEY"]
+
             # change config
             response = await save_config_user(
                 user_id=user_id,
@@ -530,10 +544,10 @@ class TestConfig:
                     name=config_name,
                     default=False,
                     config={
-                        "settings": tree_manager.settings.to_json(),
-                        "style": tree_manager.config.style,
-                        "agent_description": tree_manager.config.agent_description,
-                        "end_goal": tree_manager.config.end_goal,
+                        "settings": new_settings,
+                        "style": "Test style",
+                        "agent_description": "Test description",
+                        "end_goal": "Test end goal",
                         "branch_initialisation": tree_manager.config.branch_initialisation,
                     },
                     frontend_config={},
@@ -542,6 +556,9 @@ class TestConfig:
             )
             response = read_response(response)
             assert response["error"] == ""
+
+            # check the things were updated
+            # assert response["config"][""
 
             # verify the config was saved by listing all configs
             response = await list_configs(
@@ -782,14 +799,14 @@ class TestConfig:
                     user_id=user_id,
                     config_id=config_id,
                     data=config,
-                    user_manager=self.user_manager,
+                    user_manager=get_user_manager(),
                 )
                 response = read_response(response)
                 assert response["error"] == ""
 
             response = await list_configs(
                 user_id=user_id,
-                user_manager=self.user_manager,
+                user_manager=get_user_manager(),
             )
             response = read_response(response)
             assert response["error"] == ""
@@ -1326,6 +1343,37 @@ class TestConfig:
             assert (
                 user["tree_manager"].config.end_goal == "New end goal for non-default"
             )
+
+        finally:
+            await self.user_manager.close_all_clients()
+            await delete_config_after_completion(self.user_manager, user_id, config_id)
+
+    @pytest.mark.asyncio
+    async def test_new_config(self):
+        user_id = "test_user_new_config"
+        conversation_id = "test_conversation_new_config"
+        config_id = f"test_new_config"
+        config_name = "Test new config"
+
+        try:
+            await initialise_user_and_tree(user_id, conversation_id)
+
+            # create a new config
+            response = await new_user_config(
+                user_id=user_id,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+            new_user_config_id = response["config"]
+
+            response = await initialise_user(
+                user_id,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+            assert response["config"]["id"] == config_id
 
         finally:
             await self.user_manager.close_all_clients()
