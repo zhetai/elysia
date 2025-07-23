@@ -685,8 +685,10 @@ async def delete_config(
 
     try:
         user = await user_manager.get_user_local(user_id)
-        client_manager: ClientManager = user["client_manager"]
-        async with client_manager.connect_to_async_client() as client:
+        frontend_config: FrontendConfig = user["frontend_config"]
+        async with (
+            frontend_config.save_location_client_manager.connect_to_async_client()
+        ) as client:
             collection = client.collections.get("ELYSIA_CONFIG__")
             uuid = generate_uuid5(config_id)
             await collection.data.delete_by_id(uuid)
