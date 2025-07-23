@@ -17,6 +17,7 @@ from elysia.preprocess.prompt_templates import (
     CollectionSummariserPrompt,
     DataMappingPrompt,
     ReturnTypePrompt,
+    PromptSuggestorPrompt,
 )
 from elysia.util.collection import async_get_collection_data_types
 from elysia.util.async_util import asyncio_run
@@ -74,6 +75,7 @@ class CollectionPreprocessor:
         )
         self.return_type_prompt = dspy.ChainOfThought(ReturnTypePrompt)
         self.data_mapping_prompt = dspy.ChainOfThought(DataMappingPrompt)
+        self.prompt_suggestor_prompt = dspy.ChainOfThought(PromptSuggestorPrompt)
 
         self.threshold_for_missing_fields = threshold_for_missing_fields
         self.lm = load_base_lm(settings)
@@ -206,6 +208,19 @@ class CollectionPreprocessor:
 
         return out
 
+    async def _suggest_prompts(
+        self,
+        collection_information: dict,
+        example_objects: list[dict],
+        lm: dspy.LM,
+    ) -> list[str]:
+        prediction = await self.prompt_suggestor_prompt.aforward(
+            collection_information=collection_information,
+            example_objects=example_objects,
+            lm=lm,
+        )
+        return prediction.prompt_suggestions
+
     async def _evaluate_return_types(
         self, collection_summary: str, data_fields: dict, example_objects: list[dict]
     ) -> list[str]:
@@ -305,7 +320,7 @@ class CollectionPreprocessor:
             ):
                 # Start saving the updates
                 self.process_update = ProcessUpdate(collection_name)
-                total = len(rt.specific_return_types) + 1 + 1
+                total = len(rt.specific_return_types) + 1 + 1 + 1
                 progress = 0.0
 
                 # Get the collection and its properties
@@ -408,6 +423,8 @@ class CollectionPreprocessor:
                     )
                     return
 
+                yield await self.process_update(progress=2 / float(total))
+
                 # Evaluate the return types
                 try:
                     return_types = await self._evaluate_return_types(
@@ -420,8 +437,20 @@ class CollectionPreprocessor:
                     )
                     return
 
-                yield await self.process_update(progress=2 / float(total))
-                progress = 2 / float(total)
+                # suggest prompts
+                try:
+                    out["prompts"] = await self._suggest_prompts(
+                        out, example_objects, lm=self.lm
+                    )
+                except Exception as e:
+                    yield await self.process_update(
+                        progress=3 / float(total),
+                        error=f"Error suggesting prompts: {str(e)}",
+                    )
+                    return
+
+                yield await self.process_update(progress=3 / float(total))
+                progress = 3 / float(total)
                 remaining_progress = 1 - progress
                 num_remaining = len(return_types)
 
@@ -608,14 +637,16 @@ async def preprocess_async(
                         num_sample_tokens=num_sample_tokens,
                         force=force,
                     ):
-                        if result is not None and "progress" in result:
-                            progress.update(task, completed=result["progress"])
-                        elif (
+                        # print(result)
+                        if (
                             result is not None
                             and "error" in result
                             and result["error"] != ""
                         ):
                             raise Exception(result["error"])
+                        elif result is not None and "progress" in result:
+                            progress.update(task, completed=result["progress"])
+
     finally:
         await client_manager.close_clients()
 

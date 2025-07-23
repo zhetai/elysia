@@ -96,6 +96,19 @@ async def collections_list(
         user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
 
+        if not client_manager.is_client:
+            return JSONResponse(
+                content={
+                    "collections": [],
+                    "error": (
+                        "Client manager is not connected. "
+                        "This is not an error if the user does not want to use Weaviate."
+                    ),
+                },
+                status_code=200,
+                headers=headers,
+            )
+
         async with client_manager.connect_to_async_client() as client:
             collections = [
                 c
@@ -127,6 +140,17 @@ async def collections_list(
                     processed = await client.collections.exists(
                         f"ELYSIA_METADATA_{collection_name.lower()}__"
                     )
+
+                    if processed:
+                        metadata_collection = client.collections.get(
+                            f"ELYSIA_METADATA_{collection_name.lower()}__"
+                        )
+                        processed_data = await metadata_collection.query.fetch_objects(
+                            limit=1
+                        )
+                        prompts = processed_data.objects[0].properties["prompts"]
+                    else:
+                        prompts = []
 
                     vector_config = {"fields": {}, "global": {}}
                     if config.vector_config:
@@ -195,6 +219,7 @@ async def collections_list(
                             "vectorizer": vector_config,
                             "processed": processed,
                             "error": False,
+                            "prompts": prompts,
                         }
                     )
                 except Exception as e:
@@ -205,6 +230,7 @@ async def collections_list(
                             "vectorizer": {},
                             "processed": False,
                             "error": True,
+                            "prompts": [],
                         }
                     )
 
