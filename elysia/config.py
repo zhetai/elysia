@@ -208,13 +208,6 @@ class Settings:
                 self.COMPLEX_PROVIDER = "anthropic"
                 self.BASE_MODEL = "claude-3-5-haiku-latest"
                 self.COMPLEX_MODEL = "claude-sonnet-4-0"
-            else:
-                raise ValueError(
-                    "No BASE_MODEL, COMPLEX_MODEL, BASE_PROVIDER, or COMPLEX_PROVIDER set in the environment variables. "
-                    "And no supported API keys for smart setup detected. "
-                    "Please set one of the following: "
-                    "OPENROUTER_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
-                )
 
     def reset(self):
         self = Settings()
@@ -411,6 +404,19 @@ class Settings:
         settings.logger.setLevel(settings.LOGGING_LEVEL)
 
         return settings
+
+    def check(self):
+        return {
+            "base_model": self.BASE_MODEL is not None and self.BASE_MODEL != "",
+            "base_provider": self.BASE_PROVIDER is not None
+            and self.BASE_PROVIDER != "",
+            "complex_model": self.COMPLEX_MODEL is not None
+            and self.COMPLEX_MODEL != "",
+            "complex_provider": self.COMPLEX_PROVIDER is not None
+            and self.COMPLEX_PROVIDER != "",
+            "wcd_url": self.WCD_URL != "",
+            "wcd_api_key": self.WCD_API_KEY != "",
+        }
 
 
 def check_base_lm_settings(settings: Settings):

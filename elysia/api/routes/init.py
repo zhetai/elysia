@@ -75,28 +75,33 @@ async def initialise_user(
             )  # leave config empty to create defaults for a new user
 
             # find any default configs
-            default_config = await get_default_config(
-                user_manager.users[user_id][
-                    "frontend_config"
-                ].save_location_client_manager,
-                user_id,
-            )
-            if default_config:
-                await user_manager.update_config(
+            if user_manager.users[user_id][
+                "frontend_config"
+            ].save_location_client_manager.is_client:
+                default_config = await get_default_config(
+                    user_manager.users[user_id][
+                        "frontend_config"
+                    ].save_location_client_manager,
                     user_id,
-                    config_id=default_config.id,
-                    config_name=default_config.name,
-                    settings=default_config.settings.to_json(),
-                    style=default_config.style,
-                    agent_description=default_config.agent_description,
-                    end_goal=default_config.end_goal,
-                    branch_initialisation=default_config.branch_initialisation,
                 )
+                if default_config:
+                    await user_manager.update_config(
+                        user_id,
+                        config_id=default_config.id,
+                        config_name=default_config.name,
+                        settings=default_config.settings.to_json(),
+                        style=default_config.style,
+                        agent_description=default_config.agent_description,
+                        end_goal=default_config.end_goal,
+                        branch_initialisation=default_config.branch_initialisation,
+                    )
 
         # if a user exists, get the existing configs
         user = await user_manager.get_user_local(user_id)
         config = user["tree_manager"].config.to_json()
         frontend_config = user["frontend_config"].to_json()
+
+        correct_settings = user["tree_manager"].config.settings.check()
 
     except Exception as e:
         logger.exception(f"Error in /initialise_user API")
@@ -106,6 +111,7 @@ async def initialise_user(
                 "user_exists": None,
                 "config": {},
                 "frontend_config": {},
+                "correct_settings": {},
             },
             status_code=500,
         )
@@ -115,6 +121,7 @@ async def initialise_user(
             "user_exists": user_exists,
             "config": config,
             "frontend_config": frontend_config,
+            "correct_settings": correct_settings,
         },
         status_code=200,
     )
