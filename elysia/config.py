@@ -114,9 +114,11 @@ class Settings:
         for item in settings:
             setattr(self, item, settings[item])
 
-        self.logger = logging.getLogger("rich")
-        self.logger.setLevel(self.LOGGING_LEVEL)
-        self.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
+        # self.logger = logging.getLogger("rich")
+        # self.logger.setLevel(self.LOGGING_LEVEL)
+        # for handler in self.logger.handlers[:]:
+        #     self.logger.removeHandler(handler)
+        # self.logger.addHandler(RichHandler(rich_tracebacks=True, markup=True))
 
     @classmethod
     def from_smart_setup(cls):

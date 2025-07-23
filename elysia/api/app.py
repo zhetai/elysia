@@ -31,8 +31,9 @@ from elysia.api.utils.resources import print_resources
 from pathlib import Path
 
 
-async def perform_garbage_collection():
-    gc.collect(generation=2)
+async def print_users():
+    user_manager = get_user_manager()
+    print(f" CURRENT USERS: {user_manager.users.keys()}")
 
 
 async def check_timeouts():
@@ -58,7 +59,7 @@ async def lifespan(app: FastAPI):
     set_log_level("DEBUG")  # TODO: change to WARNING if in prod
 
     # use prime numbers for intervals so they don't overlap
-    scheduler.add_job(perform_garbage_collection, "interval", seconds=23)
+    scheduler.add_job(print_users, "interval", seconds=23)
     scheduler.add_job(check_timeouts, "interval", seconds=29)
     scheduler.add_job(check_restart_clients, "interval", seconds=31)
     scheduler.add_job(output_resources, "interval", seconds=1103)

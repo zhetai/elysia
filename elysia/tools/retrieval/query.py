@@ -282,6 +282,8 @@ class Query(Tool):
 
         if self.logger and query.query_output is not None:
             self.logger.debug(f"Query: {query.query_output.query_outputs}")
+            self.logger.debug(f"Fields to search: {query.fields_to_search}")
+            self.logger.debug(f"Data display: {query.data_display}")
 
         # Yield results to front end
         yield Response(text=query.message_update)

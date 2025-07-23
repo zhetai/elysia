@@ -225,12 +225,12 @@ class UserManager:
             return True
 
         # Remove any trees that have not been active in the last user_timeout
-        if (
-            "last_request" in self.users[user_id]
-            and datetime.datetime.now() - self.users[user_id]["last_request"]
-            > self.user_timeout
-        ):
-            return True
+        # if (
+        #     "last_request" in self.users[user_id]
+        #     and datetime.datetime.now() - self.users[user_id]["last_request"]
+        #     > self.user_timeout
+        # ):
+        #     return True
 
         return False
 

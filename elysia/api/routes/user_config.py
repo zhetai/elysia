@@ -116,6 +116,93 @@ async def get_current_user_config(
     )
 
 
+@router.get("/{user_id}/{config_id}/load")
+async def load_a_config(
+    user_id: str,
+    config_id: str,
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """
+    Get the current config for a single user (in memory).
+    """
+    logger.debug(f"/get_current_user_config API request received")
+    logger.debug(f"User ID: {user_id}")
+
+    headers = {"Cache-Control": "no-cache"}
+
+    try:
+        user = await user_manager.get_user_local(user_id)
+        frontend_config = user["frontend_config"]
+
+        # check if the user has a valid save location
+        if (
+            frontend_config.save_location_wcd_url == ""
+            or frontend_config.save_location_wcd_api_key == ""
+        ):
+            raise Exception("WCD URL or API key not found.")
+
+        if (
+            frontend_config.save_location_wcd_url == ""
+            or frontend_config.save_location_wcd_api_key == ""
+        ):
+            raise Exception(
+                "No valid destination for config load location found. "
+                "Please update the save location using the /update_save_location API."
+            )
+
+        # Retrieve the config from the weaviate database
+        async with (
+            frontend_config.save_location_client_manager.connect_to_async_client() as client
+        ):
+            uuid = generate_uuid5(config_id)
+            collection = client.collections.get("ELYSIA_CONFIG__")
+            config_response = await collection.query.fetch_object_by_id(uuid=uuid)
+            if config_response is None:
+                raise Exception(f"Config with ID {config_id} not found.")
+
+            config_item: dict = config_response.properties  # type: ignore
+
+        format_dict_to_serialisable(config_item)
+
+        invalid_token = False
+        if "settings" in config_item:
+            try:
+                config_item["settings"] = decrypt_api_keys(config_item["settings"])
+            except InvalidToken:
+                invalid_token = True
+                logger.warning(
+                    f"Invalid token for config {config_id}, returning empty API keys. You will need to update the API keys in the frontend."
+                )
+                config_item["settings"]["API_KEYS"] = {}
+                config_item["settings"]["WCD_API_KEY"] = ""
+
+        # Rename the keys to the correct format
+        renamed_config = rename_keys(config_item)
+        if "config_id" in renamed_config:
+            renamed_config["id"] = renamed_config["config_id"]
+            del renamed_config["config_id"]
+
+    except Exception as e:
+        logger.exception(f"Error in /get_current_user_config API")
+        return JSONResponse(
+            content={"error": str(e), "config": {}, "frontend_config": {}},
+            headers=headers,
+        )
+
+    return JSONResponse(
+        content={
+            "error": (
+                "Incorrect authentication key. You will need to update the API keys in the frontend."
+                if invalid_token
+                else ""
+            ),
+            "config": renamed_config,
+            "frontend_config": frontend_config.to_json(),
+        },
+        headers=headers,
+    )
+
+
 @router.post("/{user_id}/new")
 async def new_user_config(
     user_id: str,
@@ -240,60 +327,62 @@ async def save_config_user(
             content={"error": str(e), "config": {}, "frontend_config": {}}
         )
 
-    if data.frontend_config is not None:
-        try:
-            await user_manager.update_frontend_config(user_id, data.frontend_config)
+    if data.default:
 
-            # save frontend config locally
-            with open(
-                f"elysia/api/user_configs/frontend_config_{user_id}.json", "w"
-            ) as f:
-                json.dump(user["frontend_config"].to_json(), f)
-            logger.debug(
-                f"Frontend config saved to local file: elysia/api/user_configs/frontend_config_{user_id}.json"
+        if data.frontend_config is not None:
+            try:
+                await user_manager.update_frontend_config(user_id, data.frontend_config)
+
+                # save frontend config locally
+                with open(
+                    f"elysia/api/user_configs/frontend_config_{user_id}.json", "w"
+                ) as f:
+                    json.dump(user["frontend_config"].to_json(), f)
+                logger.debug(
+                    f"Frontend config saved to local file: elysia/api/user_configs/frontend_config_{user_id}.json"
+                )
+
+            except Exception as e:
+                if "Could not connect to Weaviate" in str(e):
+                    return JSONResponse(
+                        content={
+                            "error": "Could not connect to Weaviate. Double check that the WCD_URL and WCD_API_KEY are correct."
+                        }
+                    )
+                else:
+                    logger.exception(
+                        f"Error in /save_config_user API during frontend config update"
+                    )
+                    return JSONResponse(
+                        content={
+                            "error": str(e),
+                            "config": tree_manager.config.to_json(),
+                            "frontend_config": user["frontend_config"].to_json(),
+                        }
+                    )
+
+        # Save the config in memory for this user (Apply step)
+        try:
+            await user_manager.update_config(
+                user_id,
+                conversation_id=None,
+                config_id=config_id,
+                settings=data.config.get("settings"),
+                style=data.config.get("style"),
+                agent_description=data.config.get("agent_description"),
+                end_goal=data.config.get("end_goal"),
+                branch_initialisation=data.config.get("branch_initialisation"),
             )
 
         except Exception as e:
-            if "Could not connect to Weaviate" in str(e):
-                return JSONResponse(
-                    content={
-                        "error": "Could not connect to Weaviate. Double check that the WCD_URL and WCD_API_KEY are correct."
-                    }
-                )
-            else:
-                logger.exception(
-                    f"Error in /save_config_user API during frontend config update"
-                )
-                return JSONResponse(
-                    content={
-                        "error": str(e),
-                        "config": tree_manager.config.to_json(),
-                        "frontend_config": user["frontend_config"].to_json(),
-                    }
-                )
-
-    # Save the config in memory for this user (Apply step)
-    try:
-        await user_manager.update_config(
-            user_id,
-            conversation_id=None,
-            config_id=config_id,
-            settings=data.config.get("settings"),
-            style=data.config.get("style"),
-            agent_description=data.config.get("agent_description"),
-            end_goal=data.config.get("end_goal"),
-            branch_initialisation=data.config.get("branch_initialisation"),
-        )
-
-    except Exception as e:
-        logger.exception(f"Error in /save_config_user API during in-memory update")
-        return JSONResponse(
-            content={
-                "error": str(e),
-                "config": tree_manager.config.to_json(),
-                "frontend_config": user["frontend_config"].to_json(),
-            }
-        )
+            logger.exception(f"Error in /save_config_user API during in-memory update")
+            return JSONResponse(
+                content={
+                    "error": str(e),
+                    "config": tree_manager.config.to_json(),
+                    "frontend_config": user["frontend_config"].to_json(),
+                }
+            )
 
     if not user["frontend_config"].config["save_configs_to_weaviate"]:
         return JSONResponse(
@@ -436,6 +525,9 @@ async def save_config_user(
             }
         )
 
+    logger.debug(f"Backend config returned: {tree_manager.config.to_json()}")
+    logger.debug(f"Frontend config returned: {user['frontend_config'].to_json()}")
+
     return JSONResponse(
         content={
             "error": "",
@@ -550,15 +642,21 @@ async def load_config_user(
         )
 
     except Exception as e:
+        tree_manager = user["tree_manager"]
+        config = tree_manager.config
+        frontend_config = user["frontend_config"]
         logger.exception(f"Error in /load_config API")
         return JSONResponse(
             content={
                 "error": str(e),
-                "config": tree_manager.config.to_json(),
+                "config": config.to_json(),
                 "frontend_config": frontend_config.to_json(),
             }
         )
 
+    tree_manager = user["tree_manager"]
+    config = tree_manager.config
+    frontend_config = user["frontend_config"]
     return JSONResponse(
         content={
             "error": (
@@ -566,7 +664,7 @@ async def load_config_user(
                 if invalid_token
                 else ""
             ),
-            "config": tree_manager.config.to_json(),
+            "config": config.to_json(),
             "frontend_config": frontend_config.to_json(),
         }
     )
