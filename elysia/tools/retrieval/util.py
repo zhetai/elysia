@@ -192,9 +192,9 @@ async def execute_weaviate_query(
         tool_args["sort_by"] = predicted_query.sort_by.model_dump()
 
     if predicted_query.limit:
-        tool_args["limit"] = predicted_query.limit
+        tool_args["limit"] = min(predicted_query.limit, 100)
     else:
-        tool_args["limit"] = QueryOutput.model_fields["limit"].default
+        tool_args["limit"] = min(QueryOutput.model_fields["limit"].default, 100)
 
     if reference_property:
         tool_args["reference_property"] = reference_property
@@ -561,7 +561,7 @@ def _build_return_metrics(tool_args: dict) -> list[Metrics] | None:
                         metric_names = [
                             metric_name
                             for m in metrics
-                            for metric_name in metric_mapping.get(m, m.lower())  # type: ignore
+                            for metric_name in metric_mapping.get(m, [m.lower()])
                         ]
 
                         if (
