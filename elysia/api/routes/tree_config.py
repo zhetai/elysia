@@ -77,7 +77,7 @@ async def get_tree_config(
     )
 
 
-@router.post("/{user_id}/{conversation_id}/new_config")
+@router.post("/{user_id}/{conversation_id}/new")
 async def new_tree_config(
     user_id: str,
     conversation_id: str,
