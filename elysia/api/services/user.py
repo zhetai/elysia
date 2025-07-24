@@ -284,10 +284,11 @@ class UserManager:
         # self.add_user_local(user_id)
         local_user = await self.get_user_local(user_id)
         tree_manager: TreeManager = local_user["tree_manager"]
-        tree_manager.add_tree(
-            conversation_id,
-            low_memory,
-        )
+        if not tree_manager.tree_exists(conversation_id):
+            tree_manager.add_tree(
+                conversation_id,
+                low_memory,
+            )
         return tree_manager.get_tree(conversation_id)
 
     async def save_tree(
