@@ -1,4 +1,3 @@
-import gc
 import os
 from contextlib import asynccontextmanager
 
@@ -108,20 +107,20 @@ async def health_check():
 
 
 # Mount the app from static files
-# BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent
 
-# # Serve the assets (JS, CSS, images, etc.)
-# app.mount(
-#     "/static/_next",
-#     StaticFiles(directory=BASE_DIR / "static/_next"),
-#     name="next-assets",
-# )
+# Serve NextJS _next assets at root level (this is crucial!)
+app.mount(
+    "/_next",
+    StaticFiles(directory=BASE_DIR / "static/_next"),
+    name="next-assets",
+)
 
-# # Serve the main page and other static files
-# app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="app")
+# Serve other static files
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="app")
 
 
-# @app.get("/")
-# @app.head("/")
-# async def serve_frontend():
-#     return FileResponse(os.path.join(BASE_DIR, "static/index.html"))
+@app.get("/")
+@app.head("/")
+async def serve_frontend():
+    return FileResponse(os.path.join(BASE_DIR, "static/index.html"))

@@ -184,9 +184,11 @@ class Tree:
         )
 
         # Print the tree if required
-        self.settings.logger.info("Initialised tree with the following decision nodes:")
+        self.settings.logger.debug(
+            "Initialised tree with the following decision nodes:"
+        )
         for decision_node in self.decision_nodes.values():
-            self.settings.logger.info(
+            self.settings.logger.debug(
                 f"  - [magenta]{decision_node.id}[/magenta]: {list(decision_node.options.keys())}"
             )
 
@@ -426,7 +428,7 @@ class Tree:
         collection_names: list[str],
         client_manager: ClientManager,
     ) -> None:
-        self.settings.logger.info(
+        self.settings.logger.debug(
             f"Using the following collection names: {collection_names}"
         )
 
@@ -1235,7 +1237,6 @@ class Tree:
             await self.returner(
                 result,
                 self.prompt_to_query_id[self.user_prompt],
-                last_in_tree=decision.last_in_tree,
             ),
             error,
         )
@@ -1296,7 +1297,7 @@ class Tree:
             num_calls_complex = self.tracker.get_num_calls("complex_lm")
 
             if num_calls_base > 0:
-                self.settings.logger.info(
+                self.settings.logger.debug(
                     f"Base Model Usage: \n"
                     f"  - Calls: [magenta]{num_calls_base}[/magenta]\n"
                     f"  - Input Tokens: [magenta]{total_input_base}[/magenta] (Avg. [magenta]{int(avg_input_base)}[/magenta] per call)\n"
@@ -1304,11 +1305,11 @@ class Tree:
                     f"  - Total Cost: [yellow]${total_cost_base:.4f}[/yellow] (Avg. [yellow]${avg_cost_base:.4f}[/yellow] per call)\n"
                 )
             else:
-                self.settings.logger.info(
+                self.settings.logger.debug(
                     f"Base Model Usage: [magenta]0[/magenta] calls"
                 )
             if num_calls_complex > 0:
-                self.settings.logger.info(
+                self.settings.logger.debug(
                     f"Complex Model Usage: \n"
                     f"  - Calls: [magenta]{num_calls_complex}[/magenta]\n"
                     f"  - Input Tokens: [magenta]{total_input_complex}[/magenta] (Avg. [magenta]{int(avg_input_complex)}[/magenta] per call)\n"
@@ -1316,7 +1317,7 @@ class Tree:
                     f"  - Total Cost: [yellow]${total_cost_complex:.4f}[/yellow] (Avg. [yellow]${avg_cost_complex:.4f}[/yellow] per call)\n"
                 )
             else:
-                self.settings.logger.info(
+                self.settings.logger.debug(
                     f"Complex Model Usage: [magenta]0[/magenta] calls"
                 )
 
@@ -1355,11 +1356,11 @@ class Tree:
         # Some initial steps if this is the first run (no recursion yet)
         if _first_run:
 
-            self.settings.logger.info(f"Style: {self.tree_data.atlas.style}")
-            self.settings.logger.info(
+            self.settings.logger.debug(f"Style: {self.tree_data.atlas.style}")
+            self.settings.logger.debug(
                 f"Agent description: {self.tree_data.atlas.agent_description}"
             )
-            self.settings.logger.info(f"End goal: {self.tree_data.atlas.end_goal}")
+            self.settings.logger.debug(f"End goal: {self.tree_data.atlas.end_goal}")
 
             if query_id is None:
                 query_id = str(uuid.uuid4())
@@ -1391,7 +1392,6 @@ class Tree:
                             collection_names = await retrieve_all_collection_names(
                                 client
                             )
-
                     await self.set_collection_names(
                         collection_names,
                         client_manager,
@@ -1422,6 +1422,7 @@ class Tree:
             available_tools, unavailable_tools = await self._get_available_tools(
                 current_decision_node, client_manager
             )
+
             if len(available_tools) == 0:
                 self.settings.logger.error("No tools available to use!")
                 raise ValueError(
@@ -1458,7 +1459,7 @@ class Tree:
 
             # If training route is provided, decide from the training route
             if len(route_list) > 0:
-                self.settings.logger.info(f"Route that will be used: {route_list}")
+                self.settings.logger.debug(f"Route that will be used: {route_list}")
 
                 (
                     self.current_decision,
@@ -1482,6 +1483,7 @@ class Tree:
                     successive_actions=successive_actions,
                     client_manager=client_manager,
                 )
+
                 for result in results:
                     action_result, _ = await self._evaluate_result(
                         result, self.current_decision
@@ -1516,18 +1518,19 @@ class Tree:
                 self.current_decision.function_name == "text_response"
                 or self.current_decision.end_actions
                 or self.current_decision.impossible
+                or self.tree_data.num_trees_completed > self.tree_data.recursion_limit
             )
 
             # additional end criteria, recursion limit reached
-            if self.tree_data.num_trees_completed > self.tree_data.recursion_limit:
-                self.settings.logger.warning(
-                    f"Recursion limit reached! ({self.tree_data.num_trees_completed})"
-                )
-                yield await self.returner(
-                    Warning("Decision tree reached recursion limit!"),
-                    query_id=self.prompt_to_query_id[user_prompt],
-                )
-                completed = True
+            # if self.tree_data.num_trees_completed > self.tree_data.recursion_limit:
+            #     self.settings.logger.warning(
+            #         f"Recursion limit reached! ({self.tree_data.num_trees_completed})"
+            #     )
+            #     yield await self.returner(
+            #         Warning("Decision tree reached recursion limit!"),
+            #         query_id=self.prompt_to_query_id[user_prompt],
+            #     )
+            #     completed = True
 
             # assign action function
             action_fn: Tool | None = current_decision_node.options[
@@ -1551,14 +1554,6 @@ class Tree:
                         padding=(1, 1),
                     )
                 )
-
-            # end of current tree
-            self.current_decision.last_in_tree = (
-                current_decision_node.options[self.current_decision.function_name][
-                    "next"
-                ]
-                is None
-            )
 
             self.tree_data.update_tasks_completed(
                 prompt=self.user_prompt,
@@ -1584,12 +1579,18 @@ class Tree:
                     action_result, error = await self._evaluate_result(
                         result, self.current_decision
                     )
-                    successful_action = not error and successful_action
-                    if not successful_action:
-                        completed = False
 
                     if action_result is not None:
                         yield action_result
+
+                    successful_action = not error and successful_action
+
+                if not successful_action:
+                    completed = (
+                        False
+                        or self.tree_data.num_trees_completed
+                        > self.tree_data.recursion_limit
+                    )
 
                 if successful_action:
                     self.tree_data.clear_error(self.current_decision.function_name)
@@ -1600,6 +1601,26 @@ class Tree:
                     self.base_lm if not self.low_memory else None,
                     self.complex_lm if not self.low_memory else None,
                 )
+
+            yield (
+                await self._evaluate_result(
+                    TreeUpdate(
+                        from_node=current_decision_node.id,
+                        to_node=self.current_decision.function_name,
+                        reasoning=(
+                            self.current_decision.reasoning
+                            if self.settings.BASE_USE_REASONING
+                            else ""
+                        ),
+                        reset_tree=current_decision_node.options[
+                            self.current_decision.function_name
+                        ]["next"]
+                        is None
+                        and (not completed),
+                    ),
+                    self.current_decision,
+                )
+            )[0]
 
             # check if the current node is the end of the tree
             if (
@@ -1650,13 +1671,13 @@ class Tree:
                 Completed(), query_id=self.prompt_to_query_id[user_prompt]
             )
 
-            self.settings.logger.info(
+            self.settings.logger.debug(
                 f"[bold green]Model identified overall goal as completed![/bold green]"
             )
-            self.settings.logger.info(
+            self.settings.logger.debug(
                 f"Total time taken for decision tree: {time.time() - self.start_time:.2f} seconds"
             )
-            self.settings.logger.info(
+            self.settings.logger.debug(
                 f"Decision Node Avg. Time: {self.tracker.get_average_time('decision_node'):.2f} seconds"
             )
             self.log_token_usage()
@@ -1672,7 +1693,7 @@ class Tree:
                         )
                         for task in iteration
                     ]
-                    self.settings.logger.info(
+                    self.settings.logger.debug(
                         f"Tasks completed (iteration {i+1}):\n" + "".join(avg_times)
                     )
 
@@ -1681,7 +1702,7 @@ class Tree:
 
         # otherwise, end of the tree for this iteration, and recursively call process() to restart the tree
         else:
-            self.settings.logger.info(
+            self.settings.logger.debug(
                 f"Model did [bold red]not[/bold red] yet complete overall goal! "
             )
             self.settings.logger.debug(

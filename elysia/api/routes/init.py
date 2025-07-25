@@ -103,6 +103,14 @@ async def initialise_user(
 
         correct_settings = user["tree_manager"].config.settings.check()
 
+        logger.debug(f"--------------------------------")
+        logger.debug(f"Output of init/user:")
+        logger.debug(f"User ID: {user_id}")
+        logger.debug(f"User exists: {user_exists}")
+        logger.debug(f"Config: {config}")
+        logger.debug(f"Frontend config: {frontend_config}")
+        logger.debug(f"Correct settings: {correct_settings}")
+
     except Exception as e:
         logger.exception(f"Error in /initialise_user API")
         return JSONResponse(

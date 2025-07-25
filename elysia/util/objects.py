@@ -124,11 +124,11 @@ class Tracker:
         self.update_lm_costs(complex_lm, "complex_lm")
 
         if call_name != "":
-            self.logger.info(
+            self.logger.debug(
                 f"Time taken for {call_name} ({tracker_name}): {time_taken: .2f} seconds"
             )
         else:
-            self.logger.info(
+            self.logger.debug(
                 f"Time taken for {tracker_name}: {time_taken: .2f} seconds"
             )
 
@@ -231,7 +231,7 @@ class TreeUpdate:
         from_node: str,
         to_node: str,
         reasoning: str,
-        last_in_branch: bool = False,
+        reset_tree: bool = False,
     ):
         """
         Args:
@@ -244,7 +244,7 @@ class TreeUpdate:
         self.from_node = from_node
         self.to_node = to_node
         self.reasoning = reasoning
-        self.last_in_branch = last_in_branch
+        self.reset_tree = reset_tree
 
     async def to_frontend(
         self,
@@ -252,7 +252,6 @@ class TreeUpdate:
         conversation_id: str,
         query_id: str,
         tree_index: int,
-        last_in_tree: bool = False,
     ):
         return {
             "type": "tree_update",
@@ -265,7 +264,7 @@ class TreeUpdate:
                 "tree_index": tree_index,
                 "decision": self.to_node,
                 "reasoning": self.reasoning,
-                "reset": last_in_tree and self.last_in_branch,
+                "reset": self.reset_tree,
             },
         }
 

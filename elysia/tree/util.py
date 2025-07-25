@@ -314,7 +314,6 @@ class DecisionNode:
                         if "$defs" in input_dict["type"].model_json_schema():
                             type_overwrite += f"\nWhere the values are: {input_dict['type'].model_json_schema()['$defs']}"
                         input_dict["type"] = type_overwrite
-
             else:
                 out[node]["inputs"] = "No inputs are needed for this function."
 
@@ -353,6 +352,7 @@ class DecisionNode:
                 impossible=False,
                 function_inputs={},
                 end_actions=completed,
+                last_in_tree=completed,
             ),
             "/".join(route),
         )
@@ -390,7 +390,7 @@ class DecisionNode:
         successive_actions: dict,
         client_manager: ClientManager,
         **kwargs,
-    ) -> tuple[Decision, list[Update]]:
+    ) -> tuple[Decision, list[TrainingUpdate | Status | Response | FewShotExamples]]:
         available_options = self._options_to_json(available_tools)
         unavailable_options = self._unavailable_options_to_json(unavailable_tools)
 
@@ -404,7 +404,10 @@ class DecisionNode:
             self.logger.debug(f"Available options: {list(available_options.keys())}")
 
         one_choice = (
-            all(option["inputs"] == {} for option in available_options.values())
+            all(
+                option["inputs"] == "No inputs are needed for this function."
+                for option in available_options.values()
+            )
             and len(available_options) == 1
         )
 
@@ -417,6 +420,7 @@ class DecisionNode:
                 collection_schemas=self.use_elysia_collections,
                 tasks_completed=True,
                 message_update=True,
+                reasoning=tree_data.settings.BASE_USE_REASONING,
             )
 
             decision_executor = AssertedModule(
@@ -464,7 +468,7 @@ class DecisionNode:
             decision = Decision(
                 output.function_name,
                 output.function_inputs,
-                output.reasoning,
+                output.reasoning if tree_data.settings.BASE_USE_REASONING else "",
                 output.impossible,
                 output.end_actions and bool(self.options[output.function_name]["end"]),
             )
@@ -474,12 +478,6 @@ class DecisionNode:
                     module_name="decision",
                     inputs=tree_data.to_json(),
                     outputs={k: v for k, v in output.__dict__["_store"].items()},
-                ),
-                TreeUpdate(
-                    from_node=self.id,
-                    to_node=output.function_name,
-                    reasoning=output.reasoning,
-                    last_in_branch=True,
                 ),
                 Status(str(self.options[output.function_name]["status"])),
             ]
@@ -502,13 +500,7 @@ class DecisionNode:
                 ),
             )
 
-            results = [
-                TreeUpdate(
-                    from_node=self.id,
-                    to_node=list(available_options.keys())[0],
-                    reasoning=decision.reasoning,
-                    last_in_branch=True,
-                ),
+            results: list[TrainingUpdate | Status | Response | FewShotExamples] = [
                 Status(str(self.options[list(available_options.keys())[0]]["status"])),
             ]
 
@@ -604,7 +596,6 @@ class TreeReturner:
         self,
         result: Result | TreeUpdate | Update | Text,
         query_id: str,
-        last_in_tree: bool = False,
     ) -> dict[str, str | dict] | None:
 
         if isinstance(result, (Update, Text, Result)):
@@ -620,7 +611,6 @@ class TreeReturner:
                 self.conversation_id,
                 query_id,
                 self.tree_index,
-                last_in_tree,
             )
             self.store.append(payload)
             return payload
