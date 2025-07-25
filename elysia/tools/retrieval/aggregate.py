@@ -128,6 +128,7 @@ class Aggregate(Tool):
             tasks_completed=True,
             message_update=True,
             collection_names=inputs["collection_names"],
+            reasoning=tree_data.settings.COMPLEX_USE_REASONING,
         )
 
         if self.logger:
@@ -164,9 +165,7 @@ class Aggregate(Tool):
             return
 
         if self.logger and aggregation.aggregation_queries is not None:
-            self.logger.debug(
-                f"Aggregation: {aggregation.aggregation_queries.aggregation_outputs}"
-            )
+            self.logger.debug(f"Aggregation: {aggregation.aggregation_queries}")
 
         # Yield results to front end
         yield Response(text=aggregation.message_update)
@@ -193,27 +192,23 @@ class Aggregate(Tool):
                 metadata = {
                     "collection_name": collection_name,
                     "impossible": tree_data.user_prompt,
-                    "impossible_reasoning": aggregation.reasoning,
+                    "impossible_reasoning": (
+                        aggregation.reasoning
+                        if tree_data.settings.COMPLEX_USE_REASONING
+                        else ""
+                    ),
                     "aggregation_output": (
-                        aggregation.aggregation_queries.aggregation_outputs.model_dump()
+                        aggregation.aggregation_queries.model_dump()
                         if aggregation.aggregation_queries is not None
                         else None
                     ),
                 }
                 yield Aggregation([], metadata)
 
-            # yield TreeUpdate(
-            #     from_node="aggregate",
-            #     to_node="aggregate_executor",
-            #     reasoning=aggregation.reasoning,
-            #     last_in_branch=True,
-            # )
             return
 
         # Go through each response
-        for i, aggregation_output in enumerate(
-            aggregation.aggregation_queries.aggregation_outputs
-        ):
+        for i, aggregation_output in enumerate(aggregation.aggregation_queries):
 
             aggregation_output.target_collections = self._fix_collection_names(
                 aggregation_output.target_collections,
@@ -228,6 +223,10 @@ class Aggregate(Tool):
                     )
                 except Exception as e:
                     for collection_name in aggregation_output.target_collections:
+                        if self.logger:
+                            self.logger.exception(
+                                f"Error executing aggregation for {collection_name}: {str(e)}"
+                            )
                         yield Error(str(e))
                     continue  # continue to next aggregation output
 

@@ -113,10 +113,6 @@ class QueryOutput(BaseModel):
     limit: Optional[int] = 5
 
 
-class ListQueryOutputs(BaseModel):
-    query_outputs: List[QueryOutput] | None = None
-
-
 # -- Full Aggregation Definition
 class AggregationOutput(BaseModel):
     target_collections: List[str]
@@ -133,10 +129,6 @@ class AggregationOutput(BaseModel):
     )
     date_property_aggregations: Optional[List[DateAggregation]] = Field(default=None)
     limit: Optional[int] = 5
-
-
-class ListAggregationOutputs(BaseModel):
-    aggregation_outputs: List[AggregationOutput] | None = None
 
 
 # -- Schema for collections/data
@@ -612,9 +604,15 @@ def _build_return_metrics(tool_args: dict) -> list[Metrics] | None:
                             "MODE": "mode",
                             "COUNT": "count",
                         }
-                        metric_name = metric_mapping.get(metrics, metrics.lower())  # type: ignore
+                        metric_names = [
+                            metric_name
+                            for m in metrics
+                            for metric_name in metric_mapping.get(m, [m.lower()])
+                        ]
                         full_metrics.append(
-                            Metrics(prop_name).date_(**{metric_name: True})
+                            Metrics(prop_name).date_(
+                                **{metric_name: True for metric_name in metric_names}
+                            )
                         )
 
     return None if full_metrics == [] else full_metrics

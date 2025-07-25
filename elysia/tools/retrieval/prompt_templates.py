@@ -5,11 +5,8 @@ import dspy
 from elysia.tree.objects import Atlas
 from elysia.tools.retrieval.util import (
     AggregationOutput,
-    CollectionSchema,
     DataDisplay,
     QueryOutput,
-    ListQueryOutputs,
-    ListAggregationOutputs,
 )
 from typing import Union
 
@@ -92,7 +89,7 @@ class AggregationPrompt(dspy.Signature):
         """.strip(),
         format=list[dict],
     )
-    aggregation_queries: Union[ListAggregationOutputs, None] = dspy.OutputField(
+    aggregation_queries: Union[List[AggregationOutput], None] = dspy.OutputField(
         description="The aggregation query(-ies) to be executed. Return None if aggregation is impossible to execute"
     )
 
@@ -145,6 +142,7 @@ class QueryCreatorPrompt(dspy.Signature):
        You can also use the IS_NULL filter to filter for properties that are None or null (not an empty list or string etc.), ONLY if `isNullIndexed` is set to True in the schema.
             (found in `index_properties.isNullIndexed` in the schema)
        Do NOT use the IS_NULL filter if the property is not indexed for null. It will raise an error!
+       You CANNOT use any type of filter on an 'object' or 'object[]' property. It will raise an error!
 
 
     6. CreationTimeFilter: For date comparisons for object creation time metadata (=, <, >, <=, >=)
@@ -241,7 +239,7 @@ class QueryCreatorPrompt(dspy.Signature):
     )
 
     # Output fields
-    query_output: Union[ListQueryOutputs, None] = dspy.OutputField(
+    query_outputs: Union[List[QueryOutput], None] = dspy.OutputField(
         description="The query(-ies) to be executed. Return None if query is impossible to execute"
     )
     fields_to_search: dict[str, List[str] | None] = dspy.OutputField(
@@ -403,7 +401,7 @@ class SimpleQueryCreatorPrompt(dspy.Signature):
     )
 
     # Output fields
-    query_output: Union[ListQueryOutputs, None] = dspy.OutputField(
+    query_outputs: Union[List[QueryOutput], None] = dspy.OutputField(
         description="The query(-ies) to be executed. Return None if query is impossible to execute"
     )
     fields_to_search: dict[str, List[str] | None] = dspy.OutputField(

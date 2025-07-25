@@ -67,6 +67,7 @@ class Visualise(Tool):
                 environment=True,
                 impossible=True,
                 tasks_completed=True,
+                reasoning=tree_data.settings.BASE_USE_REASONING,
             )
             prediction = await create_chart.aforward(lm=base_lm)
             charts = prediction.charts
@@ -89,7 +90,11 @@ class Visualise(Tool):
                     title,
                     metadata={
                         "impossible": True,
-                        "impossible_reasoning": prediction.reasoning,
+                        "impossible_reasoning": (
+                            prediction.reasoning
+                            if tree_data.settings.BASE_USE_REASONING
+                            else ""
+                        ),
                     },
                 )
                 return

@@ -73,6 +73,8 @@ class Settings:
 
         # Experimental features
         self.USE_FEEDBACK = False
+        self.BASE_USE_REASONING = True
+        self.COMPLEX_USE_REASONING = True
 
     def setup_app_logger(self, logger: logging.Logger):
         """
@@ -188,13 +190,13 @@ class Settings:
                 # use gemini 2.0 flash
                 self.BASE_PROVIDER = "openrouter/google"
                 self.COMPLEX_PROVIDER = "openrouter/google"
-                self.BASE_MODEL = "gemini-2.5-flash"
+                self.BASE_MODEL = "gemini-2.0-flash-001"
                 self.COMPLEX_MODEL = "gemini-2.5-flash"
             elif os.getenv("GEMINI_API_KEY", None):
                 # use gemini 2.0 flash
                 self.BASE_PROVIDER = "gemini"
                 self.COMPLEX_PROVIDER = "gemini"
-                self.BASE_MODEL = "gemini-2.5-flash"
+                self.BASE_MODEL = "gemini-2.0-flash-001"
                 self.COMPLEX_MODEL = "gemini-2.5-flash"
             elif os.getenv("OPENAI_API_KEY", None):
                 # use gpt family
@@ -234,6 +236,10 @@ class Settings:
                     These are implemented via few-shot examples for the decision node.
                     They are collected in the 'feedback' collection (ELYSIA_FEEDBACK__).
                     Relevant examples are retrieved from the collection based on searching the collection via the user's prompt.
+                - base_use_reasoning (bool): Whether to use reasoning output for the base model.
+                    If True, the model will generate reasoning before coming to its solution.
+                - complex_use_reasoning (bool): Whether to use reasoning output for the complex model.
+                    If True, the model will generate reasoning before coming to its solution.
                 - Additional API keys to set. E.g. `openai_apikey="..."`, if this argument ends with `apikey` or `api_key`,
                     it will be added to the `API_KEYS` dictionary.
 
@@ -339,6 +345,14 @@ class Settings:
         if "use_feedback" in kwargs:
             self.USE_FEEDBACK = kwargs["use_feedback"]
             kwargs.pop("use_feedback")
+
+        if "base_use_reasoning" in kwargs:
+            self.BASE_USE_REASONING = kwargs["base_use_reasoning"]
+            kwargs.pop("base_use_reasoning")
+
+        if "complex_use_reasoning" in kwargs:
+            self.COMPLEX_USE_REASONING = kwargs["complex_use_reasoning"]
+            kwargs.pop("complex_use_reasoning")
 
         if "api_keys" in kwargs and isinstance(kwargs["api_keys"], dict):
             for key, value in kwargs["api_keys"].items():

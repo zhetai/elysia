@@ -172,7 +172,7 @@ class ClientManager:
         self,
         wcd_url: str | None = None,
         wcd_api_key: str | None = None,
-        api_keys: dict = {},
+        api_keys: dict[str, str] = {},
     ) -> None:
         """
         Set the API keys, WCD_URL and WCD_API_KEY from the settings object.
@@ -189,9 +189,11 @@ class ClientManager:
             if api_key.lower() in [a.lower() for a in api_key_map.keys()]:
                 self.headers[api_key_map[api_key.upper()]] = api_keys[api_key]
 
-        await self.restart_client(force=True)
-        await self.restart_async_client(force=True)
-        await self.start_clients()
+        self.is_client = self.wcd_url is not "" and self.wcd_api_key is not ""
+        if self.is_client:
+            await self.restart_client(force=True)
+            await self.restart_async_client(force=True)
+            await self.start_clients()
 
     async def start_clients(self) -> None:
         """

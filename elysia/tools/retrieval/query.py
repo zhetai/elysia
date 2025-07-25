@@ -280,8 +280,8 @@ class Query(Tool):
             yield Error(str(e))
             return
 
-        if self.logger and query.query_output is not None:
-            self.logger.debug(f"Query: {query.query_output.query_outputs}")
+        if self.logger and query.query_outputs is not None:
+            self.logger.debug(f"Query: {query.query_outputs}")
             self.logger.debug(f"Fields to search: {query.fields_to_search}")
             self.logger.debug(f"Data display: {query.data_display}")
 
@@ -301,42 +301,26 @@ class Query(Tool):
         if tree_data.settings.USE_FEEDBACK:
             yield FewShotExamples(uuids=example_uuids)
 
-        # if self.summariser_in_tree:
-        #     yield TreeUpdate(
-        #         from_node="query",
-        #         to_node="summarise_items",
-        #         reasoning=query.reasoning,
-        #         last_in_branch=(
-        #             query.impossible
-        #             or query.query_output is None
-        #             or not any(
-        #                 self._evaluate_needs_chunking(
-        #                     query.data_display[collection_name].display_type,
-        #                     current_query_output.search_type,
-        #                     schemas[collection_name],
-        #                 )
-        #                 for current_query_output in query.query_output.query_outputs
-        #                 for collection_name in current_query_output.target_collections
-        #             )
-        #         ),
-        #     )
-
         # Return if model deems query impossible
         if (
             query.impossible
-            or query.query_output is None
-            or all(q is None for q in query.query_output.query_outputs)
-            or len(query.query_output.query_outputs) == 0
+            or query.query_outputs is None
+            or all(q is None for q in query.query_outputs)
+            or len(query.query_outputs) == 0
         ):
 
             for collection_name in collection_names:
                 metadata = {
                     "collection_name": collection_name,
                     "impossible": tree_data.user_prompt,
-                    "impossible_reasoning": query.reasoning,
+                    "impossible_reasoning": (
+                        query.reasoning
+                        if tree_data.settings.COMPLEX_USE_REASONING
+                        else ""
+                    ),
                     "query_output": (
-                        query.query_output.query_outputs.model_dump()
-                        if query.query_output is not None
+                        query.query_outputs.model_dump()
+                        if query.query_outputs is not None
                         else None
                     ),
                 }
@@ -346,19 +330,10 @@ class Query(Tool):
                 self.logger.warning(
                     f"Model judged query to be impossible. Returning to the decision tree..."
                 )
-
-            # if self.summariser_in_tree:
-            #     yield TreeUpdate(
-            #         from_node="query",
-            #         to_node="summarise_items",
-            #         reasoning=query.reasoning,
-            #         last_in_branch=True,
-            #     )
-            #     return
+            return
 
         # extract and error handle the query output
-        # TODO: replace with assertions when they're released
-        for current_query_output in query.query_output.query_outputs:
+        for current_query_output in query.query_outputs:
 
             current_query_output.target_collections = self._fix_collection_names(
                 current_query_output.target_collections, schemas
@@ -402,7 +377,7 @@ class Query(Tool):
         chunking_status_sent = False
 
         # Go through outputs for each unique query
-        for i, query_output in enumerate(query.query_output.query_outputs):
+        for i, query_output in enumerate(query.query_outputs):
             collection_names = query_output.target_collections.copy()
 
             for collection_name in collection_names:
@@ -707,6 +682,7 @@ class SimpleQuery(Tool):
             tasks_completed=True,
             message_update=True,
             collection_names=collection_names,
+            reasoning=tree_data.settings.COMPLEX_USE_REASONING,
         )
 
         # Get some metadata about the collection
@@ -756,8 +732,8 @@ class SimpleQuery(Tool):
             yield Error(str(e))
             return
 
-        if self.logger and query.query_output is not None:
-            self.logger.debug(f"Query: {query.query_output.query_outputs}")
+        if self.logger and query.query_outputs is not None:
+            self.logger.debug(f"Query: {query.query_outputs}")
 
         # Yield results to front end
         yield Response(text=query.message_update)
@@ -777,19 +753,23 @@ class SimpleQuery(Tool):
         # Return if model deems query impossible
         if (
             query.impossible
-            or query.query_output is None
-            or all(q is None for q in query.query_output.query_outputs)
-            or len(query.query_output.query_outputs) == 0
+            or query.query_outputs is None
+            or all(q is None for q in query.query_outputs)
+            or len(query.query_outputs) == 0
         ):
 
             for collection_name in collection_names:
                 metadata = {
                     "collection_name": collection_name,
                     "impossible": tree_data.user_prompt,
-                    "impossible_reasoning": query.reasoning,
+                    "impossible_reasoning": (
+                        query.reasoning
+                        if tree_data.settings.COMPLEX_USE_REASONING
+                        else ""
+                    ),
                     "query_output": (
-                        query.query_output.query_outputs.model_dump()
-                        if query.query_output is not None
+                        query.query_outputs.model_dump()
+                        if query.query_outputs is not None
                         else None
                     ),
                 }
@@ -802,7 +782,7 @@ class SimpleQuery(Tool):
 
         # extract and error handle the query output
         # TODO: replace with assertions when they're released
-        for current_query_output in query.query_output.query_outputs:
+        for current_query_output in query.query_outputs:
 
             current_query_output.target_collections = self._fix_collection_names(
                 current_query_output.target_collections, schemas
@@ -831,7 +811,7 @@ class SimpleQuery(Tool):
                 return
 
         # Go through outputs for each unique query
-        for i, query_output in enumerate(query.query_output.query_outputs):
+        for i, query_output in enumerate(query.query_outputs):
             collection_names = query_output.target_collections.copy()
 
             # Execute query within Weaviate
