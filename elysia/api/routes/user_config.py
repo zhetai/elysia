@@ -1,6 +1,7 @@
 import os
 from cryptography.fernet import InvalidToken
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -272,6 +273,24 @@ async def new_user_config(
     )
 
 
+def save_frontend_config_to_file(user_id: str, frontend_config: dict):
+
+    # save frontend config locally
+    try:
+        elysia_package_dir = Path(__file__).parent.parent.parent  # Gets to elysia/
+        config_dir = elysia_package_dir / "api" / "user_configs"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_file = config_dir / f"frontend_config_{user_id}.json"
+        print(f"\n\nSaving frontend config to file: {config_file}\n\n")
+
+        with open(config_file, "w") as f:
+            json.dump(frontend_config, f)
+        logger.debug(f"Frontend config saved to local file: {config_file}")
+    except Exception as e:
+        logger.error(f"Error in save_frontend_config_to_file: {str(e)}")
+        pass
+
+
 @router.post("/{user_id}/{config_id}")
 async def save_config_user(
     user_id: str,
@@ -332,15 +351,7 @@ async def save_config_user(
         if data.frontend_config is not None:
             try:
                 await user_manager.update_frontend_config(user_id, data.frontend_config)
-
-                # save frontend config locally
-                with open(
-                    f"elysia/api/user_configs/frontend_config_{user_id}.json", "w"
-                ) as f:
-                    json.dump(user["frontend_config"].to_json(), f)
-                logger.debug(
-                    f"Frontend config saved to local file: elysia/api/user_configs/frontend_config_{user_id}.json"
-                )
+                save_frontend_config_to_file(user_id, user["frontend_config"].to_json())
 
             except Exception as e:
                 if "Could not connect to Weaviate" in str(e):

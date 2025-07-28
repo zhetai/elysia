@@ -5,6 +5,8 @@ import json
 
 from dotenv import load_dotenv
 from typing import Any
+from pathlib import Path
+from logging import Logger
 
 load_dotenv(override=True)
 
@@ -35,6 +37,28 @@ class UserTimeoutError(Update):
                 "text": "You have been timed out due to inactivity. Please start a new conversation."
             },
         )
+
+
+async def load_frontend_config_from_file(
+    user_id: str, logger: Logger
+) -> FrontendConfig:
+    # save frontend config locally
+    try:
+        elysia_package_dir = Path(__file__).parent.parent.parent  # Gets to elysia/
+        config_dir = elysia_package_dir / "api" / "user_configs"
+        config_file = config_dir / f"frontend_config_{user_id}.json"
+        print(f"\n\nLoading frontend config from file: {config_file}\n\n")
+
+        if not config_file.exists():
+            return FrontendConfig(logger=logger)
+
+        with open(config_file, "r") as f:
+            fe_config = await FrontendConfig.from_json(json.load(f), logger)
+            return fe_config
+
+    except Exception as e:
+        logger.error(f"Error in save_frontend_config_to_file: {str(e)}")
+        return FrontendConfig(logger=logger)
 
 
 class UserManager:
@@ -146,23 +170,7 @@ class UserManager:
         if user_id not in self.users:
             self.users[user_id] = {}
 
-            # check for a local frontend config file
-            if os.path.exists(
-                f"elysia/api/user_configs/frontend_config_{user_id}.json"
-            ):
-                try:
-                    with open(
-                        f"elysia/api/user_configs/frontend_config_{user_id}.json", "r"
-                    ) as f:
-                        fe_config = await FrontendConfig.from_json(json.load(f), logger)
-                except Exception as e:
-                    logger.warning(
-                        f"In /add_user_local API during frontend config loading. "
-                        f"Using default frontend config. Error: {str(e)}"
-                    )
-                    fe_config = FrontendConfig(logger=logger)
-            else:
-                fe_config = FrontendConfig(logger=logger)
+            fe_config = await load_frontend_config_from_file(user_id, logger)
 
             self.users[user_id]["frontend_config"] = fe_config
 
