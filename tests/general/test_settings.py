@@ -5,6 +5,8 @@ from elysia.config import Settings, configure
 from elysia.config import settings as global_settings
 from elysia.config import reset_settings
 
+from elysia.tree import Tree
+
 
 class TestConfig:
 
@@ -117,3 +119,44 @@ class TestConfig:
         assert settings.BASE_PROVIDER != global_settings.BASE_PROVIDER
 
         self.reset_global_settings()
+
+    def test_model_keys(self):
+
+        # assume that the user has set the keys in the environment
+
+        # use settings from smart setup
+        settings = Settings()
+        tree = Tree(settings=settings)
+
+        # set the keys to wrong
+        settings.configure(
+            openrouter_api_key="wrong",
+            base_model="gemini-2.0-flash-001",
+            base_provider="openrouter/google",
+            complex_model="gemini-2.0-flash-001",
+            complex_provider="openrouter/google",
+        )
+
+        # should error
+        with pytest.raises(Exception):
+            response, objects = tree("hi elly. use text response only")
+
+        with pytest.raises(Exception):
+            tree.create_conversation_title()
+
+        with pytest.raises(Exception):
+            tree.get_follow_up_suggestions()
+
+        # now set the keys back to the .env
+        settings.configure(
+            openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_model=settings.BASE_MODEL,
+            base_provider=settings.BASE_PROVIDER,
+            complex_model=settings.COMPLEX_MODEL,
+            complex_provider=settings.COMPLEX_PROVIDER,
+        )
+
+        # should not error
+        response, objects = tree("hi elly. use text response only")
+        tree.create_conversation_title()
+        tree.get_follow_up_suggestions()

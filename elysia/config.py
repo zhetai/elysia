@@ -1,10 +1,11 @@
 import os
-from typing import Callable, Literal
 import logging
+import litellm
+from litellm import check_valid_key
 from rich.logging import RichHandler
+from typing import Callable, Literal
 
 import spacy
-import uuid
 import random
 
 from dotenv import load_dotenv
@@ -431,6 +432,144 @@ class Settings:
             "wcd_url": self.WCD_URL != "",
             "wcd_api_key": self.WCD_API_KEY != "",
         }
+
+
+class ElysiaKeyManager:
+    def __init__(self, settings: Settings):
+        self.settings = settings
+
+    def __enter__(self):
+
+        # save existing keys
+        self.existing_openrouter_key = litellm.openrouter_key
+        self.existing_openai_key = litellm.openai_key
+        self.existing_anthropic_key = litellm.anthropic_key
+        self.existing_cohere_key = litellm.cohere_key
+        self.existing_groq_key = litellm.groq_key
+        self.existing_llama_api_key = litellm.llama_api_key
+        self.existing_ollama_key = litellm.ollama_key
+        self.existing_azure_key = litellm.azure_key
+
+        # save existing env
+        self.existing_openrouter_key_env = (
+            os.environ["OPENROUTER_API_KEY"]
+            if "OPENROUTER_API_KEY" in os.environ
+            else None
+        )
+        self.existing_openai_key_env = (
+            os.environ["OPENAI_API_KEY"] if "OPENAI_API_KEY" in os.environ else None
+        )
+        self.existing_anthropic_key_env = (
+            os.environ["ANTHROPIC_API_KEY"]
+            if "ANTHROPIC_API_KEY" in os.environ
+            else None
+        )
+        self.existing_cohere_key_env = (
+            os.environ["COHERE_API_KEY"] if "COHERE_API_KEY" in os.environ else None
+        )
+        self.existing_groq_key_env = (
+            os.environ["GROQ_API_KEY"] if "GROQ_API_KEY" in os.environ else None
+        )
+        self.existing_llama_api_key_env = (
+            os.environ["LLAMA_API_KEY"] if "LLAMA_API_KEY" in os.environ else None
+        )
+        self.existing_ollama_key_env = (
+            os.environ["OLLAMA_API_KEY"] if "OLLAMA_API_KEY" in os.environ else None
+        )
+        self.existing_azure_key_env = (
+            os.environ["AZURE_API_KEY"] if "AZURE_API_KEY" in os.environ else None
+        )
+
+        # set new keys in litellm
+        litellm.openrouter_key = (
+            self.settings.API_KEYS["openrouter_api_key"]
+            if "openrouter_api_key" in self.settings.API_KEYS
+            else None
+        )
+        litellm.openai_key = (
+            self.settings.API_KEYS["openai_api_key"]
+            if "openai_api_key" in self.settings.API_KEYS
+            else None
+        )
+        litellm.anthropic_key = (
+            self.settings.API_KEYS["anthropic_api_key"]
+            if "anthropic_api_key" in self.settings.API_KEYS
+            else None
+        )
+        litellm.cohere_key = (
+            self.settings.API_KEYS["cohere_api_key"]
+            if "cohere_api_key" in self.settings.API_KEYS
+            else None
+        )
+        litellm.groq_key = (
+            self.settings.API_KEYS["groq_api_key"]
+            if "groq_api_key" in self.settings.API_KEYS
+            else None
+        )
+        litellm.llama_api_key = (
+            self.settings.API_KEYS["llama_api_key"]
+            if "llama_api_key" in self.settings.API_KEYS
+            else None
+        )
+        litellm.ollama_key = (
+            self.settings.API_KEYS["ollama_api_key"]
+            if "ollama_api_key" in self.settings.API_KEYS
+            else None
+        )
+        litellm.azure_key = (
+            self.settings.API_KEYS["azure_api_key"]
+            if "azure_api_key" in self.settings.API_KEYS
+            else None
+        )
+
+        # set in env
+        if self.existing_openrouter_key_env is not None:
+            os.environ["OPENROUTER_API_KEY"] = ""
+        if self.existing_openai_key_env is not None:
+            os.environ["OPENAI_API_KEY"] = ""
+        if self.existing_anthropic_key_env is not None:
+            os.environ["ANTHROPIC_API_KEY"] = ""
+        if self.existing_cohere_key_env is not None:
+            os.environ["COHERE_API_KEY"] = ""
+        if self.existing_groq_key_env is not None:
+            os.environ["GROQ_API_KEY"] = ""
+        if self.existing_llama_api_key_env is not None:
+            os.environ["LLAMA_API_KEY"] = ""
+        if self.existing_ollama_key_env is not None:
+            os.environ["OLLAMA_API_KEY"] = ""
+        if self.existing_azure_key_env is not None:
+            os.environ["AZURE_API_KEY"] = ""
+
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        litellm.openrouter_key = self.existing_openrouter_key
+        litellm.openai_key = self.existing_openai_key
+        litellm.anthropic_key = self.existing_anthropic_key
+        litellm.cohere_key = self.existing_cohere_key
+        litellm.groq_key = self.existing_groq_key
+        litellm.llama_api_key = self.existing_llama_api_key
+        litellm.ollama_key = self.existing_ollama_key
+        litellm.azure_key = self.existing_azure_key
+
+        # reset env
+        if self.existing_openrouter_key_env is not None:
+            os.environ["OPENROUTER_API_KEY"] = self.existing_openrouter_key_env
+        if self.existing_openai_key_env is not None:
+            os.environ["OPENAI_API_KEY"] = self.existing_openai_key_env
+        if self.existing_anthropic_key_env is not None:
+            os.environ["ANTHROPIC_API_KEY"] = self.existing_anthropic_key_env
+        if self.existing_cohere_key_env is not None:
+            os.environ["COHERE_API_KEY"] = self.existing_cohere_key_env
+        if self.existing_groq_key_env is not None:
+            os.environ["GROQ_API_KEY"] = self.existing_groq_key_env
+        if self.existing_llama_api_key_env is not None:
+            os.environ["LLAMA_API_KEY"] = self.existing_llama_api_key_env
+        if self.existing_ollama_key_env is not None:
+            os.environ["OLLAMA_API_KEY"] = self.existing_ollama_key_env
+        if self.existing_azure_key_env is not None:
+            os.environ["AZURE_API_KEY"] = self.existing_azure_key_env
+        pass
 
 
 def check_base_lm_settings(settings: Settings):
