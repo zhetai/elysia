@@ -1,31 +1,27 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-# API Types
 from elysia.api.api_types import (
     ViewPaginatedCollectionData,
     UpdateCollectionMetadataData,
 )
-
-# Logging
 from elysia.api.core.log import logger
-
-# user manager
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
-
-# Utils
 from elysia.util.parsing import format_dict_to_serialisable
-
-# Util
 from elysia.util.collection import (
     async_get_collection_data_types,
     paginated_collection,
 )
-
-from elysia.preprocess.collection import edit_preprocessed_collection
-
+from elysia.preprocess.collection import (
+    edit_preprocessed_collection,
+    delete_preprocessed_collection_async,
+)
 from elysia.util.return_types import specific_return_types, types_dict
+from elysia.util.client import ClientManager
+
+from weaviate.classes.query import Filter
+
 
 router = APIRouter()
 
@@ -94,7 +90,7 @@ async def collections_list(
     try:
 
         user_local = await user_manager.get_user_local(user_id)
-        client_manager = user_local["client_manager"]
+        client_manager: ClientManager = user_local["client_manager"]
 
         if not client_manager.is_client:
             return JSONResponse(
@@ -110,13 +106,30 @@ async def collections_list(
             )
 
         async with client_manager.connect_to_async_client() as client:
+
             collections = [
                 c
                 for c in await client.collections.list_all()
                 if not c.startswith("ELYSIA_")
             ]
 
-        async with client_manager.connect_to_async_client() as client:
+            # get processed collections
+            metadata_collection = client.collections.get("ELYSIA_METADATA__")
+            processed_collections = await metadata_collection.query.fetch_objects(
+                filters=Filter.any_of(
+                    [Filter.by_property("name").equal(c) for c in collections]
+                )
+            )
+            processed_collection_names = [
+                processed_collection.properties["name"]
+                for processed_collection in processed_collections.objects
+            ]
+            processed_collections_prompts = {
+                processed_collection.properties[
+                    "name"
+                ]: processed_collection.properties["prompts"]
+                for processed_collection in processed_collections.objects
+            }
 
             # get collection metadata
             metadata = []
@@ -137,18 +150,10 @@ async def collections_list(
                     len = all_aggregate.total_count
 
                     # for processed
-                    processed = await client.collections.exists(
-                        f"ELYSIA_METADATA_{collection_name.lower()}__"
-                    )
+                    processed = collection_name in processed_collection_names
 
                     if processed:
-                        metadata_collection = client.collections.get(
-                            f"ELYSIA_METADATA_{collection_name.lower()}__"
-                        )
-                        processed_data = await metadata_collection.query.fetch_objects(
-                            limit=1
-                        )
-                        prompts = processed_data.objects[0].properties["prompts"]
+                        prompts = processed_collections_prompts[collection_name]
                     else:
                         prompts = []
 
@@ -480,7 +485,7 @@ async def collection_metadata(
         client_manager = user_local["client_manager"]
 
         async with client_manager.connect_to_async_client() as client:
-            metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
+            metadata_name = f"ELYSIA_METADATA__"
 
             # check if the collection itself exists
             if not await client.collections.exists(collection_name):
@@ -493,7 +498,10 @@ async def collection_metadata(
                 )
             else:
                 metadata_collection = client.collections.get(metadata_name)
-                metadata = await metadata_collection.query.fetch_objects(limit=1)
+                metadata = await metadata_collection.query.fetch_objects(
+                    filters=Filter.by_property("name").equal(collection_name),
+                    limit=1,
+                )
                 properties = metadata.objects[0].properties
                 format_dict_to_serialisable(properties)
 
@@ -614,24 +622,10 @@ async def delete_metadata(
         user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
 
-        async with client_manager.connect_to_async_client() as client:
-            metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
-
-            # check if the collection itself exists
-            if not await client.collections.exists(collection_name.lower()):
-                raise Exception(f"Collection {collection_name} does not exist")
-
-            # check if the metadata collection exists
-            if not await client.collections.exists(metadata_name):
-                raise Exception(
-                    f"Metadata collection for {collection_name} does not exist"
-                )
-
-            else:
-                await client.collections.delete(metadata_name)
-
-                return JSONResponse(content={"error": ""}, status_code=200)
+        await delete_preprocessed_collection_async(collection_name, client_manager)
 
     except Exception as e:
         logger.exception(f"Error in /delete_metadata API")
         return JSONResponse(content={"error": str(e)}, status_code=200)
+
+    return JSONResponse(content={"error": ""}, status_code=200)

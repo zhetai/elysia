@@ -9,6 +9,7 @@ from elysia.objects import Result
 from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable, remove_whitespace
 from copy import deepcopy
+from weaviate.classes.query import Filter
 
 
 class Environment:
@@ -408,25 +409,42 @@ class CollectionData:
         self.removed_collections = []
         self.incorrect_collections = []
 
+        metadata_name = "ELYSIA_METADATA__"
+
         async with client_manager.connect_to_async_client() as client:
-            for collection_name in collections_to_get:
-                metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
+            # check if the metadata collection exists
+            if not await client.collections.exists(metadata_name):
+                self.removed_collections.extend(collections_to_get)
+                pass_on = True
+            else:
+                metadata_collection = client.collections.get(metadata_name)
+                metadata = await metadata_collection.query.fetch_objects(
+                    filters=Filter.any_of(
+                        [
+                            Filter.by_property("name").equal(collection_name)
+                            for collection_name in collections_to_get
+                        ]
+                    )
+                )
+                metadata_map = {
+                    metadata_obj.properties["name"]: metadata_obj.properties
+                    for metadata_obj in metadata.objects
+                }
+                pass_on = False
 
-                # check if the collection itself exists
-                if not await client.collections.exists(collection_name):
-                    self.incorrect_collections.append(collection_name)
+            if not pass_on:
+                for collection_name in collections_to_get:
 
-                # check if the metadata collection exists
-                elif await client.collections.exists(metadata_name):
-                    metadata_collection = client.collections.get(metadata_name)
-                    metadata = await metadata_collection.query.fetch_objects(limit=1)
-                    properties = metadata.objects[0].properties
-                    format_dict_to_serialisable(properties)  # type: ignore
-                    temp_metadata[collection_name] = properties
+                    if not await client.collections.exists(collection_name):
+                        self.incorrect_collections.append(collection_name)
+                        continue
 
-                # if the metadata collection does not exist, it is not preprocessed
-                else:
-                    self.removed_collections.append(collection_name)
+                    if collection_name not in metadata_map:
+                        self.removed_collections.append(collection_name)
+                    else:
+                        properties = metadata_map[collection_name]
+                        format_dict_to_serialisable(properties)  # type: ignore
+                        temp_metadata[collection_name] = properties
 
         if len(self.removed_collections) > 0 and self.logger:
             self.logger.warning(

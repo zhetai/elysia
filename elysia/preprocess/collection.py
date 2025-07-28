@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 
 # Weaviate
 from weaviate.classes.aggregate import GroupByAggregate
-from weaviate.classes.query import Metrics
+from weaviate.classes.query import Metrics, Filter
 from weaviate.collections import CollectionAsync
 
 from elysia.config import nlp, Settings, load_base_lm
@@ -53,7 +53,7 @@ class CollectionPreprocessor:
     2. Write a summary of the collection via an LLM
     3. Evaluate what return types are available for this collection
     4. For each data field in the collection, evaluate what corresponding entry goes to what field in the return type (mapping)
-    5. Save as a ELYSIA_METADATA_{collection_name}__ collection
+    5. Save as a ELYSIA_METADATA__ collection
     """
 
     def __init__(
@@ -272,7 +272,7 @@ class CollectionPreprocessor:
     async def _find_named_vectors(self, collection: CollectionAsync):
         schema_info = await collection.config.get()
         if not schema_info.vector_config:
-            return []
+            return {}
         else:
             return {
                 vector: {
@@ -313,8 +313,8 @@ class CollectionPreprocessor:
                 raise Exception(f"Collection {collection_name} does not exist!")
 
             if (
-                not await client.collections.exists(
-                    f"ELYSIA_METADATA_{collection_name.lower()}__"
+                not await preprocessed_collection_exists_async(
+                    collection_name, client_manager
                 )
                 or force
             ):
@@ -543,28 +543,33 @@ class CollectionPreprocessor:
 
                 try:
                     # Save to a collection
-                    if await client.collections.exists(
-                        f"ELYSIA_METADATA_{collection_name.lower()}__"
+                    if await preprocessed_collection_exists_async(
+                        collection_name, client_manager
                     ):
-                        await client.collections.delete(
-                            f"ELYSIA_METADATA_{collection_name.lower()}__"
+                        await delete_preprocessed_collection_async(
+                            collection_name, client_manager
                         )
                 except Exception as e:
                     yield await self.process_update(
                         progress=min(progress, 0.99),
-                        error=f"Error deleting existing metadata collection: {str(e)}",
+                        error=f"Error deleting existing metadata: {str(e)}",
                     )
                     return
 
                 try:
-                    metadata_collection = await client.collections.create(
-                        f"ELYSIA_METADATA_{collection_name.lower()}__"
-                    )
+                    if await client.collections.exists(f"ELYSIA_METADATA__"):
+                        metadata_collection = client.collections.get(
+                            "ELYSIA_METADATA__"
+                        )
+                    else:
+                        metadata_collection = await client.collections.create(
+                            f"ELYSIA_METADATA__"
+                        )
                     await metadata_collection.data.insert(out)
                 except Exception as e:
                     yield await self.process_update(
                         progress=min(progress, 0.99),
-                        error=f"Error saving metadata to collection: {str(e)}",
+                        error=f"Error saving metadata: {str(e)}",
                     )
                     return
 
@@ -572,7 +577,7 @@ class CollectionPreprocessor:
 
             else:
                 self.logger.info(
-                    f"Preprocessed collection for {collection_name} already exists!"
+                    f"Preprocessed metadata for {collection_name} already exists!"
                 )
 
 
@@ -670,7 +675,7 @@ def preprocess(
     2. Write a summary of the collection via an LLM
     3. Evaluate what return types are available for this collection
     4. For each data field in the collection, evaluate what corresponding entry goes to what field in the return type (mapping)
-    5. Save as a ELYSIA_METADATA_{collection_name}__ collection
+    5. Save as a ELYSIA_METADATA__ collection
 
     Depending on the size of objects in the collection, you can choose the minimum and maximum sample size,
     which will be used to create a sample of objects for the LLM to create a collection summary.
@@ -681,7 +686,7 @@ def preprocess(
     But note that the pre-processing step only needs to be done once for each collection.
     The output of this function is cached, so that if you run it again, it will not re-process the collection (unless the force flag is set to True).
 
-    This function saves the output to a collection called ELYSIA_METADATA_{collection_name}__, which is automatically called by Elysia.
+    This function saves the output into a collection called ELYSIA_METADATA__, which is automatically called by Elysia.
     This is saved to whatever Weaviate cluster URL/API key you have configured, or in your environment variables.
     You can change this by setting the `wcd_url` and `wcd_api_key` in the settings, and pass this Settings object to this function.
 
@@ -709,13 +714,13 @@ def preprocess(
     )
 
 
-def preprocessed_collection_exists(
+async def preprocessed_collection_exists_async(
     collection_name: str, client_manager: ClientManager | None = None
 ) -> bool:
     """
     Check if the preprocessed collection exists in the Weaviate cluster.
     This function simply checks if the cached preprocessed metadata exists in the Weaviate cluster.
-    It does so by checking if the collection ELYSIA_METADATA_{collection_name.lower()}__ exists.
+    It does so by checking if the collection name exists in the ELYSIA_METADATA__ collection.
 
     Args:
         collection_name (str): The name of the collection to check.
@@ -727,21 +732,41 @@ def preprocessed_collection_exists(
     """
     if client_manager is None:
         client_manager = ClientManager()
+        close_clients_after_completion = True
+    else:
+        close_clients_after_completion = False
 
-    with client_manager.connect_to_client() as client:
-        exists = client.collections.exists(
-            f"ELYSIA_METADATA_{collection_name.lower()}__"
+    async with client_manager.connect_to_async_client() as client:
+        metadata_exists = await client.collections.exists(f"ELYSIA_METADATA__")
+        # if not metadata_exists:
+        #     return False
+
+        metadata_collection = client.collections.get("ELYSIA_METADATA__")
+        metadata = await metadata_collection.query.fetch_objects(
+            filters=Filter.by_property("name").equal(collection_name)
         )
-    return exists
+
+    if close_clients_after_completion:
+        await client_manager.close_clients()
+
+    return metadata is not None and len(metadata.objects) > 0
 
 
-def delete_preprocessed_collection(
+def preprocessed_collection_exists(
+    collection_name: str, client_manager: ClientManager | None = None
+) -> bool:
+    return asyncio_run(
+        preprocessed_collection_exists_async(collection_name, client_manager)
+    )
+
+
+async def delete_preprocessed_collection_async(
     collection_name: str, client_manager: ClientManager | None = None
 ):
     """
     Delete the preprocessed collection from the Weaviate cluster.
     This function simply deletes the cached preprocessed metadata from the Weaviate cluster.
-    It does so by deleting the collection ELYSIA_METADATA_{collection_name.lower()}__.
+    It does so by deleting the object in the collection ELYSIA_METADATA__ with the name of the collection.
 
     Args:
         collection_name (str): The name of the collection to delete the preprocessed metadata for.
@@ -750,10 +775,32 @@ def delete_preprocessed_collection(
     """
     if client_manager is None:
         client_manager = ClientManager()
+        close_clients_after_completion = True
+    else:
+        close_clients_after_completion = False
 
-    with client_manager.connect_to_client() as client:
-        if client.collections.exists(f"ELYSIA_METADATA_{collection_name.lower()}__"):
-            client.collections.delete(f"ELYSIA_METADATA_{collection_name.lower()}__")
+    async with client_manager.connect_to_async_client() as client:
+        if await client.collections.exists(f"ELYSIA_METADATA__"):
+            metadata_collection = client.collections.get("ELYSIA_METADATA__")
+            metadata = await metadata_collection.query.fetch_objects(
+                filters=Filter.by_property("name").equal(collection_name),
+                limit=1,
+            )
+            if metadata is not None and len(metadata.objects) > 0:
+                await metadata_collection.data.delete_by_id(metadata.objects[0].uuid)
+            else:
+                raise Exception(f"Metadata for {collection_name} does not exist")
+
+    if close_clients_after_completion:
+        await client_manager.close_clients()
+
+
+def delete_preprocessed_collection(
+    collection_name: str, client_manager: ClientManager | None = None
+):
+    return asyncio_run(
+        delete_preprocessed_collection_async(collection_name, client_manager)
+    )
 
 
 async def edit_preprocessed_collection(
@@ -767,7 +814,7 @@ async def edit_preprocessed_collection(
     """
     Edit a preprocessed collection.
     This function allows you to edit the named vectors, summary, mappings, and fields of a preprocessed collection.
-    It does so by updating the ELYSIA_METADATA_{collection_name.lower()}__ collection.
+    It does so by updating the ELYSIA_METADATA__ collection.
 
     Args:
         collection_name (str): The name of the collection to edit.
@@ -805,19 +852,22 @@ async def edit_preprocessed_collection(
         close_clients_after_completion = False
 
     async with client_manager.connect_to_async_client() as client:
-        metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
+        metadata_name = f"ELYSIA_METADATA__"
 
         # check if the collection itself exists
-        if not await client.collections.exists(collection_name.lower()):
+        if not await client.collections.exists(collection_name):
             raise Exception(f"Collection {collection_name} does not exist")
 
         # check if the metadata collection exists
         if not await client.collections.exists(metadata_name):
-            raise Exception(f"Metadata collection for {collection_name} does not exist")
+            raise Exception(f"Metadata collection does not exist")
 
         else:
             metadata_collection = client.collections.get(metadata_name)
-            metadata = await metadata_collection.query.fetch_objects(limit=1)
+            metadata = await metadata_collection.query.fetch_objects(
+                filters=Filter.by_property("name").equal(collection_name),
+                limit=1,
+            )
             uuid = metadata.objects[0].uuid
             properties: dict = metadata.objects[0].properties  # type: ignore
 
