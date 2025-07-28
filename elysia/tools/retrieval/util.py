@@ -900,9 +900,9 @@ def _get_string_aggregation_over_all(
     if filter_string and filter_string != "None":
         if "\n" in filter_string:
             indented_filter = filter_string.replace("\n", "\n    ")
-            params.append(f"filters={indented_filter},\n    ")
+            params.append(f"filters={indented_filter}")
         else:
-            params.append(f"filters={filter_string},\n    ")
+            params.append(f"filters={filter_string}")
 
     if metrics_str != "None":
         params.append(f"return_metrics={metrics_str}")
@@ -1006,6 +1006,6 @@ def _build_return_metrics_string(tool_args: dict) -> str:
                     )
 
     if metric_strs != []:
-        return "[\n        " + ",\n        ".join(metric_strs) + "\n]"
+        return "[\n        " + ",\n        ".join(metric_strs) + "\n    ]"
     else:
         return "None"

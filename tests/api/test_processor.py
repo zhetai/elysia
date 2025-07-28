@@ -12,8 +12,13 @@ from elysia.api.routes.init import initialise_user
 from elysia.api.routes.processor import process_collection
 from elysia.util.client import ClientManager
 from elysia.api.core.log import logger, set_log_level
+from elysia.preprocess.collection import (
+    delete_preprocessed_collection_async,
+    preprocessed_collection_exists_async,
+)
 
 from weaviate.classes.config import Configure
+from weaviate.classes.query import Filter
 
 set_log_level("CRITICAL")
 
@@ -102,9 +107,13 @@ class TestProcessor:
 
             with client_manager.connect_to_client() as client:
                 assert client.collections.exists(collection_name)
-                assert client.collections.exists(
-                    f"ELYSIA_METADATA_{collection_name.lower()}__"
+                assert client.collections.exists("ELYSIA_METADATA__")
+                metadata_collection = client.collections.get("ELYSIA_METADATA__")
+                metadata = metadata_collection.query.fetch_objects(
+                    filters=Filter.by_property("name").equal(collection_name),
+                    limit=1,
                 )
+                assert len(metadata.objects) >= 1
 
         finally:
 
@@ -115,12 +124,13 @@ class TestProcessor:
                     if client.collections.exists(collection_name):
                         client.collections.delete(collection_name)
 
-                    if client.collections.exists(
-                        f"ELYSIA_METADATA_{collection_name.lower()}"
+                    if await preprocessed_collection_exists_async(
+                        collection_name, client_manager
                     ):
-                        client.collections.delete(
-                            f"ELYSIA_METADATA_{collection_name.lower()}__"
+                        await delete_preprocessed_collection_async(
+                            collection_name, client_manager
                         )
+
             except Exception as e:
                 print(f"Can't delete collection: {str(e)}")
                 pass

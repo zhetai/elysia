@@ -11,7 +11,7 @@ from elysia.util.client import ClientManager
 class SummariseItems(Tool):
     def __init__(self, logger: Logger | None = None, **kwargs):
         super().__init__(
-            name="summarise_items",
+            name="query_postprocessing",
             description="""
             If the user has requested itemised summaries for retrieved objects,
             this tool summarises each object on an individual basis.

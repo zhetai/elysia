@@ -224,9 +224,12 @@ class TestObjects:
         self, collection_name: str, client_manager: ClientManager
     ):
         async with client_manager.connect_to_async_client() as client:
-            metadata_name = f"ELYSIA_METADATA_{collection_name.lower()}__"
+            metadata_name = "ELYSIA_METADATA__"
             metadata_collection = client.collections.get(metadata_name)
-            metadata = await metadata_collection.query.fetch_objects(limit=1)
+            metadata = await metadata_collection.query.fetch_objects(
+                filters=Filter.by_property("name").equal(collection_name),
+                limit=1,
+            )
             properties = metadata.objects[0].properties
             format_dict_to_serialisable(properties)
             return properties
