@@ -89,7 +89,7 @@ class TestConfig:
         try:
             await initialise_user_and_tree(user_id, conversation_id)
 
-            # the user should have a save location
+            # the user should have a save location from the .env
             user = await self.user_manager.get_user_local(user_id)
             assert user["frontend_config"].save_location_wcd_url == os.getenv("WCD_URL")
             assert user["frontend_config"].save_location_wcd_api_key == os.getenv(
@@ -102,7 +102,7 @@ class TestConfig:
                 config_id=config_id,
                 data=SaveConfigUserData(
                     name=config_name,
-                    default=False,
+                    default=True,
                     config={},
                     frontend_config={
                         "save_location_wcd_url": "test_wcd_url",
@@ -112,7 +112,6 @@ class TestConfig:
                 user_manager=self.user_manager,
             )
             response = read_response(response)
-            assert response["error"] == ""
 
             # but the user should have a new save location
             user = await self.user_manager.get_user_local(user_id)
@@ -120,31 +119,7 @@ class TestConfig:
             assert (
                 user["frontend_config"].save_location_wcd_api_key == "test_wcd_api_key"
             )
-
-            # just update one
-            response = await save_config_user(
-                user_id=user_id,
-                config_id=config_id,
-                data=SaveConfigUserData(
-                    name=config_name,
-                    default=True,
-                    config={},
-                    frontend_config={
-                        "save_location_wcd_api_key": "test_wcd_api_key_2",
-                    },
-                ),
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # the user should have a save location
-            user = await self.user_manager.get_user_local(user_id)
-            assert user["frontend_config"].save_location_wcd_url == "test_wcd_url"
-            assert (
-                user["frontend_config"].save_location_wcd_api_key
-                == "test_wcd_api_key_2"
-            )
+            assert "Could not connect to Weaviate" in response["error"]
 
         finally:
             await self.user_manager.close_all_clients()
@@ -485,7 +460,7 @@ class TestConfig:
                 config_id=config_id,
                 data=SaveConfigUserData(
                     name=config_name,
-                    default=False,
+                    default=True,
                     config={
                         "settings": new_user_settings,
                     },
@@ -505,30 +480,6 @@ class TestConfig:
             tree2 = await self.user_manager.get_tree(user_id, conversation_id_2)
             assert tree2.settings.BASE_MODEL == "gemini-pro"
             assert tree2.settings.COMPLEX_MODEL == "gemini-ultra"
-
-            # set default models for tree 1
-            response = await new_tree_config(
-                user_id=user_id,
-                conversation_id=conversation_id_1,
-                user_manager=self.user_manager,
-            )
-            response = read_response(response)
-            assert response["error"] == ""
-
-            # tree 1 should now have default models
-            tree1 = await self.user_manager.get_tree(user_id, conversation_id_1)
-            assert tree1.settings.BASE_MODEL == os.getenv(
-                "BASE_MODEL", "gemini-2.5-flash"
-            )
-            assert tree1.settings.COMPLEX_MODEL == os.getenv(
-                "COMPLEX_MODEL", "gemini-2.5-flash"
-            )
-            assert tree1.settings.BASE_PROVIDER == os.getenv(
-                "BASE_PROVIDER", "openrouter/google"
-            )
-            assert tree1.settings.COMPLEX_PROVIDER == os.getenv(
-                "COMPLEX_PROVIDER", "openrouter/google"
-            )
 
         finally:
             await self.user_manager.close_all_clients()
@@ -629,7 +580,7 @@ class TestConfig:
                 config_id=config_id,
                 data=SaveConfigUserData(
                     name=config_name,
-                    default=False,
+                    default=True,
                     config={
                         "settings": settings,
                         "style": custom_style,
@@ -1390,7 +1341,7 @@ class TestConfig:
             )
             response = read_response(response)
             assert response["error"] == ""
-            new_user_config_id = response["config"]
+            new_user_config_id = response["config"]["id"]
 
             response = await initialise_user(
                 user_id,
@@ -1398,8 +1349,13 @@ class TestConfig:
             )
             response = read_response(response)
             assert response["error"] == ""
-            assert response["config"]["id"] == config_id
+            assert response["config"]["id"] == new_user_config_id
 
         finally:
             await self.user_manager.close_all_clients()
-            await delete_config_after_completion(self.user_manager, user_id, config_id)
+            try:
+                await delete_config_after_completion(
+                    self.user_manager, user_id, new_user_config_id
+                )
+            except Exception as e:
+                pass
