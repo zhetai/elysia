@@ -114,22 +114,26 @@ async def collections_list(
             ]
 
             # get processed collections
-            metadata_collection = client.collections.get("ELYSIA_METADATA__")
-            processed_collections = await metadata_collection.query.fetch_objects(
-                filters=Filter.any_of(
-                    [Filter.by_property("name").equal(c) for c in collections]
+            if await client.collections.exists("ELYSIA_METADATA__"):
+                metadata_collection = client.collections.get("ELYSIA_METADATA__")
+                processed_collections = await metadata_collection.query.fetch_objects(
+                    filters=Filter.any_of(
+                        [Filter.by_property("name").equal(c) for c in collections]
+                    )
                 )
-            )
-            processed_collection_names = [
-                processed_collection.properties["name"]
-                for processed_collection in processed_collections.objects
-            ]
-            processed_collections_prompts = {
-                processed_collection.properties[
-                    "name"
-                ]: processed_collection.properties["prompts"]
-                for processed_collection in processed_collections.objects
-            }
+                processed_collection_names = [
+                    processed_collection.properties["name"]
+                    for processed_collection in processed_collections.objects
+                ]
+                processed_collections_prompts = {
+                    processed_collection.properties[
+                        "name"
+                    ]: processed_collection.properties["prompts"]
+                    for processed_collection in processed_collections.objects
+                }
+            else:
+                processed_collection_names = []
+                processed_collections_prompts = {}
 
             # get collection metadata
             metadata = []
