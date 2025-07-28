@@ -123,4 +123,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="app")
 @app.get("/")
 @app.head("/")
 async def serve_frontend():
-    return FileResponse(os.path.join(BASE_DIR, "static/index.html"))
+    if os.path.exists(os.path.join(BASE_DIR, "static/index.html")):
+        return FileResponse(os.path.join(BASE_DIR, "static/index.html"))
+    else:
+        return None
