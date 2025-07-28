@@ -732,10 +732,20 @@ async def list_configs(
             or "save_location_wcd_api_key" not in user["frontend_config"].__dict__
             or user["frontend_config"].save_location_wcd_url is None
             or user["frontend_config"].save_location_wcd_api_key is None
+            or user["frontend_config"].save_location_wcd_url == ""
+            or user["frontend_config"].save_location_wcd_api_key == ""
         ):
             logger.warning(
                 "In /list_configs API, "
                 "no valid destination for config location found. "
+                "Returning no error but an empty list of configs."
+            )
+            return JSONResponse(content={"error": "", "configs": []}, headers=headers)
+
+        if not user["frontend_config"].save_location_client_manager.is_client:
+            logger.warning(
+                "In /list_configs API, "
+                "Client manager is not connected to a client. "
                 "Returning no error but an empty list of configs."
             )
             return JSONResponse(content={"error": "", "configs": []}, headers=headers)
