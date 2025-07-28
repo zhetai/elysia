@@ -749,27 +749,32 @@ async def list_configs(
             "frontend_config"
         ].save_location_client_manager.connect_to_async_client() as client:
 
-            collection = client.collections.get("ELYSIA_CONFIG__")
+            if await client.collections.exists("ELYSIA_CONFIG__"):
+                collection = client.collections.get("ELYSIA_CONFIG__")
+                len_collection = (
+                    await collection.aggregate.over_all(total_count=True)
+                ).total_count
 
-            len_collection = await collection.aggregate.over_all(total_count=True)
-            len_collection = len_collection.total_count
+                response = await collection.query.fetch_objects(
+                    limit=len_collection,
+                    sort=Sort.by_update_time(ascending=False),
+                    return_metadata=MetadataQuery(last_update_time=True),
+                    filters=user_id_filter,
+                )
 
-            response = await collection.query.fetch_objects(
-                limit=len_collection,
-                sort=Sort.by_update_time(ascending=False),
-                return_metadata=MetadataQuery(last_update_time=True),
-                filters=user_id_filter,
-            )
-
-            configs = [
-                {
-                    "config_id": obj.properties["config_id"],
-                    "name": obj.properties["name"],
-                    "default": obj.properties["default"],
-                    "last_update_time": format_datetime(obj.metadata.last_update_time),
-                }
-                for obj in response.objects
-            ]
+                configs = [
+                    {
+                        "config_id": obj.properties["config_id"],
+                        "name": obj.properties["name"],
+                        "default": obj.properties["default"],
+                        "last_update_time": format_datetime(
+                            obj.metadata.last_update_time
+                        ),
+                    }
+                    for obj in response.objects
+                ]
+            else:
+                configs = []
 
     except Exception as e:
         logger.exception(f"Error in /list_configs API")
