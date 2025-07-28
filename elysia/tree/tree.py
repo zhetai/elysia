@@ -17,7 +17,7 @@ import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
 
 # Elysia
-from elysia.config import Settings
+from elysia.config import Settings, ElysiaKeyManager
 from elysia.config import settings as environment_settings
 from elysia.tree.util import (
     DecisionNode,
@@ -1029,9 +1029,10 @@ class Tree:
         Returns:
             (str): The title for the tree.
         """
-        self.conversation_title = await create_conversation_title(
-            self.tree_data.conversation_history, self.base_lm
-        )
+        with ElysiaKeyManager(self.settings):
+            self.conversation_title = await create_conversation_title(
+                self.tree_data.conversation_history, self.base_lm
+            )
         return self.conversation_title
 
     def create_conversation_title(self) -> str:
@@ -1061,13 +1062,14 @@ class Tree:
         Returns:
             (list[str]): A list of follow-up suggestions
         """
-        suggestions = await get_follow_up_suggestions(
-            self.tree_data,
-            self.suggestions,
-            self.base_lm,
-            context=context,
-            num_suggestions=num_suggestions,
-        )
+        with ElysiaKeyManager(self.settings):
+            suggestions = await get_follow_up_suggestions(
+                self.tree_data,
+                self.suggestions,
+                self.base_lm,
+                context=context,
+                num_suggestions=num_suggestions,
+            )
         if suggestions != []:
             self.settings.logger.debug(f"Follow-up suggestions: {suggestions}")
         else:
@@ -1444,18 +1446,19 @@ class Tree:
             if len(nodes_with_rules_met) > 0:
                 for rule in nodes_with_rules_met:
                     rule_decision = Decision(rule, {}, "", False, False)
-                    async for result in self.tools[rule](
-                        tree_data=self.tree_data,
-                        inputs=rule_tool_inputs[rule],
-                        base_lm=self.base_lm,
-                        complex_lm=self.complex_lm,
-                        client_manager=client_manager,
-                    ):
-                        action_result, _ = await self._evaluate_result(
-                            result, rule_decision
-                        )
-                        if action_result is not None:
-                            yield action_result
+                    with ElysiaKeyManager(self.settings):
+                        async for result in self.tools[rule](
+                            tree_data=self.tree_data,
+                            inputs=rule_tool_inputs[rule],
+                            base_lm=self.base_lm,
+                            complex_lm=self.complex_lm,
+                            client_manager=client_manager,
+                        ):
+                            action_result, _ = await self._evaluate_result(
+                                result, rule_decision
+                            )
+                            if action_result is not None:
+                                yield action_result
 
             # If training route is provided, decide from the training route
             if len(route_list) > 0:
@@ -1474,15 +1477,16 @@ class Tree:
             else:
                 self.tracker.start_tracking("decision_node")
                 self.tree_data.set_current_task("elysia_decision_node")
-                self.current_decision, results = await current_decision_node(
-                    tree_data=self.tree_data,
-                    base_lm=self.base_lm,
-                    complex_lm=self.complex_lm,
-                    available_tools=available_tools,
-                    unavailable_tools=unavailable_tools,
-                    successive_actions=successive_actions,
-                    client_manager=client_manager,
-                )
+                with ElysiaKeyManager(self.settings):
+                    self.current_decision, results = await current_decision_node(
+                        tree_data=self.tree_data,
+                        base_lm=self.base_lm,
+                        complex_lm=self.complex_lm,
+                        available_tools=available_tools,
+                        unavailable_tools=unavailable_tools,
+                        successive_actions=successive_actions,
+                        client_manager=client_manager,
+                    )
 
                 for result in results:
                     action_result, _ = await self._evaluate_result(
@@ -1568,22 +1572,23 @@ class Tree:
                 self.tracker.start_tracking(self.current_decision.function_name)
                 self.tree_data.set_current_task(self.current_decision.function_name)
                 successful_action = True
-                async for result in action_fn(
-                    tree_data=self.tree_data,
-                    inputs=self.current_decision.function_inputs,
-                    base_lm=self.base_lm,
-                    complex_lm=self.complex_lm,
-                    client_manager=client_manager,
-                    **kwargs,
-                ):
-                    action_result, error = await self._evaluate_result(
-                        result, self.current_decision
-                    )
+                with ElysiaKeyManager(self.settings):
+                    async for result in action_fn(
+                        tree_data=self.tree_data,
+                        inputs=self.current_decision.function_inputs,
+                        base_lm=self.base_lm,
+                        complex_lm=self.complex_lm,
+                        client_manager=client_manager,
+                        **kwargs,
+                    ):
+                        action_result, error = await self._evaluate_result(
+                            result, self.current_decision
+                        )
 
-                    if action_result is not None:
-                        yield action_result
+                        if action_result is not None:
+                            yield action_result
 
-                    successful_action = not error and successful_action
+                        successful_action = not error and successful_action
 
                 if not successful_action:
                     completed = (
@@ -1650,17 +1655,18 @@ class Tree:
                 ]
                 or force_text_response
             ):
-                async for result in self.tools["forced_text_response"](
-                    tree_data=self.tree_data,
-                    inputs={},
-                    base_lm=self.base_lm,
-                    complex_lm=self.complex_lm,
-                ):
-                    action_result, _ = await self._evaluate_result(
-                        result, self.current_decision
-                    )
-                    if action_result is not None:
-                        yield action_result
+                with ElysiaKeyManager(self.settings):
+                    async for result in self.tools["forced_text_response"](
+                        tree_data=self.tree_data,
+                        inputs={},
+                        base_lm=self.base_lm,
+                        complex_lm=self.complex_lm,
+                    ):
+                        action_result, _ = await self._evaluate_result(
+                            result, self.current_decision
+                        )
+                        if action_result is not None:
+                            yield action_result
 
             self.save_history(
                 query_id=self.prompt_to_query_id[user_prompt],

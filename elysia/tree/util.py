@@ -648,23 +648,19 @@ async def get_follow_up_suggestions(
         )
 
     # get prediction
-    try:
-        prediction = await follow_up_suggestor.aforward(
-            user_prompt=tree_data.user_prompt,
-            reference=create_reference(),
-            conversation_history=tree_data.conversation_history,
-            environment=tree_data.environment.environment,
-            data_information=tree_data.output_collection_metadata(with_mappings=False),
-            old_suggestions=current_suggestions,
-            context=context,
-            num_suggestions=num_suggestions,
-            lm=lm,
-        )
-        suggestions = prediction.suggestions
-    except Exception as e:
-        suggestions = []
+    prediction = await follow_up_suggestor.aforward(
+        user_prompt=tree_data.user_prompt,
+        reference=create_reference(),
+        conversation_history=tree_data.conversation_history,
+        environment=tree_data.environment.environment,
+        data_information=tree_data.output_collection_metadata(with_mappings=False),
+        old_suggestions=current_suggestions,
+        context=context,
+        num_suggestions=num_suggestions,
+        lm=lm,
+    )
 
-    return suggestions
+    return prediction.suggestions
 
 
 async def get_saved_trees_weaviate(

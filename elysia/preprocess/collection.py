@@ -8,7 +8,7 @@ from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Metrics, Filter
 from weaviate.collections import CollectionAsync
 
-from elysia.config import nlp, Settings, load_base_lm
+from elysia.config import nlp, Settings, load_base_lm, ElysiaKeyManager
 from elysia.config import settings as environment_settings
 
 from elysia.util import return_types as rt
@@ -78,6 +78,7 @@ class CollectionPreprocessor:
         self.prompt_suggestor_prompt = dspy.ChainOfThought(PromptSuggestorPrompt)
 
         self.threshold_for_missing_fields = threshold_for_missing_fields
+        self.settings = settings
         self.lm = load_base_lm(settings)
         self.logger = settings.logger
 
@@ -88,15 +89,16 @@ class CollectionPreprocessor:
         len_collection: int,
     ) -> tuple[str, dict]:
 
-        prediction = await self.collection_summariser_prompt.aforward(
-            data_sample=subset_objects,
-            data_fields=list(properties.keys()),
-            sample_size=f"""
-            {len(subset_objects)} out of a total of {len_collection}.
-            You are seeing {round(len(subset_objects)/len_collection*100, 2)}% of the objects.
-            """,
-            lm=self.lm,
-        )
+        with ElysiaKeyManager(self.settings):
+            prediction = await self.collection_summariser_prompt.aforward(
+                data_sample=subset_objects,
+                data_fields=list(properties.keys()),
+                sample_size=f"""
+                {len(subset_objects)} out of a total of {len_collection}.
+                You are seeing {round(len(subset_objects)/len_collection*100, 2)}% of the objects.
+                """,
+                lm=self.lm,
+            )
 
         summary_concat = ""
         for sentence in [
@@ -214,11 +216,12 @@ class CollectionPreprocessor:
         example_objects: list[dict],
         lm: dspy.LM,
     ) -> list[str]:
-        prediction = await self.prompt_suggestor_prompt.aforward(
-            collection_information=collection_information,
-            example_objects=example_objects,
-            lm=lm,
-        )
+        with ElysiaKeyManager(self.settings):
+            prediction = await self.prompt_suggestor_prompt.aforward(
+                collection_information=collection_information,
+                example_objects=example_objects,
+                lm=lm,
+            )
         return prediction.prompt_suggestions
 
     async def _evaluate_return_types(
@@ -248,14 +251,15 @@ class CollectionPreprocessor:
         example_objects: list[dict],
     ) -> dict:
 
-        prediction = await self.data_mapping_prompt.aforward(
-            input_data_fields=input_fields,
-            output_data_fields=output_fields,
-            input_data_types=properties,
-            collection_information=collection_information,
-            example_objects=example_objects,
-            lm=self.lm,
-        )
+        with ElysiaKeyManager(self.settings):
+            prediction = await self.data_mapping_prompt.aforward(
+                input_data_fields=input_fields,
+                output_data_fields=output_fields,
+                input_data_types=properties,
+                collection_information=collection_information,
+                example_objects=example_objects,
+                lm=self.lm,
+            )
 
         return prediction.field_mapping
 
