@@ -18,8 +18,24 @@ async def get_saved_trees(
 
     headers = {"Cache-Control": "no-cache"}
 
+    user = await user_manager.get_user_local(user_id)
+    save_location_client_manager = user["frontend_config"].save_location_client_manager
+    if not save_location_client_manager.is_client:
+        logger.warning(
+            "In /get_saved_trees API, "
+            "no valid destination for trees location found. "
+            "Returning no error but an empty list of trees."
+        )
+        return JSONResponse(
+            content={"trees": {}, "error": ""},
+            status_code=200,
+            headers=headers,
+        )
+
     try:
-        trees = await user_manager.get_saved_trees(user_id)
+        trees = await user_manager.get_saved_trees(
+            user_id, save_location_client_manager
+        )
         return JSONResponse(
             content={"trees": trees, "error": ""}, status_code=200, headers=headers
         )
