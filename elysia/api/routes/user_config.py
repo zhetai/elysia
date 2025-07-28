@@ -367,6 +367,7 @@ async def save_config_user(
                 user_id,
                 conversation_id=None,
                 config_id=config_id,
+                config_name=data.name,
                 settings=data.config.get("settings"),
                 style=data.config.get("style"),
                 agent_description=data.config.get("agent_description"),

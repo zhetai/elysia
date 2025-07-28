@@ -282,6 +282,7 @@ class TreeManager:
         if conversation_id is None:
             self.settings.configure(**kwargs)
             print(f"In tree manager configure, settings: {self.settings.to_json()}")
+            self.config.settings = self.settings
         else:
             self.trees[conversation_id]["tree"].settings.configure(**kwargs)
 
