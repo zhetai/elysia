@@ -508,6 +508,8 @@ async def collection_metadata(
                 )
                 properties = metadata.objects[0].properties
                 format_dict_to_serialisable(properties)
+                if "null" in properties["named_vectors"]:
+                    del properties["named_vectors"]["null"]
 
     except Exception as e:
         logger.exception(f"Error in /collection_metadata API")

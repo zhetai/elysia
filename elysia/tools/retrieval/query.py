@@ -245,7 +245,10 @@ class Query(Tool):
             collection_name: [
                 named_vector
                 for named_vector in schemas[collection_name]["named_vectors"]
-                if schemas[collection_name]["named_vectors"][named_vector]["enabled"]
+                if (
+                    schemas[collection_name]["named_vectors"][named_vector]["enabled"]
+                    and named_vector != "null"
+                )
             ]
             for collection_name in collection_names
         }
@@ -699,7 +702,10 @@ class SimpleQuery(Tool):
             collection_name: [
                 named_vector
                 for named_vector in schemas[collection_name]["named_vectors"]
-                if schemas[collection_name]["named_vectors"][named_vector]["enabled"]
+                if (
+                    schemas[collection_name]["named_vectors"][named_vector]["enabled"]
+                    and named_vector != "null"
+                )
             ]
             for collection_name in collection_names
         }
