@@ -29,11 +29,14 @@ class ProcessUpdate:
     def __init__(self, collection_name: str):
         self.collection_name = collection_name
 
-    async def to_frontend(self, progress: float, error: str = "", **kwargs):
+    async def to_frontend(
+        self, progress: float, message: str = "", error: str = "", **kwargs
+    ):
         return {
             "type": "update" if progress != 1 else "completed",
             "collection_name": self.collection_name,
             "progress": progress,
+            "message": message,
             "error": error,
         }
 
@@ -311,7 +314,7 @@ class CollectionPreprocessor:
                 But will not exceed the maximum number of objects specified by `max_sample_size`, and always use at least `min_sample_size` objects.
             force (bool): Whether to force the preprocessor to run even if the collection already exists. Optional, defaults to False.
         """
-        total = len(rt.specific_return_types) + 1 + 1 + 1
+        total = len(rt.specific_return_types) + 4
         progress = 0.0
         try:
             async with client_manager.connect_to_async_client() as client:
@@ -336,6 +339,7 @@ class CollectionPreprocessor:
                     except Exception as e:
                         yield await self.process_update(
                             progress=progress,
+                            message="",
                             error=f"Error getting collection properties: {str(e)}",
                         )
                         return
@@ -386,13 +390,17 @@ class CollectionPreprocessor:
                     except Exception as e:
                         yield await self.process_update(
                             progress=progress,
+                            message="",
                             error=f"Error summarising collection: {str(e)}",
                         )
                         return
 
                     progress += 1 / float(total)
 
-                    yield await self.process_update(progress=progress)
+                    yield await self.process_update(
+                        progress=progress,
+                        message="Generated summary of collection",
+                    )
 
                     full_response = await collection.query.fetch_objects(
                         limit=min(len_collection, max_sample_size)
@@ -442,7 +450,10 @@ class CollectionPreprocessor:
 
                     progress += 1 / float(total)
 
-                    yield await self.process_update(progress=progress)
+                    yield await self.process_update(
+                        progress=progress,
+                        message="Evaluated field statistics",
+                    )
 
                     # Evaluate the return types
                     try:
@@ -451,10 +462,17 @@ class CollectionPreprocessor:
                         )
                     except Exception as e:
                         yield await self.process_update(
-                            progress=2 / float(total),
+                            progress=progress,
                             error=f"Error evaluating return types: {str(e)}",
                         )
                         return
+
+                    progress += 1 / float(total)
+
+                    yield await self.process_update(
+                        progress=progress,
+                        message="Evaluated return types",
+                    )
 
                     # suggest prompts
                     try:
@@ -470,7 +488,10 @@ class CollectionPreprocessor:
                         return
 
                     progress += 1 / float(total)
-                    yield await self.process_update(progress=progress)
+                    yield await self.process_update(
+                        progress=progress,
+                        message="Created suggestions for prompts",
+                    )
                     remaining_progress = 1 - progress
                     num_remaining = len(return_types)
 
@@ -501,7 +522,10 @@ class CollectionPreprocessor:
 
                         progress += remaining_progress / num_remaining
                         progress = min(progress, 0.99)
-                        yield await self.process_update(progress=progress)
+                        yield await self.process_update(
+                            progress=progress,
+                            message=f"Defined mappings for {return_type}",
+                        )
 
                         mappings[return_type] = mapping
 
@@ -595,7 +619,10 @@ class CollectionPreprocessor:
                         return
 
                     progress = 1.0
-                    yield await self.process_update(progress=progress)
+                    yield await self.process_update(
+                        progress=progress,
+                        message="Saved metadata to Weaviate",
+                    )
 
                 else:
                     self.logger.info(
