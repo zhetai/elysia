@@ -311,209 +311,177 @@ class CollectionPreprocessor:
                 But will not exceed the maximum number of objects specified by `max_sample_size`, and always use at least `min_sample_size` objects.
             force (bool): Whether to force the preprocessor to run even if the collection already exists. Optional, defaults to False.
         """
+        total = len(rt.specific_return_types) + 1 + 1 + 1
+        progress = 0.0
+        try:
+            async with client_manager.connect_to_async_client() as client:
+                if not await client.collections.exists(collection_name):
+                    raise Exception(f"Collection {collection_name} does not exist!")
 
-        async with client_manager.connect_to_async_client() as client:
-            if not await client.collections.exists(collection_name):
-                raise Exception(f"Collection {collection_name} does not exist!")
-
-            if (
-                not await preprocessed_collection_exists_async(
-                    collection_name, client_manager
-                )
-                or force
-            ):
-                # Start saving the updates
-                self.process_update = ProcessUpdate(collection_name)
-                total = len(rt.specific_return_types) + 1 + 1 + 1
-                progress = 0.0
-
-                # Get the collection and its properties
-                try:
-                    collection = client.collections.get(collection_name)
-                    properties = await async_get_collection_data_types(
-                        client, collection_name
+                if (
+                    not await preprocessed_collection_exists_async(
+                        collection_name, client_manager
                     )
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=0,
-                        error=f"Error getting collection properties: {str(e)}",
-                    )
-                    return
+                    or force
+                ):
+                    # Start saving the updates
+                    self.process_update = ProcessUpdate(collection_name)
 
-                # get number of items in collection
-                agg = await collection.aggregate.over_all(total_count=True)
-                len_collection: int = agg.total_count  # type: ignore
-
-                # Randomly sample sample_size objects for the summary
-                indices = random.sample(
-                    range(len_collection),
-                    max(min(max_sample_size, len_collection), 1),
-                )
-
-                # Get first object to estimate token count
-                obj = await collection.query.fetch_objects(limit=1, offset=indices[0])
-                token_count_0 = len(nlp(str(obj.objects[0].properties)))
-                subset_objects: list[dict] = [obj.objects[0].properties]  # type: ignore
-
-                # Get number of objects to sample to get close to num_sample_tokens
-                num_sample_objects = max(
-                    min_sample_size, num_sample_tokens // token_count_0
-                )
-
-                for index in indices[1:num_sample_objects]:
-                    obj = await collection.query.fetch_objects(limit=1, offset=index)
-                    subset_objects.append(obj.objects[0].properties)  # type: ignore
-
-                # Estimate number of tokens
-                self.logger.debug(
-                    f"Estimated token count of sample: {token_count_0*len(subset_objects)}"
-                )
-                self.logger.debug(f"Number of objects in sample: {len(subset_objects)}")
-
-                # Summarise the collection using LLM
-                try:
-                    summary, field_descriptions = await self._summarise_collection(
-                        properties,
-                        subset_objects,
-                        len_collection,
-                    )
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=0, error=f"Error summarising collection: {str(e)}"
-                    )
-                    return
-
-                yield await self.process_update(progress=1 / float(total))
-
-                full_response = await collection.query.fetch_objects(
-                    limit=min(len_collection, max_sample_size)
-                )
-
-                # Get some example objects
-                example_objects_response = await collection.query.fetch_objects(limit=3)
-                example_objects: list[dict] = [
-                    obj.properties for obj in example_objects_response.objects  # type: ignore
-                ]
-
-                # Initialise the output
-                out = {
-                    "name": collection_name,
-                    "length": len_collection,
-                    "summary": summary,
-                    "index_properties": await self._evaluate_index_properties(
-                        collection
-                    ),
-                    "named_vectors": await self._find_named_vectors(collection),
-                    "fields": {},
-                    "mappings": {},
-                }
-
-                try:
-                    # Evaluate the summary statistics of each field
-                    for property in properties:
-                        out["fields"][property] = await self._evaluate_field_statistics(
-                            collection, properties, property, full_response
+                    # Get the collection and its properties
+                    try:
+                        collection = client.collections.get(collection_name)
+                        properties = await async_get_collection_data_types(
+                            client, collection_name
                         )
-                        if property in field_descriptions:
-                            out["fields"][property]["description"] = field_descriptions[
-                                property
-                            ]
-                        else:
-                            out["fields"][property]["description"] = ""
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=1 / float(total),
-                        error=f"Error evaluating field statistics: {str(e)}",
-                    )
-                    return
+                    except Exception as e:
+                        yield await self.process_update(
+                            progress=progress,
+                            error=f"Error getting collection properties: {str(e)}",
+                        )
+                        return
 
-                yield await self.process_update(progress=2 / float(total))
+                    # get number of items in collection
+                    agg = await collection.aggregate.over_all(total_count=True)
+                    len_collection: int = agg.total_count  # type: ignore
 
-                # Evaluate the return types
-                try:
-                    return_types = await self._evaluate_return_types(
-                        summary, properties, example_objects
+                    # Randomly sample sample_size objects for the summary
+                    indices = random.sample(
+                        range(len_collection),
+                        max(min(max_sample_size, len_collection), 1),
                     )
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=2 / float(total),
-                        error=f"Error evaluating return types: {str(e)}",
-                    )
-                    return
 
-                # suggest prompts
-                try:
-                    out["prompts"] = await self._suggest_prompts(
-                        out, example_objects, lm=self.lm
+                    # Get first object to estimate token count
+                    obj = await collection.query.fetch_objects(
+                        limit=1, offset=indices[0]
                     )
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=3 / float(total),
-                        error=f"Error suggesting prompts: {str(e)}",
+                    token_count_0 = len(nlp(str(obj.objects[0].properties)))
+                    subset_objects: list[dict] = [obj.objects[0].properties]  # type: ignore
+
+                    # Get number of objects to sample to get close to num_sample_tokens
+                    num_sample_objects = max(
+                        min_sample_size, num_sample_tokens // token_count_0
                     )
-                    return
 
-                yield await self.process_update(progress=3 / float(total))
-                progress = 3 / float(total)
-                remaining_progress = 1 - progress
-                num_remaining = len(return_types)
+                    for index in indices[1:num_sample_objects]:
+                        obj = await collection.query.fetch_objects(
+                            limit=1, offset=index
+                        )
+                        subset_objects.append(obj.objects[0].properties)  # type: ignore
 
-                # Define the mappings
-                mappings = {}
-                for return_type in return_types:
-                    fields = rt.types_dict[return_type]
+                    # Estimate number of tokens
+                    self.logger.debug(
+                        f"Estimated token count of sample: {token_count_0*len(subset_objects)}"
+                    )
+                    self.logger.debug(
+                        f"Number of objects in sample: {len(subset_objects)}"
+                    )
+
+                    # Summarise the collection using LLM
+                    try:
+                        summary, field_descriptions = await self._summarise_collection(
+                            properties,
+                            subset_objects,
+                            len_collection,
+                        )
+                    except Exception as e:
+                        yield await self.process_update(
+                            progress=progress,
+                            error=f"Error summarising collection: {str(e)}",
+                        )
+                        return
+
+                    progress += 1 / float(total)
+
+                    yield await self.process_update(progress=progress)
+
+                    full_response = await collection.query.fetch_objects(
+                        limit=min(len_collection, max_sample_size)
+                    )
+
+                    # Get some example objects
+                    example_objects_response = await collection.query.fetch_objects(
+                        limit=3
+                    )
+                    example_objects: list[dict] = [
+                        obj.properties for obj in example_objects_response.objects  # type: ignore
+                    ]
+
+                    # Initialise the output
+                    out = {
+                        "name": collection_name,
+                        "length": len_collection,
+                        "summary": summary,
+                        "index_properties": await self._evaluate_index_properties(
+                            collection
+                        ),
+                        "named_vectors": await self._find_named_vectors(collection),
+                        "fields": {},
+                        "mappings": {},
+                    }
 
                     try:
-                        mapping = await self._define_mappings(
-                            input_fields=list(fields.keys()),
-                            output_fields=list(properties.keys()),
-                            properties=properties,
-                            collection_information=out,
-                            example_objects=example_objects,
+                        # Evaluate the summary statistics of each field
+                        for property in properties:
+                            out["fields"][property] = (
+                                await self._evaluate_field_statistics(
+                                    collection, properties, property, full_response
+                                )
+                            )
+                            if property in field_descriptions:
+                                out["fields"][property]["description"] = (
+                                    field_descriptions[property]
+                                )
+                            else:
+                                out["fields"][property]["description"] = ""
+                    except Exception as e:
+                        yield await self.process_update(
+                            progress=1 / float(total),
+                            error=f"Error evaluating field statistics: {str(e)}",
+                        )
+                        return
+
+                    progress += 1 / float(total)
+
+                    yield await self.process_update(progress=progress)
+
+                    # Evaluate the return types
+                    try:
+                        return_types = await self._evaluate_return_types(
+                            summary, properties, example_objects
                         )
                     except Exception as e:
                         yield await self.process_update(
                             progress=2 / float(total),
-                            error=f"Error defining mappings: {str(e)}",
+                            error=f"Error evaluating return types: {str(e)}",
                         )
                         return
 
-                    # remove any extra fields the model may have added
-                    mapping = {
-                        k: v for k, v in mapping.items() if k in list(fields.keys())
-                    }
+                    # suggest prompts
+                    try:
+                        out["prompts"] = await self._suggest_prompts(
+                            out, example_objects, lm=self.lm
+                        )
 
-                    progress += remaining_progress / num_remaining
-                    yield await self.process_update(progress=min(progress, 0.99))
+                    except Exception as e:
+                        yield await self.process_update(
+                            progress=progress,
+                            error=f"Error suggesting prompts: {str(e)}",
+                        )
+                        return
 
-                    mappings[return_type] = mapping
+                    progress += 1 / float(total)
+                    yield await self.process_update(progress=progress)
+                    remaining_progress = 1 - progress
+                    num_remaining = len(return_types)
 
-                # Check across all mappings how many missing fields there are
-                new_return_types = []
-                for return_type in return_types:
-                    num_missing = sum(
-                        [m == "" for m in list(mappings[return_type].values())]
-                    )
-                    if (
-                        num_missing / len(mappings[return_type].keys())
-                        < self.threshold_for_missing_fields
-                    ):
-                        new_return_types.append(return_type)
+                    # Define the mappings
+                    mappings = {}
+                    for return_type in return_types:
+                        fields = rt.types_dict[return_type]
 
-                # check for no return types
-                if len(new_return_types) == 0:
-                    if "epic_generic" in return_types:
-                        new_return_types = ["boring_generic"]
-                        out["mappings"]["boring_generic"] = {
-                            p: p for p in properties.keys()
-                        }
-                    else:
-                        new_return_types = ["epic_generic"]
-
-                        # and re-map for generic
                         try:
                             mapping = await self._define_mappings(
-                                input_fields=list(rt.epic_generic.keys()),
+                                input_fields=list(fields.keys()),
                                 output_fields=list(properties.keys()),
                                 properties=properties,
                                 collection_information=out,
@@ -521,68 +489,123 @@ class CollectionPreprocessor:
                             )
                         except Exception as e:
                             yield await self.process_update(
-                                progress=min(progress, 0.99),
-                                error=f"Error defining generic mappings: {str(e)}",
+                                progress=progress,
+                                error=f"Error defining mappings: {str(e)}",
                             )
                             return
 
-                        # and if this one fails, set to boring_generic
-                        num_missing = sum([m == "" for m in list(mapping.values())])
+                        # remove any extra fields the model may have added
+                        mapping = {
+                            k: v for k, v in mapping.items() if k in list(fields.keys())
+                        }
+
+                        progress += min(remaining_progress / num_remaining, 0.99)
+                        yield await self.process_update(progress=progress)
+
+                        mappings[return_type] = mapping
+
+                    # Check across all mappings how many missing fields there are
+                    new_return_types = []
+                    for return_type in return_types:
+                        num_missing = sum(
+                            [m == "" for m in list(mappings[return_type].values())]
+                        )
                         if (
-                            num_missing / len(mapping.keys())
-                            >= self.threshold_for_missing_fields
+                            num_missing / len(mappings[return_type].keys())
+                            < self.threshold_for_missing_fields
                         ):
-                            # boring_generic
+                            new_return_types.append(return_type)
+
+                    # check for no return types
+                    if len(new_return_types) == 0:
+                        if "epic_generic" in return_types:
+                            new_return_types = ["boring_generic"]
                             out["mappings"]["boring_generic"] = {
                                 p: p for p in properties.keys()
                             }
                         else:
-                            out["mappings"]["epic_generic"] = mapping
+                            new_return_types = ["epic_generic"]
+
+                            # and re-map for generic
+                            try:
+                                mapping = await self._define_mappings(
+                                    input_fields=list(rt.epic_generic.keys()),
+                                    output_fields=list(properties.keys()),
+                                    properties=properties,
+                                    collection_information=out,
+                                    example_objects=example_objects,
+                                )
+                            except Exception as e:
+                                yield await self.process_update(
+                                    progress=progress,
+                                    error=f"Error defining generic mappings: {str(e)}",
+                                )
+                                return
+
+                            # and if this one fails, set to boring_generic
+                            num_missing = sum([m == "" for m in list(mapping.values())])
+                            if (
+                                num_missing / len(mapping.keys())
+                                >= self.threshold_for_missing_fields
+                            ):
+                                # boring_generic
+                                out["mappings"]["boring_generic"] = {
+                                    p: p for p in properties.keys()
+                                }
+                            else:
+                                out["mappings"]["epic_generic"] = mapping
+
+                    else:
+                        out["mappings"] = {
+                            return_type: mappings[return_type]
+                            for return_type in new_return_types
+                        }
+
+                    try:
+                        # Save to a collection
+                        if await preprocessed_collection_exists_async(
+                            collection_name, client_manager
+                        ):
+                            await delete_preprocessed_collection_async(
+                                collection_name, client_manager
+                            )
+                    except Exception as e:
+                        yield await self.process_update(
+                            progress=progress,
+                            error=f"Error deleting existing metadata: {str(e)}",
+                        )
+                        return
+
+                    try:
+                        if await client.collections.exists(f"ELYSIA_METADATA__"):
+                            metadata_collection = client.collections.get(
+                                "ELYSIA_METADATA__"
+                            )
+                        else:
+                            metadata_collection = await client.collections.create(
+                                f"ELYSIA_METADATA__"
+                            )
+                        await metadata_collection.data.insert(out)
+                    except Exception as e:
+                        yield await self.process_update(
+                            progress=progress,
+                            error=f"Error saving metadata: {str(e)}",
+                        )
+                        return
+
+                    progress = 1.0
+                    yield await self.process_update(progress=progress)
 
                 else:
-                    out["mappings"] = {
-                        return_type: mappings[return_type]
-                        for return_type in new_return_types
-                    }
-
-                try:
-                    # Save to a collection
-                    if await preprocessed_collection_exists_async(
-                        collection_name, client_manager
-                    ):
-                        await delete_preprocessed_collection_async(
-                            collection_name, client_manager
-                        )
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=min(progress, 0.99),
-                        error=f"Error deleting existing metadata: {str(e)}",
+                    self.logger.info(
+                        f"Preprocessed metadata for {collection_name} already exists!"
                     )
-                    return
-
-                try:
-                    if await client.collections.exists(f"ELYSIA_METADATA__"):
-                        metadata_collection = client.collections.get(
-                            "ELYSIA_METADATA__"
-                        )
-                    else:
-                        metadata_collection = await client.collections.create(
-                            f"ELYSIA_METADATA__"
-                        )
-                    await metadata_collection.data.insert(out)
-                except Exception as e:
-                    yield await self.process_update(
-                        progress=min(progress, 0.99),
-                        error=f"Error saving metadata: {str(e)}",
-                    )
-                    return
-
-                yield await self.process_update(progress=1)
-
-            else:
-                self.logger.info(
-                    f"Preprocessed metadata for {collection_name} already exists!"
-                )
+        except Exception as e:
+            yield await self.process_update(
+                progress=progress,
+                error=f"Unknown error while preprocessing collection: {str(e)}",
+            )
+            return
 
 
 async def preprocess_async(
@@ -742,8 +765,8 @@ async def preprocessed_collection_exists_async(
 
     async with client_manager.connect_to_async_client() as client:
         metadata_exists = await client.collections.exists(f"ELYSIA_METADATA__")
-        # if not metadata_exists:
-        #     return False
+        if not metadata_exists:
+            return False
 
         metadata_collection = client.collections.get("ELYSIA_METADATA__")
         metadata = await metadata_collection.query.fetch_objects(
