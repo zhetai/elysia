@@ -231,13 +231,14 @@ class CollectionPreprocessor:
         self, collection_summary: str, data_fields: dict, example_objects: list[dict]
     ) -> list[str]:
 
-        prediction = await self.return_type_prompt.aforward(
-            collection_summary=collection_summary,
-            data_fields=data_fields,
-            example_objects=example_objects,
-            possible_return_types=rt.specific_return_types,
-            lm=self.lm,
-        )
+        with ElysiaKeyManager(self.settings):
+            prediction = await self.return_type_prompt.aforward(
+                collection_summary=collection_summary,
+                data_fields=data_fields,
+                example_objects=example_objects,
+                possible_return_types=rt.specific_return_types,
+                lm=self.lm,
+            )
         return_types = prediction.return_types
 
         if return_types == []:
