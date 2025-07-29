@@ -486,53 +486,40 @@ class ElysiaKeyManager:
             os.environ["AZURE_API_KEY"] if "AZURE_API_KEY" in os.environ else None
         )
 
+        # api keys in lower case
+        api_keys = {k.lower(): v for k, v in self.settings.API_KEYS.items()}
+
         # set new keys in litellm
         litellm.openrouter_key = (
-            self.settings.API_KEYS["openrouter_api_key"]
-            if "openrouter_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["openrouter_api_key"] if "openrouter_api_key" in api_keys else None
         )
         print(f"LITELLM OPENROUTER KEY: {litellm.openrouter_key}")
         litellm.openai_key = (
-            self.settings.API_KEYS["openai_api_key"]
-            if "openai_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["openai_api_key"] if "openai_api_key" in api_keys else None
         )
         print(f"LITELLM OPENAI KEY: {litellm.openai_key}")
         litellm.anthropic_key = (
-            self.settings.API_KEYS["anthropic_api_key"]
-            if "anthropic_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["anthropic_api_key"] if "anthropic_api_key" in api_keys else None
         )
         print(f"LITELLM ANTHROPIC KEY: {litellm.anthropic_key}")
         litellm.cohere_key = (
-            self.settings.API_KEYS["cohere_api_key"]
-            if "cohere_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["cohere_api_key"] if "cohere_api_key" in api_keys else None
         )
         print(f"LITELLM COHERE KEY: {litellm.cohere_key}")
         litellm.groq_key = (
-            self.settings.API_KEYS["groq_api_key"]
-            if "groq_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["groq_api_key"] if "groq_api_key" in api_keys else None
         )
         print(f"LITELLM GROQ KEY: {litellm.groq_key}")
         litellm.llama_api_key = (
-            self.settings.API_KEYS["llama_api_key"]
-            if "llama_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["llama_api_key"] if "llama_api_key" in api_keys else None
         )
         print(f"LITELLM LLAMA API KEY: {litellm.llama_api_key}")
         litellm.ollama_key = (
-            self.settings.API_KEYS["ollama_api_key"]
-            if "ollama_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["ollama_api_key"] if "ollama_api_key" in api_keys else None
         )
         print(f"LITELLM OLLAMA KEY: {litellm.ollama_key}")
         litellm.azure_key = (
-            self.settings.API_KEYS["azure_api_key"]
-            if "azure_api_key" in self.settings.API_KEYS
-            else None
+            api_keys["azure_api_key"] if "azure_api_key" in api_keys else None
         )
         print(f"LITELLM AZURE KEY: {litellm.azure_key}")
 

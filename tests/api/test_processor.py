@@ -3,10 +3,9 @@ import pytest
 from fastapi.responses import JSONResponse
 
 import json
+import os
 import random
-from elysia.api.api_types import (
-    ProcessCollectionData,
-)
+from elysia.api.api_types import ProcessCollectionData, SaveConfigUserData
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.routes.init import initialise_user
 from elysia.api.routes.processor import process_collection
@@ -16,9 +15,11 @@ from elysia.preprocess.collection import (
     delete_preprocessed_collection_async,
     preprocessed_collection_exists_async,
 )
+from elysia.api.routes.user_config import get_current_user_config, save_config_user
 
 from weaviate.classes.config import Configure
 from weaviate.classes.query import Filter
+
 
 set_log_level("CRITICAL")
 
@@ -77,6 +78,79 @@ class TestProcessor:
         websocket = fake_websocket()
         await process_collection(data.model_dump(), websocket, user_manager)
         return websocket.results
+
+    @pytest.mark.asyncio
+    async def test_process_no_api_keys(self):
+
+        user_id = "test_user_Process_no_api_keys"
+
+        await initialise_user(
+            user_id,
+            user_manager,
+        )
+        local_user = await user_manager.get_user_local(user_id)
+        client_manager = local_user["client_manager"]
+        collection_name = create_collection(client_manager)
+
+        try:
+            # get config
+            response = await get_current_user_config(user_id, user_manager)
+            response = read_response(response)
+            config_id = response["config"]["id"]
+            config_name = response["config"]["name"]
+
+            # remove api keys
+            await save_config_user(
+                user_id,
+                config_id,
+                SaveConfigUserData(
+                    name=config_name,
+                    default=True,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "gemini-2.0-flash-001",
+                            "BASE_PROVIDER": "openrouter/google",
+                            "COMPLEX_MODEL": "gemini-2.0-flash-001",
+                            "COMPLEX_PROVIDER": "openrouter/google",
+                            "WCD_URL": os.getenv("WCD_URL"),
+                            "WCD_API_KEY": os.getenv("WCD_API_KEY"),
+                            "API_KEYS": {},
+                        }
+                    },
+                    frontend_config={},
+                ),
+                user_manager,
+            )
+
+            response = await self.run_processor(
+                ProcessCollectionData(user_id=user_id, collection_name=collection_name),
+            )
+            error_found = False
+            for result in response:
+                error_found = result["error"] != ""
+            assert error_found
+
+        finally:
+
+            # delete the collections
+            try:
+                with client_manager.connect_to_client() as client:
+
+                    if client.collections.exists(collection_name):
+                        client.collections.delete(collection_name)
+
+                    if await preprocessed_collection_exists_async(
+                        collection_name, client_manager
+                    ):
+                        await delete_preprocessed_collection_async(
+                            collection_name, client_manager
+                        )
+
+            except Exception as e:
+                print(f"Can't delete collection: {str(e)}")
+                pass
+
+            await user_manager.close_all_clients()
 
     @pytest.mark.asyncio
     async def test_process_collection(self):
