@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Metrics, Filter
 from weaviate.collections import CollectionAsync
+from weaviate.classes.config import Configure
 
 from elysia.config import nlp, Settings, load_base_lm, ElysiaKeyManager
 from elysia.config import settings as environment_settings
@@ -280,7 +281,13 @@ class CollectionPreprocessor:
     async def _find_named_vectors(self, collection: CollectionAsync):
         schema_info = await collection.config.get()
         if not schema_info.vector_config:
-            return {}
+            return {
+                "null": {
+                    "source_properties": [],
+                    "enabled": False,
+                    "description": "",
+                }
+            }
         else:
             return {
                 vector: {
@@ -317,6 +324,8 @@ class CollectionPreprocessor:
         """
         total = len(rt.specific_return_types) + 4
         progress = 0.0
+        # Start saving the updates
+        self.process_update = ProcessUpdate(collection_name)
         try:
             async with client_manager.connect_to_async_client() as client:
                 if not await client.collections.exists(collection_name):
@@ -328,8 +337,6 @@ class CollectionPreprocessor:
                     )
                     or force
                 ):
-                    # Start saving the updates
-                    self.process_update = ProcessUpdate(collection_name)
 
                     # Get the collection and its properties
                     try:
@@ -609,7 +616,8 @@ class CollectionPreprocessor:
                             )
                         else:
                             metadata_collection = await client.collections.create(
-                                f"ELYSIA_METADATA__"
+                                f"ELYSIA_METADATA__",
+                                vectorizer_config=Configure.Vectorizer.none(),
                             )
                         await metadata_collection.data.insert(out)
                     except Exception as e:
