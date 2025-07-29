@@ -114,18 +114,6 @@ class UserManager:
         end_goal: str | None = None,
         branch_initialisation: str | None = None,
     ):
-        print("\n\n UPDATING CONFIG \n\n")
-        print(f"User ID: {user_id}")
-        print(f"Conversation ID: {conversation_id}")
-        print(f"Config ID: {config_id}")
-        print(f"Config Name: {config_name}")
-        print(f"Settings: {settings}")
-        print(f"Style: {style}")
-        print(f"Agent Description: {agent_description}")
-        print(f"End Goal: {end_goal}")
-        print(f"Branch Initialisation: {branch_initialisation}")
-        print("\n\n")
-
         local_user = await self.get_user_local(user_id)
         local_user["tree_manager"].update_config(
             conversation_id,

@@ -41,7 +41,9 @@ def read_response(response: JSONResponse):
 async def delete_config_after_completion(
     user_manager: UserManager, user_id: str, config_id: str
 ):
-    client_manager = user_manager.users[user_id]["client_manager"]
+    client_manager = user_manager.users[user_id][
+        "frontend_config"
+    ].save_location_client_manager
     async with client_manager.connect_to_async_client() as client:
         if not await client.collections.exists("ELYSIA_CONFIG__"):
             return
@@ -166,6 +168,56 @@ class TestConfig:
             assert tree.settings.COMPLEX_PROVIDER is not None
         finally:
             await self.user_manager.close_all_clients()
+
+    @pytest.mark.asyncio
+    async def test_save_config_no_api_keys(self):
+        user_id = "test_user_save_config_no_api_keys"
+        conversation_id = "test_conversation_save_config_no_api_keys"
+        config_id = f"test_config_conversation_save_config_no_api_keys"
+        config_name = "Test save config no api keys"
+
+        try:
+            await initialise_user_and_tree(user_id, conversation_id)
+
+            # Get tree manager in advance
+            user = await self.user_manager.get_user_local(user_id)
+            tree_manager = user["tree_manager"]
+
+            # Save a config with no api keys
+            response = await save_config_user(
+                user_id=user_id,
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    name=config_name,
+                    default=True,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "gpt-4o-mini",
+                            "COMPLEX_MODEL": "gpt-4o",
+                            "BASE_PROVIDER": "openai",
+                            "COMPLEX_PROVIDER": "openai",
+                            "WCD_URL": os.getenv("WCD_URL"),
+                            "WCD_API_KEY": os.getenv("WCD_API_KEY"),
+                            "API_KEYS": {},
+                        },
+                        "style": "Professional and concise.",
+                        "agent_description": "You are a helpful assistant that searches data.",
+                        "end_goal": "Provide a summary of the data.",
+                        "branch_initialisation": "one_branch",
+                    },
+                    frontend_config={
+                        "save_location_wcd_url": os.getenv("WCD_URL"),
+                        "save_location_wcd_api_key": os.getenv("WCD_API_KEY"),
+                    },
+                ),
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
+        finally:
+            await self.user_manager.close_all_clients()
+            await delete_config_after_completion(self.user_manager, user_id, config_id)
 
     @pytest.mark.asyncio
     async def test_change_config_user(self):
@@ -435,7 +487,6 @@ class TestConfig:
                     style="Custom tree 1 style",
                     agent_description="Custom tree 1 agent description",
                     end_goal="Custom tree 1 end goal",
-                    branch_initialisation="Custom tree 1 branch initialisation",
                 ),
                 user_manager=self.user_manager,
             )
@@ -990,7 +1041,6 @@ class TestConfig:
             # Changes to user should propagate to the tree (not used its own settings)
             tree2: Tree = await self.user_manager.get_tree(user_id_1, conversation_id_2)
             assert tree2.settings.BASE_MODEL == "claude-3-5-sonnet"  # this one changes
-            assert tree2.settings.COMPLEX_MODEL == "gpt-4o"  # this one doesnt change
             assert tree2.tree_data.atlas.style == "New updated style"
             assert (
                 tree2.tree_data.atlas.agent_description

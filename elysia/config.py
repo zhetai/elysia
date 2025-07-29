@@ -48,6 +48,9 @@ class Settings:
         # Default settings
         self.SETTINGS_ID = str(random.randint(100000000000000, 999999999999999))
 
+        self.base_init()
+
+    def base_init(self):
         self.BASE_MODEL: str | None = None
         self.BASE_PROVIDER: str | None = None
         self.COMPLEX_MODEL: str | None = None
@@ -212,17 +215,18 @@ class Settings:
                 self.BASE_MODEL = "claude-3-5-haiku-latest"
                 self.COMPLEX_MODEL = "claude-sonnet-4-0"
 
-    def reset(self):
-        self = Settings()
-
     def configure(
         self,
+        replace: bool = False,
         **kwargs,
     ):
         """
         Configure the settings for Elysia for the current Settings object.
 
         Args:
+            replace (bool): Whether to override the current settings with the new settings.
+                When this is True, all existing settings are removed, and only the new settings are used.
+                Defaults to False.
             **kwargs (str): One or more of the following:
                 - base_model (str): The base model to use. e.g. "gpt-4o-mini"
                 - complex_model (str): The complex model to use. e.g. "gpt-4o"
@@ -245,6 +249,8 @@ class Settings:
                     it will be added to the `API_KEYS` dictionary.
 
         """
+        if replace:
+            self.base_init()
 
         # convert all kwargs to lowercase for consistency
         kwargs = {kwarg.lower(): kwargs[kwarg] for kwarg in kwargs}
@@ -662,7 +668,7 @@ DEFAULT_SETTINGS.smart_setup()
 
 
 def reset_settings() -> None:
-    settings.reset()
+    settings.base_init()
     settings.smart_setup()
 
 
