@@ -499,7 +499,8 @@ class CollectionPreprocessor:
                             k: v for k, v in mapping.items() if k in list(fields.keys())
                         }
 
-                        progress += min(remaining_progress / num_remaining, 0.99)
+                        progress += remaining_progress / num_remaining
+                        progress = min(progress, 0.99)
                         yield await self.process_update(progress=progress)
 
                         mappings[return_type] = mapping

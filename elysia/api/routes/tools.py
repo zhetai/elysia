@@ -14,6 +14,7 @@ from elysia.api.api_types import (
     AddBranchToTreeData,
     RemoveBranchFromTreeData,
 )
+from elysia.api.services.tree import TreeManager
 
 router = APIRouter()
 
@@ -77,21 +78,24 @@ async def get_available_tools():
         )
 
 
-@router.post("/{user_id}/add/{conversation_id}")
+@router.post("/{user_id}/add")
 async def add_tool_to_tree(
     user_id: str,
-    conversation_id: str,
     data: AddToolToTreeData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     try:
         # get tool class
         tool_class = find_tool_classes()[data.tool_name]
+        user = await user_manager.get_user_local(user_id)
+        tree_manager: TreeManager = user["tree_manager"]
 
         # get tree and add tool
-        tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        tree.add_tool(tool_class, data.branch_id, from_tool_ids=data.from_tool_ids)
+        for conversation_id in tree_manager.trees:
+            tree: Tree = tree_manager.get_tree(conversation_id)
+            tree.add_tool(tool_class, data.branch_id, from_tool_ids=data.from_tool_ids)
 
+        # all trees should look the same, so return the most recent one
         return JSONResponse(content={"tree": tree.tree, "error": ""}, status_code=200)
 
     except Exception as e:
@@ -99,10 +103,9 @@ async def add_tool_to_tree(
         return JSONResponse(content={"tree": {}, "error": str(e)}, status_code=500)
 
 
-@router.post("/{user_id}/remove/{conversation_id}")
+@router.post("/{user_id}/remove")
 async def remove_tool_from_tree(
     user_id: str,
-    conversation_id: str,
     data: RemoveToolFromTreeData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
@@ -111,12 +114,15 @@ async def remove_tool_from_tree(
         tool_class = find_tool_classes()[data.tool_name]
 
         # get tree and remove tool
-        tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        tree.remove_tool(
-            tool_class.get_metadata()["name"],  # type: ignore
-            data.branch_id,
-            from_tool_ids=data.from_tool_ids,
-        )
+        user = await user_manager.get_user_local(user_id)
+        tree_manager: TreeManager = user["tree_manager"]
+        for conversation_id in tree_manager.trees:
+            tree: Tree = tree_manager.get_tree(conversation_id)
+            tree.remove_tool(
+                tool_class.get_metadata()["name"],  # type: ignore
+                data.branch_id,
+                from_tool_ids=data.from_tool_ids,
+            )
 
         return JSONResponse(content={"tree": tree.tree, "error": ""}, status_code=200)
     except Exception as e:
@@ -124,25 +130,27 @@ async def remove_tool_from_tree(
         return JSONResponse(content={"tree": {}, "error": str(e)}, status_code=500)
 
 
-@router.post("/{user_id}/add_branch/{conversation_id}")
+@router.post("/{user_id}/add_branch")
 async def add_branch_to_tree(
     user_id: str,
-    conversation_id: str,
     data: AddBranchToTreeData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     try:
         # get tree and add branch
-        tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        tree.add_branch(
-            branch_id=data.id,
-            instruction=data.instruction,
-            description=data.description,
-            root=data.root,
-            from_branch_id=data.from_branch_id,
-            from_tool_ids=data.from_tool_ids,
-            status=data.status,
-        )
+        user = await user_manager.get_user_local(user_id)
+        tree_manager: TreeManager = user["tree_manager"]
+        for conversation_id in tree_manager.trees:
+            tree: Tree = tree_manager.get_tree(conversation_id)
+            tree.add_branch(
+                branch_id=data.id,
+                instruction=data.instruction,
+                description=data.description,
+                root=data.root,
+                from_branch_id=data.from_branch_id,
+                from_tool_ids=data.from_tool_ids,
+                status=data.status,
+            )
 
         return JSONResponse(content={"tree": tree.tree, "error": ""}, status_code=200)
     except Exception as e:
@@ -150,17 +158,19 @@ async def add_branch_to_tree(
         return JSONResponse(content={"tree": {}, "error": str(e)}, status_code=500)
 
 
-@router.post("/{user_id}/remove_branch/{conversation_id}")
+@router.post("/{user_id}/remove_branch")
 async def remove_branch_from_tree(
     user_id: str,
-    conversation_id: str,
     data: RemoveBranchFromTreeData,
     user_manager: UserManager = Depends(get_user_manager),
 ):
     try:
         # get tree and remove branch
-        tree: Tree = await user_manager.get_tree(user_id, conversation_id)
-        tree.remove_branch(data.id)
+        user = await user_manager.get_user_local(user_id)
+        tree_manager: TreeManager = user["tree_manager"]
+        for conversation_id in tree_manager.trees:
+            tree: Tree = tree_manager.get_tree(conversation_id)
+            tree.remove_branch(data.id)
 
         return JSONResponse(content={"tree": tree.tree, "error": ""}, status_code=200)
     except Exception as e:

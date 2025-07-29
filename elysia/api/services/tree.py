@@ -13,6 +13,7 @@ from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
 from elysia.tree.util import delete_tree_from_weaviate
 from elysia.api.utils.config import Config, BranchInitType
+from elysia.config import Settings
 
 
 class TreeManager:
@@ -80,11 +81,7 @@ class TreeManager:
             self.config.name = config_name
 
         if settings is not None:
-            if conversation_id is None:
-                self.configure(conversation_id=conversation_id, **settings)
-            else:
-                tree: Tree = self.get_tree(conversation_id)
-                tree.configure(**settings)
+            self.configure(conversation_id=conversation_id, replace=True, **settings)
 
         if style is not None:
             self.change_style(style, conversation_id)
@@ -95,10 +92,8 @@ class TreeManager:
         if end_goal is not None:
             self.change_end_goal(end_goal, conversation_id)
 
-        # if branch_initialisation is not None:
-        #     self.change_branch_initialisation(
-        #         branch_initialisation, conversation_id
-        #     )
+        if branch_initialisation is not None:
+            self.change_branch_initialisation(branch_initialisation, conversation_id)
 
     def add_tree(
         self,
@@ -271,20 +266,24 @@ class TreeManager:
         """
         return self.trees[conversation_id]["event"]
 
-    def configure(self, conversation_id: str | None = None, **kwargs: Any):
+    def configure(
+        self, conversation_id: str | None = None, replace: bool = False, **kwargs: Any
+    ):
         """
         Configure the settings for a tree in the TreeManager.
 
         Args:
             conversation_id (str | None): The conversation ID which contains the tree.
+            replace (bool): Whether to override the current settings with the new settings.
+                When this is True, all existing settings are removed, and only the new settings are used.
+                Defaults to False.
             **kwargs (Any): The keyword arguments to pass to the Settings.configure() method.
         """
         if conversation_id is None:
-            self.settings.configure(**kwargs)
-            print(f"In tree manager configure, settings: {self.settings.to_json()}")
+            self.settings.configure(replace=replace, **kwargs)
             self.config.settings = self.settings
         else:
-            self.trees[conversation_id]["tree"].settings.configure(**kwargs)
+            self.get_tree(conversation_id).settings.configure(replace=replace, **kwargs)
 
     def change_style(self, style: str, conversation_id: str | None = None):
         """

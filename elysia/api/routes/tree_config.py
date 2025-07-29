@@ -205,8 +205,8 @@ async def change_config_tree(
         if data.end_goal is not None:
             tree.change_end_goal(data.end_goal)
 
-        # if data.branch_initialisation is not None:
-        #     tree.set_branch_initialisation(data.branch_initialisation)
+        if data.branch_initialisation is not None:
+            tree.set_branch_initialisation(data.branch_initialisation)
 
         config = Config(
             id="tree_config",
@@ -299,7 +299,7 @@ async def load_config_tree(
         tree.change_agent_description(renamed_config["agent_description"])
         tree.change_end_goal(renamed_config["end_goal"])
 
-        # tree.set_branch_initialisation(renamed_config["branch_initialisation"])
+        tree.set_branch_initialisation(renamed_config["branch_initialisation"])
 
     except Exception as e:
         logger.exception(f"Error in /load_config API")

@@ -89,7 +89,6 @@ async def test_basic_add_tool_to_tree():
     # add tool to tree
     response = await add_tool_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddToolToTreeData(
             tool_name="TellAJoke",
             branch_id="base",
@@ -130,7 +129,6 @@ async def test_add_tool_to_tree_with_from_tool_ids():
     # add tool to tree
     response = await add_tool_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddToolToTreeData(
             tool_name="TellAJoke",
             branch_id="base",
@@ -177,7 +175,6 @@ async def test_basic_remove_tool_from_tree():
     # first add tool to tree
     response = await add_tool_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddToolToTreeData(
             tool_name="TellAJoke",
             branch_id="base",
@@ -193,7 +190,6 @@ async def test_basic_remove_tool_from_tree():
     # remove tool from tree
     response = await remove_tool_from_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=RemoveToolFromTreeData(
             tool_name="TellAJoke",
             branch_id="base",
@@ -228,7 +224,6 @@ async def test_remove_tool_from_tree_with_from_tool_ids():
     # first add tool to tree
     response = await add_tool_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddToolToTreeData(
             tool_name="TellAJoke",
             branch_id="base",
@@ -244,7 +239,6 @@ async def test_remove_tool_from_tree_with_from_tool_ids():
     # remove tool from tree
     response = await remove_tool_from_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=RemoveToolFromTreeData(
             tool_name="TellAJoke",
             branch_id="base",
@@ -277,7 +271,6 @@ async def test_basic_add_branch_to_tree():
     # add branch to tree
     response = await add_branch_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddBranchToTreeData(
             id="new_branch",
             description="New Branch Description",
@@ -336,16 +329,6 @@ async def test_add_branch_to_branch():
     config_id = read_response(response)["config"]["id"]
     config_name = read_response(response)["config"]["name"]
 
-    # set no configs saved to weaviate
-    response = await update_frontend_config(
-        user_id,
-        UpdateFrontendConfigData(
-            config={"save_configs_to_weaviate": False},
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
-
     # change branch initialisation
     response = await save_config_user(
         user_id,
@@ -355,8 +338,10 @@ async def test_add_branch_to_branch():
             config={
                 "branch_initialisation": "multi_branch",
             },
-            frontend_config={},
-            default=False,
+            frontend_config={
+                "save_configs_to_weaviate": False,
+            },
+            default=True,
         ),
         user_manager,
     )
@@ -365,7 +350,6 @@ async def test_add_branch_to_branch():
     # add branch to tree
     response = await add_branch_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddBranchToTreeData(
             id="new_branch",
             description="New Branch Description",
@@ -437,16 +421,6 @@ async def test_full_cycle():
     config_id = read_response(response)["config"]["id"]
     config_name = read_response(response)["config"]["name"]
 
-    # set no configs saved to weaviate
-    response = await update_frontend_config(
-        user_id,
-        UpdateFrontendConfigData(
-            config={"save_configs_to_weaviate": False},
-        ),
-        user_manager,
-    )
-    assert read_response(response)["error"] == ""
-
     # change branch initialisation
     response = await save_config_user(
         user_id,
@@ -456,8 +430,10 @@ async def test_full_cycle():
             config={
                 "branch_initialisation": "multi_branch",
             },
-            frontend_config={},
-            default=False,
+            frontend_config={
+                "save_configs_to_weaviate": False,
+            },
+            default=True,
         ),
         user_manager,
     )
@@ -466,7 +442,6 @@ async def test_full_cycle():
     # add a branch to a tool
     response = await add_branch_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddBranchToTreeData(
             id="new_branch",
             description="New Branch Description",
@@ -513,7 +488,6 @@ async def test_full_cycle():
     # add a tool to the new branch
     response = await add_tool_to_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=AddToolToTreeData(
             tool_name="TellAJoke",
             branch_id="new_branch",
@@ -547,7 +521,6 @@ async def test_full_cycle():
     # remove the branch from the tree
     response = await remove_branch_from_tree(
         user_id=user_id,
-        conversation_id=conversation_id,
         data=RemoveBranchFromTreeData(id="new_branch"),
         user_manager=user_manager,
     )
