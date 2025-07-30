@@ -4,6 +4,11 @@ from elysia.objects import Response
 # Import a custom tool from a separate file
 from elysia.tools.visualisation.linear_regression import BasicLinearRegression
 
+# Import existing tools
+from elysia.tools.retrieval.query import Query
+from elysia.tools.retrieval.aggregate import Aggregate
+from elysia.tools.text.text import CitedSummarizer, FakeTextResponse
+
 
 # Or you can define the tool inline here
 class TellAJoke(Tool):
