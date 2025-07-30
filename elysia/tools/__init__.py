@@ -1,6 +1,6 @@
 from elysia.tools.objects import (
-    BoringGeneric,
-    EpicGeneric,
+    Table,
+    Generic,
     Document,
     Ticket,
     Ecommerce,

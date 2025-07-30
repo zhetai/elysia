@@ -1,6 +1,7 @@
 import os
 from fastapi.responses import JSONResponse
-
+from pathlib import Path
+from logging import Logger
 import json
 import random
 import pytest
@@ -30,12 +31,42 @@ from elysia.tree.tree import Tree
 from elysia.api.core.log import logger, set_log_level
 from elysia.api.services.tree import TreeManager
 from elysia.api.services.user import UserManager
+from elysia.api.utils.config import FrontendConfig
 
 set_log_level("CRITICAL")
 
 
 def read_response(response: JSONResponse):
     return json.loads(response.body)
+
+
+def get_frontend_config_file_path(user_id: str) -> Path:
+    elysia_package_dir = Path(__file__).parent.parent.parent  # Gets to elysia/
+    config_dir = elysia_package_dir / "elysia" / "api" / "user_configs"
+    config_file = config_dir / f"frontend_config_{user_id}.json"
+    return config_file
+
+
+async def load_frontend_config_from_file(
+    user_id: str, logger: Logger
+) -> FrontendConfig:
+    # save frontend config locally
+    try:
+        elysia_package_dir = Path(__file__).parent.parent.parent  # Gets to elysia/
+        config_dir = elysia_package_dir / "elysia" / "api" / "user_configs"
+        config_file = config_dir / f"frontend_config_{user_id}.json"
+        print(f"\n\nLoading frontend config from file: {config_file}\n\n")
+
+        if not config_file.exists():
+            return FrontendConfig(logger=logger)
+
+        with open(config_file, "r") as f:
+            fe_config = await FrontendConfig.from_json(json.load(f), logger)
+            return fe_config
+
+    except Exception as e:
+        logger.error(f"Error in save_frontend_config_to_file: {str(e)}")
+        return FrontendConfig(logger=logger)
 
 
 async def delete_config_after_completion(
@@ -1173,15 +1204,11 @@ class TestConfig:
             response = read_response(response)
 
             # check existence of local file
-            assert os.path.exists(
-                f"elysia/api/user_configs/frontend_config_{user_id}.json"
-            )
+            assert os.path.exists(get_frontend_config_file_path(user_id))
 
             # check the local file has the correct values
-            with open(
-                f"elysia/api/user_configs/frontend_config_{user_id}.json", "r"
-            ) as f:
-                fe_config = json.load(f)
+            fe_config = await load_frontend_config_from_file(user_id, logger)
+            fe_config = fe_config.to_json()
 
             assert fe_config["save_location_wcd_url"] == os.getenv("WCD_URL")
             assert fe_config["save_location_wcd_api_key"] == os.getenv("WCD_API_KEY")

@@ -15,21 +15,21 @@ from elysia.objects import (
     Result,
 )
 from elysia.tools.objects import (
-    BoringGeneric,
+    Table,
     Conversation,
     Document,
     Ecommerce,
-    EpicGeneric,
+    Generic,
     Message,
     Ticket,
 )
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
 from elysia.tools.retrieval.objects import (
-    BoringGenericRetrieval,
+    TableRetrieval,
     ConversationRetrieval,
     DocumentRetrieval,
     EcommerceRetrieval,
-    EpicGenericRetrieval,
+    GenericRetrieval,
     MessageRetrieval,
     TicketRetrieval,
 )
@@ -124,8 +124,8 @@ class TestObjects:
     @pytest.mark.asyncio
     async def test_basic_results(self):
         types = [
-            BoringGeneric,
-            EpicGeneric,
+            Table,
+            Generic,
             Document,
             Ticket,
             Ecommerce,
@@ -133,8 +133,8 @@ class TestObjects:
             Conversation,
         ]
         names = [
-            "boring_generic",
-            "epic_generic",
+            "table",
+            "generic",
             "document",
             "ticket",
             "ecommerce",
@@ -147,7 +147,7 @@ class TestObjects:
     @pytest.mark.asyncio
     async def test_result_with_mapping(self):
         for object_type in [
-            EpicGeneric,
+            Generic,
             Document,
             Ticket,
             Ecommerce,

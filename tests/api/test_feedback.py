@@ -67,9 +67,9 @@ class TestFeedback:
     @pytest.mark.asyncio
     async def test_full_feedback_cycle(self):
 
-        user_id = "test_user"
-        conversation_id = "test_conversation"
-        query_id = "test_query2"
+        user_id = "test_user_full_feedback_cycle"
+        conversation_id = "test_conversation_full_feedback_cycle"
+        query_id = "test_query_full_feedback_cycle"
         user_manager = get_user_manager()
         websocket = fake_websocket()
 

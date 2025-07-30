@@ -1,8 +1,8 @@
 from .query import Query, SimpleQuery
 from .aggregate import Aggregate
 from .objects import (
-    EpicGenericRetrieval,
-    BoringGenericRetrieval,
+    GenericRetrieval,
+    TableRetrieval,
     EcommerceRetrieval,
     TicketRetrieval,
     MessageRetrieval,

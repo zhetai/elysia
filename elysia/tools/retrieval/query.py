@@ -11,11 +11,11 @@ from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.objects import Response, Status, Tool, Error, Result, Return
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
 from elysia.tools.retrieval.objects import (
-    BoringGenericRetrieval,
+    TableRetrieval,
     ConversationRetrieval,
     DocumentRetrieval,
     EcommerceRetrieval,
-    EpicGenericRetrieval,
+    GenericRetrieval,
     MessageRetrieval,
     TicketRetrieval,
 )
@@ -27,6 +27,7 @@ from elysia.tools.retrieval.util import execute_weaviate_query
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
 from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
+from elysia.util.return_types import all_return_types
 
 
 class Query(Tool):
@@ -71,14 +72,13 @@ class Query(Tool):
 
         self.logger = logger
         self.summariser_in_tree = summariser_in_tree
-        # print("LOGGER LEVEL: ", self.logger.level)
         self.retrieval_map = {
             "conversation": ConversationRetrieval,
             "message": MessageRetrieval,
             "ticket": TicketRetrieval,
             "ecommerce": EcommerceRetrieval,
-            "epic_generic": EpicGenericRetrieval,
-            "boring_generic": BoringGenericRetrieval,
+            "generic": GenericRetrieval,
+            "table": TableRetrieval,
             "document": DocumentRetrieval,
         }
 
@@ -116,26 +116,23 @@ class Query(Tool):
 
         return previous_queries
 
-    def _evaluate_content_field(self, display_type: str, mappings: dict) -> str:
+    def _evaluate_content_field(self, metadata_fields: dict) -> str:
         """
-        Return the original object field if its mapped to 'content', otherwise return an empty string.
-        If no content field mapping exists in `mappings`, it will return an empty string anyway (by default).
+        Find the largest text field in the metadata.
+        Returns the field name with the highest mean value among text fields.
         """
+        # Filter for text fields only
+        text_fields = {
+            key: value
+            for key, value in metadata_fields.items()
+            if value.get("type") == "text"
+        }
 
-        if display_type == "conversation":
-            return mappings[display_type]["content"]
-        elif display_type == "message":
-            return mappings[display_type]["content"]
-        elif display_type == "ticket":
-            return mappings[display_type]["content"]
-        elif display_type == "ecommerce":
-            return mappings[display_type]["description"]
-        elif display_type == "epic_generic":
-            return mappings[display_type]["content"]
-        elif display_type == "document":
-            return mappings[display_type]["content"]
-        else:
+        if not text_fields:
             return ""
+
+        # Find the text field with the largest mean value
+        return max(text_fields, key=lambda x: text_fields[x].get("mean", 0))
 
     def _evaluate_needs_chunking(
         self,
@@ -144,8 +141,9 @@ class Query(Tool):
         schema: dict,
         threshold: int = 400,  # number of tokens to be considered large enough to chunk
     ) -> bool:
-        mapping = schema["mappings"]
-        content_field = self._evaluate_content_field(display_type, mapping)
+        content_field = self._evaluate_content_field(
+            schema["fields"],
+        )
 
         return (
             content_field != ""
@@ -240,6 +238,13 @@ class Query(Tool):
             for collection_name in collection_names
         }  # subset to just our collection names
 
+        # get display type descriptions
+        display_type_descriptions = {
+            display_type: all_return_types[display_type]
+            for collection_name in collection_names
+            for display_type in display_types[collection_name]
+        }
+
         # get searchable fields
         searchable_fields = {
             collection_name: [
@@ -265,6 +270,7 @@ class Query(Tool):
                         available_collections=collection_names,
                         previous_queries=previous_queries,
                         collection_display_types=display_types,
+                        display_type_descriptions=display_type_descriptions,
                         searchable_fields=searchable_fields,
                         num_base_lm_examples=6,
                         return_example_uuids=True,
@@ -276,6 +282,7 @@ class Query(Tool):
                     available_collections=collection_names,
                     previous_queries=previous_queries,
                     collection_display_types=display_types,
+                    display_type_descriptions=display_type_descriptions,
                     searchable_fields=searchable_fields,
                 )
 
@@ -327,7 +334,7 @@ class Query(Tool):
                         else None
                     ),
                 }
-                yield BoringGenericRetrieval([], metadata)
+                yield TableRetrieval([], metadata)
 
             if self.logger:
                 self.logger.warning(
@@ -377,8 +384,6 @@ class Query(Tool):
                 )
                 return
 
-        chunking_status_sent = False
-
         # Go through outputs for each unique query
         for i, query_output in enumerate(query.query_outputs):
             collection_names = query_output.target_collections.copy()
@@ -402,23 +407,10 @@ class Query(Tool):
                     schemas[collection_name],
                 )
                 content_field = self._evaluate_content_field(
-                    display_type, schemas[collection_name]["mappings"]
+                    schemas[collection_name]["fields"],
                 )  # used for chunking
 
                 if needs_chunking:
-
-                    # if not chunking_status_sent:
-                    #     yield Status("Chunking collections...")
-                    #     yield TreeUpdate(
-                    #         from_node="query_executor",
-                    #         to_node="chunker",
-                    #         reasoning="Chunking collections because they are too large to vectorise effectively.",
-                    #         last_in_branch=not any(
-                    #             query.data_display[collection_name_0].summarise_items
-                    #             for collection_name_0 in query.data_display
-                    #         ),
-                    #     )
-                    #     chunking_status_sent = True
 
                     if self.logger:
                         self.logger.debug(f"Chunking {collection_name}")
@@ -538,7 +530,11 @@ class Query(Tool):
                 output = self.retrieval_map[display_type](
                     objects,
                     metadata,
-                    mapping=schemas[collection_name]["mappings"][display_type],
+                    mapping=(
+                        schemas[collection_name]["mappings"][display_type]
+                        if display_type != "table"
+                        else None
+                    ),
                 )
 
                 # If the display type is document or conversation, initialise the object (requires some async operations)
@@ -779,7 +775,7 @@ class SimpleQuery(Tool):
                         else None
                     ),
                 }
-                yield BoringGenericRetrieval([], metadata)
+                yield TableRetrieval([], metadata)
 
             if self.logger:
                 self.logger.warning(

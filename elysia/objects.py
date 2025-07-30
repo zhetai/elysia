@@ -617,7 +617,7 @@ class Result(Return):
         objects: list[dict],
         metadata: dict = {},
         payload_type: str = "default",
-        name: str = "generic",
+        name: str = "default",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],

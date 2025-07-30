@@ -31,7 +31,8 @@ def read_response(response: JSONResponse):
 
 
 class fake_websocket:
-    results = []
+    def __init__(self):
+        self.results = []
 
     async def send_json(self, data: dict):
         self.results.append(data)
@@ -73,11 +74,6 @@ def create_collection(client_manager: ClientManager):
 
 
 class TestProcessor:
-
-    async def run_processor(self, data: ProcessCollectionData):
-        websocket = fake_websocket()
-        await process_collection(data.model_dump(), websocket, user_manager)
-        return websocket.results
 
     @pytest.mark.asyncio
     async def test_process_no_api_keys(self):
@@ -122,11 +118,17 @@ class TestProcessor:
                 user_manager,
             )
 
-            response = await self.run_processor(
-                ProcessCollectionData(user_id=user_id, collection_name=collection_name),
+            websocket = fake_websocket()
+            await process_collection(
+                ProcessCollectionData(
+                    user_id=user_id, collection_name=collection_name
+                ).model_dump(),
+                websocket,
+                user_manager,
             )
+
             error_found = False
-            for result in response:
+            for result in websocket.results:
                 error_found = result["error"] != ""
             assert error_found
 
@@ -166,18 +168,27 @@ class TestProcessor:
 
             collection_name = create_collection(client_manager)
 
-            response = await self.run_processor(
-                ProcessCollectionData(user_id=user_id, collection_name=collection_name),
+            websocket = fake_websocket()
+            await process_collection(
+                ProcessCollectionData(
+                    user_id=user_id, collection_name=collection_name
+                ).model_dump(),
+                websocket,
+                user_manager,
             )
-            for result in response:
-                assert result["error"] == ""
+            for i, result in enumerate(websocket.results):
+                if result["error"] != "":
+                    print(result)
+                    assert (
+                        False
+                    ), f"({i}) Message i-1: {websocket.results[i-1]['message']}, error: {result['error']}"
 
-            for result in response[:-1]:
+            for result in websocket.results[:-1]:
                 assert result["type"] == "update"
                 assert result["progress"] < 1
 
-            assert response[-1]["type"] == "completed"
-            assert response[-1]["progress"] == 1
+            assert websocket.results[-1]["type"] == "completed"
+            assert websocket.results[-1]["progress"] == 1
 
             with client_manager.connect_to_client() as client:
                 assert client.collections.exists(collection_name)

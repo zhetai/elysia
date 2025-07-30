@@ -201,5 +201,6 @@ class PromptSuggestorPrompt(dspy.Signature):
         Also aim to create questions that will help the user dive deeper into their data.
         Look for interactions between the fields, and connections that the user may not see themselves.
         Produce 10 questions.
+        The prompts should either: specifically reference the collection, or be specific enough to the data that at a glance someone would recognise the data.
         """
     )

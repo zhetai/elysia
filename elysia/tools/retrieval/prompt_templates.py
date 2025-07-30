@@ -230,6 +230,14 @@ class QueryCreatorPrompt(dspy.Signature):
         The output of `display_type` must be one of the values in the list for the dictionary entry for that collection.
         """.strip(),
     )
+    display_type_descriptions: dict[str, str] = dspy.InputField(
+        desc="""
+        Descriptions of each of the available display types.
+        Use this to determine your output display type(s).
+        The keys are the display types, and the values are the descriptions.
+        """.strip(),
+        format=dict[str, str],
+    )
     searchable_fields: dict[str, list[str]] = dspy.InputField(
         desc="""
         A dictionary of the fields to search for each collection. Use this to determine the field in `vector_to_search`, for each collection.
@@ -238,7 +246,6 @@ class QueryCreatorPrompt(dspy.Signature):
         format=dict[str, list[str]],
     )
 
-    # Output fields
     query_outputs: Union[List[QueryOutput], None] = dspy.OutputField(
         description="The query(-ies) to be executed. Return None if query is impossible to execute"
     )

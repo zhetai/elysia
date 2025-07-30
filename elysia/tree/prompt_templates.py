@@ -66,6 +66,9 @@ class DecisionPrompt(dspy.Signature):
         }
         Do NOT pick tools from this list, it is there for information only.
         If you want to use this tool, you must complete the criteria in `available_at`.
+        Sometimes the criteria in `available_at` could be something the user needs to complete.
+        If you want to pick any tools from this list, you must first either complete the criteria in `available_at`,
+        or inform the user what they need to do to complete the criteria.
         """.strip()
     )
 

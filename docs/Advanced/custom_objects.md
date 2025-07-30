@@ -112,7 +112,7 @@ class Card(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "card",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = [],

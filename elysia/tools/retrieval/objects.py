@@ -6,11 +6,11 @@ from elysia.objects import Retrieval
 
 # Objects
 from elysia.tools.objects import (
-    BoringGeneric,
+    Table,
     Conversation,
     Document,
     Ecommerce,
-    EpicGeneric,
+    Generic,
     Message,
     Ticket,
 )
@@ -22,7 +22,7 @@ from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable
 
 
-class EpicGenericRetrieval(EpicGeneric, Retrieval):
+class GenericRetrieval(Generic, Retrieval):
     def __init__(
         self,
         objects: list[dict],
@@ -30,18 +30,18 @@ class EpicGenericRetrieval(EpicGeneric, Retrieval):
         mapping: dict | None = None,
         **kwargs,
     ) -> None:
-        # EpicGeneric.__init__(self, objects, metadata, mapping)
+        # Generic.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
             self,
             objects,
-            payload_type="epic_generic",
+            payload_type="generic",
             metadata=metadata,
             mapping=mapping,
             **kwargs,
         )
 
 
-class BoringGenericRetrieval(BoringGeneric, Retrieval):
+class TableRetrieval(Table, Retrieval):
     def __init__(
         self,
         objects: list[dict],
@@ -49,11 +49,11 @@ class BoringGenericRetrieval(BoringGeneric, Retrieval):
         mapping: dict | None = None,
         **kwargs,
     ) -> None:
-        # BoringGeneric.__init__(self, objects, metadata, mapping)
+        # Table.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
             self,
             objects,
-            payload_type="boring_generic",
+            payload_type="table",
             metadata=metadata,
             mapping=mapping,
             **kwargs,
@@ -155,6 +155,9 @@ class ConversationRetrieval(Conversation, Retrieval):
         """
         Use Weaviate to fetch all messages in a conversation based on the conversation ID.
         """
+        # TODO: use mappings to map conversation_id and message_index to the correct fields
+        # otherwise this relies on the user to have defined the correct fields in their data (stupid)
+        # then if no mapping for either conversation_id or message_index, then fall back to message type
         assert (
             "collection_name" in metadata
         ), "collection_name is required for fetching other messages in a conversation"
@@ -204,7 +207,7 @@ class ConversationRetrieval(Conversation, Retrieval):
     def to_json(self, mapping: bool = False) -> list[dict]:
         assert (
             self.async_init_completed
-        ), "ERROR: ConversationRetrieval not initialized, need to run .async_init(client_manager)"
+        ), "ConversationRetrieval not initialized, need to run .async_init(client_manager)"
 
         if self.mapping is not None and mapping:
             output_objects = []
@@ -423,7 +426,7 @@ class Aggregation(Retrieval):
         if name is None and "collection_name" in metadata:
             name = metadata["collection_name"]
         elif name is None:
-            name = "generic"
+            name = "default"
 
         Retrieval.__init__(
             self,
