@@ -75,14 +75,16 @@ async def delete_config_after_completion(
     client_manager = user_manager.users[user_id][
         "frontend_config"
     ].save_location_client_manager
-    async with client_manager.connect_to_async_client() as client:
-        if not await client.collections.exists("ELYSIA_CONFIG__"):
-            return
 
-        collection = client.collections.get("ELYSIA_CONFIG__")
-        uuid = generate_uuid5(config_id)
-        if await collection.data.exists(uuid):
-            await collection.data.delete_by_id(uuid)
+    if client_manager.is_client:
+        async with client_manager.connect_to_async_client() as client:
+            if not await client.collections.exists("ELYSIA_CONFIG__"):
+                return
+
+            collection = client.collections.get("ELYSIA_CONFIG__")
+            uuid = generate_uuid5(config_id)
+            if await collection.data.exists(uuid):
+                await collection.data.delete_by_id(uuid)
 
     if os.path.exists(f"elysia/api/user_configs/frontend_config_{user_id}.json"):
         os.remove(f"elysia/api/user_configs/frontend_config_{user_id}.json")
@@ -138,8 +140,8 @@ class TestConfig:
                     default=True,
                     config={},
                     frontend_config={
-                        "save_location_wcd_url": "test_wcd_url",
-                        "save_location_wcd_api_key": "test_wcd_api_key",
+                        "save_location_wcd_url": "test_incorrect_wcd_url",
+                        "save_location_wcd_api_key": "test_incorrect_wcd_api_key",
                     },
                 ),
                 user_manager=self.user_manager,
@@ -148,14 +150,47 @@ class TestConfig:
 
             # but the user should have a new save location
             user = await self.user_manager.get_user_local(user_id)
-            assert user["frontend_config"].save_location_wcd_url == "test_wcd_url"
             assert (
-                user["frontend_config"].save_location_wcd_api_key == "test_wcd_api_key"
+                user["frontend_config"].save_location_wcd_url
+                == "test_incorrect_wcd_url"
             )
-            assert "Could not connect to Weaviate" in response["error"]
+            assert (
+                user["frontend_config"].save_location_wcd_api_key
+                == "test_incorrect_wcd_api_key"
+            )
+            warning_found = False
+            for warning in response["warnings"]:
+                warning_found = "Could not connect to Weaviate" in warning
+            assert warning_found
+
+            # same if no api keys are provided
+            # update the save location to an invalid one
+            response = await save_config_user(
+                user_id=user_id,
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    name=config_name,
+                    default=True,
+                    config={},
+                    frontend_config={
+                        "save_location_wcd_url": "",
+                        "save_location_wcd_api_key": "",
+                    },
+                ),
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+
+            warning_found = False
+            for warning in response["warnings"]:
+                warning_found = (
+                    "No valid destination for config save location found" in warning
+                )
+            assert warning_found
 
         finally:
             await self.user_manager.close_all_clients()
+            await delete_config_after_completion(self.user_manager, user_id, config_id)
 
     @pytest.mark.asyncio
     async def test_smart_setup_models_user(self):
@@ -277,7 +312,8 @@ class TestConfig:
                 user_manager=self.user_manager,
             )
             response = read_response(response)
-            assert response["error"] == ""
+            assert response["error"] == "", response["error"]
+            assert response["warnings"] == [], "\n".join(response["warnings"])
 
             # Change user config
             new_settings = {
@@ -310,7 +346,8 @@ class TestConfig:
 
             # Verify response is OK
             response = read_response(response)
-            assert response["error"] == ""
+            assert response["error"] == "", response["error"]
+            assert response["warnings"] == [], "\n".join(response["warnings"])
 
             assert tree_manager.settings.BASE_MODEL == "gpt-4o-mini"
             assert tree_manager.settings.COMPLEX_MODEL == "gpt-4o"
