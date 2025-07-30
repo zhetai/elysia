@@ -138,8 +138,8 @@ You can do so via calling the `.add()`, `.add_objects()`, `.replace()` or `.remo
 
 You can (currently) choose one of the following objects that are *supported by the frontend*. If you do not use one of these objects, then the LLM will still receive the data for the decision agent, it will still be added to the environment, but the frontend will not recognise its type and it will not be shown in the app.
 
-- `BoringGeneric`
-- `EpicGeneric`
+- `Table`
+- `Generic`
 - `Conversation`
 - `Document`
 - `Ecommerce`

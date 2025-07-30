@@ -43,9 +43,9 @@ def test_create_tools_simple():
 
     env = tree.tree_data.environment.environment
     assert "calculate_two_numbers" in env
-    assert "generic" in env["calculate_two_numbers"]
+    assert "default" in env["calculate_two_numbers"]
 
-    result = env["calculate_two_numbers"]["generic"][0]
+    result = env["calculate_two_numbers"]["default"][0]
     assert "sum" in result["objects"][0]
     assert result["objects"][0]["sum"] == 1123 + 48332
     assert result["objects"][0]["product"] == 1123 * 48332
@@ -82,5 +82,5 @@ def test_create_tools_simple():
     tree("What is 2379 x 234 x 213 x 3?")
 
     env = tree.tree_data.environment.environment
-    result = env["perform_mathematical_operations"]["generic"][0]
+    result = env["perform_mathematical_operations"]["default"][0]
     assert result["objects"][0]["tool_result"] == 2379 * 234 * 213 * 3

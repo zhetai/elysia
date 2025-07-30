@@ -1,14 +1,33 @@
 specific_return_types = {
-    "conversation": "Full conversations, including all messages and message authors, with timestamps and context of other messages in the conversation.",
-    "message": "Individual messages, only including the author of each individual message and timestamp, without surrounding context of other messages by different people.",
-    "ticket": "Tickets, such as issues on Github, or support tickets on somewhere else, or anything similar to those.",
-    "ecommerce": "Products items, so usually involving descriptions, prices, ratings, reviews, etc, but not always.",
-    "document": "Text-based information, usually with a title, author, date, and content, but not always. Specifically for long text.",
+    "conversation": (
+        "Full conversations, including all messages and message authors, with timestamps and context of other messages in the conversation."
+    ),
+    "message": (
+        "Individual messages, only including the author of each individual message and timestamp, "
+        "without surrounding context of other messages by different people."
+    ),
+    "ticket": ("Support tickets, similar to Github issues or similar."),
+    "ecommerce": (
+        "Products items, so usually involving descriptions, prices, ratings, reviews, etc, but not always. "
+        "Contains an image field, and space for plenty of metadata."
+    ),
+    "document": (
+        "Text-based information, usually with a title, author, date, and content, but not always. "
+        "Ideal for longer text."
+    ),
 }
 
 all_return_types = {
     **specific_return_types,
-    "generic": "any other type of information that does not fit into the other categories.",
+    "generic": (
+        "Any other type of information that does not fit into the more specific categories. "
+        "Contains fields for a range of different types of information, and is a good option for a wide range of data if no other display type is available. "
+    ),
+    "table": (
+        "A table of information, with rows and columns. Used for displaying all of the data in a structured way. "
+        "This is a fall-back option if not other display type is available. "
+        "Alternatively, if the data or query requires a more analytical insight, this could be a good option."
+    ),
 }
 
 conversation = {
@@ -67,7 +86,7 @@ document = {
     "category": "some string describing the category of the document, e.g. type of something. string",
 }
 
-epic_generic = {
+generic = {
     "title": "the title of the information. string",
     "subtitle": "the subtitle of the information. string",
     "content": "the content of the information. string/other",
@@ -85,6 +104,7 @@ types_dict = {
     "message": message,
     "ticket": ticket,
     "ecommerce": ecommerce,
-    "epic_generic": epic_generic,
+    "generic": generic,
     "document": document,
+    "table": {},
 }

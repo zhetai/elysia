@@ -17,7 +17,7 @@ from elysia.preprocess.collection import (
     edit_preprocessed_collection,
     delete_preprocessed_collection_async,
 )
-from elysia.util.return_types import specific_return_types, types_dict
+from elysia.util.return_types import specific_return_types, types_dict, all_return_types
 from elysia.util.client import ClientManager
 
 from weaviate.classes.query import Filter
@@ -43,10 +43,10 @@ async def mapping_types():
                 "mapping_types": [
                     {
                         "name": return_type,
-                        "description": specific_return_types[return_type],
+                        "description": all_return_types[return_type],
                         "fields": types_dict[return_type],
                     }
-                    for return_type in specific_return_types
+                    for return_type in all_return_types
                 ],
                 "error": "",
             },

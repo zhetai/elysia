@@ -329,6 +329,7 @@ class DecisionNode:
                 reason = "No reason provided."
             out[tool] = {
                 "function_name": tool,
+                "description": self.options[tool]["description"],
                 "available_at": reason,
             }
         return out

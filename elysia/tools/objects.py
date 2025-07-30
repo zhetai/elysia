@@ -1,9 +1,9 @@
 from ..objects import Result
 
 
-class BoringGeneric(Result):
+class Table(Result):
     """
-    BoringGeneric return object, e.g. anything that does not fit into the other categories.
+    Table return object, e.g. anything that does not fit into the other categories.
     Will be displayed as a table.
 
     Properties:
@@ -15,14 +15,14 @@ class BoringGeneric(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "default",
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],
     ):
         Result.__init__(
             self,
             objects=objects,
-            payload_type="boring_generic",
+            payload_type="table",
             metadata=metadata,
             name=name,
             mapping=None,
@@ -31,9 +31,9 @@ class BoringGeneric(Result):
         )
 
 
-class EpicGeneric(Result):
+class Generic(Result):
     """
-    EpicGeneric return object, e.g. anything generic that will fit into the following properties.
+    Generic return object, e.g. anything generic that will fit into the following properties.
 
     Properties:
 
@@ -53,7 +53,7 @@ class EpicGeneric(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "default",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],
@@ -62,7 +62,7 @@ class EpicGeneric(Result):
         Result.__init__(
             self,
             objects=objects,
-            payload_type="epic_generic",
+            payload_type="generic",
             metadata=metadata,
             name=name,
             mapping=mapping,
@@ -89,7 +89,7 @@ class Document(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "default",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],
@@ -131,7 +131,7 @@ class Ticket(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "default",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],
@@ -177,7 +177,7 @@ class Ecommerce(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "default",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],
@@ -213,7 +213,7 @@ class Message(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "default",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],
@@ -251,7 +251,7 @@ class Conversation(Result):
         self,
         objects: list[dict],
         metadata: dict = {},
-        name: str = "generic",
+        name: str = "default",
         mapping: dict | None = None,
         llm_message: str | None = None,
         unmapped_keys: list[str] = ["_REF_ID"],

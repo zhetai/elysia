@@ -74,7 +74,7 @@ class Environment:
         self.self_info = self_info
         if self_info:
             self.environment["SelfInfo"] = {}
-            self.environment["SelfInfo"]["generic"] = [
+            self.environment["SelfInfo"]["info"] = [
                 {
                     "name": "Elysia",
                     "description": "An agentic RAG service in Weaviate.",
@@ -880,7 +880,7 @@ class TreeData:
             collection_names, with_mappings
         )
 
-    def output_collection_return_types(self):
+    def output_collection_return_types(self) -> dict[str, list[str]]:
         """
         Outputs the return types for the collections in the tree data.
         Essentially, this is a list of the keys that can be used to map the objects to the frontend.
@@ -897,10 +897,11 @@ class TreeData:
                 Each of these lists is a list of the keys that can be used to map the objects to the frontend.
         """
         collection_return_types = self.collection_data.output_mapping_lists()
-        return {
+        out = {
             collection_name: collection_return_types[collection_name]
             for collection_name in self.collection_names
         }
+        return out
 
     def to_json(self, remove_unserialisable: bool = False):
         out = {
