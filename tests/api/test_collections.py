@@ -482,12 +482,13 @@ class TestEndpoints:
             collection_name = create_collection(client_manager)
 
             # preprocess the collection
-            await preprocess_async(
-                collection_names=[collection_name],
+            async for _ in preprocess_async(
+                collection_name=collection_name,
                 client_manager=client_manager,
                 force=False,
                 settings=settings,
-            )
+            ):
+                pass
 
             # check the metadata has been created
             metadata = await collection_metadata(

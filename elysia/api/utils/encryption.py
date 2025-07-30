@@ -21,9 +21,10 @@ def encrypt_api_keys(settings_dict: dict):
     f = Fernet(auth_key.encode("utf-8"))
     if "API_KEYS" in settings_dict_copy:
         for key in settings_dict_copy["API_KEYS"]:
-            settings_dict_copy["API_KEYS"][key] = f.encrypt(
-                settings_dict_copy["API_KEYS"][key].encode("utf-8")
-            ).decode("utf-8")
+            if key != "null":
+                settings_dict_copy["API_KEYS"][key] = f.encrypt(
+                    settings_dict_copy["API_KEYS"][key].encode("utf-8")
+                ).decode("utf-8")
 
     if "WCD_API_KEY" in settings_dict_copy:
         settings_dict_copy["WCD_API_KEY"] = f.encrypt(
@@ -50,9 +51,10 @@ def decrypt_api_keys(settings_dict: dict):
 
     if "API_KEYS" in settings_dict_copy:
         for key in settings_dict_copy["API_KEYS"]:
-            settings_dict_copy["API_KEYS"][key] = f.decrypt(
-                settings_dict_copy["API_KEYS"][key].encode("utf-8")
-            ).decode("utf-8")
+            if key != "null":
+                settings_dict_copy["API_KEYS"][key] = f.decrypt(
+                    settings_dict_copy["API_KEYS"][key].encode("utf-8")
+                ).decode("utf-8")
 
     if "WCD_API_KEY" in settings_dict_copy:
         settings_dict_copy["WCD_API_KEY"] = f.decrypt(

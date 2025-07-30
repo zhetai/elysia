@@ -137,7 +137,7 @@ class ClientManager:
 
         self.async_client = None
         self.async_init_completed = False
-        self.is_client = self.wcd_url is not "" and self.wcd_api_key is not ""
+        self.is_client = self.wcd_url != "" and self.wcd_api_key != ""
 
         if self.logger:
             if self.wcd_api_key == "" and self.wcd_url == "":
@@ -189,7 +189,7 @@ class ClientManager:
             if api_key.lower() in [a.lower() for a in api_key_map.keys()]:
                 self.headers[api_key_map[api_key.upper()]] = api_keys[api_key]
 
-        self.is_client = self.wcd_url is not "" and self.wcd_api_key is not ""
+        self.is_client = self.wcd_url != "" and self.wcd_api_key != ""
         if self.is_client:
             await self.restart_client(force=True)
             await self.restart_async_client(force=True)

@@ -337,6 +337,8 @@ async def save_config_user(
     logger.debug(f"Frontend config: {data.frontend_config}")
     logger.debug(f"Default: {data.default}")
 
+    warnings = []
+
     try:
         user = await user_manager.get_user_local(user_id)
         tree_manager: TreeManager = user["tree_manager"]
@@ -347,30 +349,6 @@ async def save_config_user(
         )
 
     if data.default:
-
-        if data.frontend_config is not None:
-            try:
-                await user_manager.update_frontend_config(user_id, data.frontend_config)
-                save_frontend_config_to_file(user_id, user["frontend_config"].to_json())
-
-            except Exception as e:
-                if "Could not connect to Weaviate" in str(e):
-                    return JSONResponse(
-                        content={
-                            "error": "Could not connect to Weaviate. Double check that the WCD_URL and WCD_API_KEY are correct."
-                        }
-                    )
-                else:
-                    logger.exception(
-                        f"Error in /save_config_user API during frontend config update"
-                    )
-                    return JSONResponse(
-                        content={
-                            "error": str(e),
-                            "config": tree_manager.config.to_json(),
-                            "frontend_config": user["frontend_config"].to_json(),
-                        }
-                    )
 
         # Save the config in memory for this user (Apply step)
         try:
@@ -393,8 +371,42 @@ async def save_config_user(
                     "error": str(e),
                     "config": tree_manager.config.to_json(),
                     "frontend_config": user["frontend_config"].to_json(),
+                    "warnings": warnings,
                 }
             )
+
+        # Save the frontend config to memory and local file system
+        if data.frontend_config is not None:
+            try:
+                await user_manager.update_frontend_config(user_id, data.frontend_config)
+                save_frontend_config_to_file(user_id, user["frontend_config"].to_json())
+
+            except Exception as e:
+                if "Could not connect to Weaviate" in str(e):
+                    warnings.append(
+                        "Could not connect to Weaviate. "
+                        "Please check your WCD_URL and WCD_API_KEY are correct."
+                    )
+                    return JSONResponse(
+                        content={
+                            "error": "",
+                            "config": tree_manager.config.to_json(),
+                            "frontend_config": user["frontend_config"].to_json(),
+                            "warnings": warnings,
+                        }
+                    )
+                else:
+                    logger.exception(
+                        f"Error in /save_config_user API during frontend config update"
+                    )
+                    return JSONResponse(
+                        content={
+                            "error": str(e),
+                            "config": tree_manager.config.to_json(),
+                            "frontend_config": user["frontend_config"].to_json(),
+                            "warnings": warnings,
+                        }
+                    )
 
     if not user["frontend_config"].config["save_configs_to_weaviate"]:
         return JSONResponse(
@@ -402,6 +414,7 @@ async def save_config_user(
                 "error": "",
                 "config": tree_manager.config.to_json(),
                 "frontend_config": user["frontend_config"].to_json(),
+                "warnings": warnings,
             }
         )
 
@@ -421,111 +434,112 @@ async def save_config_user(
 
         # Check if the user has a valid save location
         if (
-            "frontend_config" not in user
-            or "save_location_wcd_url" not in user["frontend_config"].__dict__
-            or "save_location_wcd_api_key" not in user["frontend_config"].__dict__
-        ):
-            raise Exception("WCD URL or API key not found.")
-
-        if (
             user["frontend_config"].save_location_wcd_url == ""
             or user["frontend_config"].save_location_wcd_api_key == ""
         ):
-            raise Exception(
+            warnings.append(
                 "No valid destination for config save location found. "
-                "Please update the save location using the /update_save_location API."
+                "Config has not been saved to Weaviate. "
+                "Saving to Weaviate requires a Config Storage WCD_URL and WCD_API_KEY."
             )
+        else:
 
-        settings_dict = encrypt_api_keys(settings_dict)
+            settings_dict = encrypt_api_keys(settings_dict)
 
-        # Connect to the weaviate database
-        async with user[
-            "frontend_config"
-        ].save_location_client_manager.connect_to_async_client() as client:
+            # Connect to the weaviate database
+            async with user[
+                "frontend_config"
+            ].save_location_client_manager.connect_to_async_client() as client:
 
-            uuid = generate_uuid5(config_id)
+                uuid = generate_uuid5(config_id)
 
-            # Create a collection if it doesn't exist
-            if await client.collections.exists("ELYSIA_CONFIG__"):
-                collection = client.collections.get("ELYSIA_CONFIG__")
-            else:
-                collection = await client.collections.create(
-                    "ELYSIA_CONFIG__",
-                    vectorizer_config=wc.Configure.Vectorizer.none(),
-                    inverted_index_config=wc.Configure.inverted_index(
-                        index_timestamps=True
-                    ),
-                    properties=[
-                        Property(
-                            name="name",
-                            data_type=DataType.TEXT,
+                # Create a collection if it doesn't exist
+                if await client.collections.exists("ELYSIA_CONFIG__"):
+                    collection = client.collections.get("ELYSIA_CONFIG__")
+                else:
+                    collection = await client.collections.create(
+                        "ELYSIA_CONFIG__",
+                        vectorizer_config=wc.Configure.Vectorizer.none(),
+                        inverted_index_config=wc.Configure.inverted_index(
+                            index_timestamps=True
                         ),
-                        Property(
-                            name="style",
-                            data_type=DataType.TEXT,
-                        ),
-                        Property(
-                            name="agent_description",
-                            data_type=DataType.TEXT,
-                        ),
-                        Property(
-                            name="end_goal",
-                            data_type=DataType.TEXT,
-                        ),
-                        Property(
-                            name="branch_initialisation",
-                            data_type=DataType.TEXT,
-                        ),
-                        Property(
-                            name="user_id",
-                            data_type=DataType.TEXT,
-                        ),
-                        Property(
-                            name="config_id",
-                            data_type=DataType.TEXT,
-                        ),
-                        Property(
-                            name="default",
-                            data_type=DataType.BOOL,
-                        ),
-                    ],
-                )
-
-            format_dict_to_serialisable(settings_dict)
-
-            config_item = {
-                "name": data.name,
-                "settings": settings_dict,
-                "style": style,
-                "agent_description": agent_description,
-                "end_goal": end_goal,
-                "branch_initialisation": branch_initialisation,
-                "frontend_config": user["frontend_config"].config,
-                "config_id": config_id,
-                "user_id": user_id,
-                "default": data.default,
-            }
-
-            # if the config is a default config, set all other default configs to False
-            if data.default:
-                existing_default_config = await collection.query.fetch_objects(
-                    filters=Filter.all_of(
-                        [
-                            Filter.by_property("default").equal(True),
-                            Filter.by_property("user_id").equal(user_id),
-                        ]
-                    )
-                )
-                for item in existing_default_config.objects:
-                    await collection.data.update(
-                        properties={"default": False}, uuid=item.uuid
+                        properties=[
+                            Property(
+                                name="name",
+                                data_type=DataType.TEXT,
+                            ),
+                            Property(
+                                name="style",
+                                data_type=DataType.TEXT,
+                            ),
+                            Property(
+                                name="agent_description",
+                                data_type=DataType.TEXT,
+                            ),
+                            Property(
+                                name="end_goal",
+                                data_type=DataType.TEXT,
+                            ),
+                            Property(
+                                name="branch_initialisation",
+                                data_type=DataType.TEXT,
+                            ),
+                            Property(
+                                name="user_id",
+                                data_type=DataType.TEXT,
+                            ),
+                            Property(
+                                name="config_id",
+                                data_type=DataType.TEXT,
+                            ),
+                            Property(
+                                name="default",
+                                data_type=DataType.BOOL,
+                            ),
+                        ],
                     )
 
-            # save the config to the weaviate database
-            if await collection.data.exists(uuid=uuid):
-                await collection.data.update(properties=config_item, uuid=uuid)
-            else:
-                await collection.data.insert(config_item, uuid=uuid)
+                format_dict_to_serialisable(settings_dict)
+
+                if settings_dict == {}:
+                    settings_dict["null"] = "null"
+
+                if "API_KEYS" in settings_dict and settings_dict["API_KEYS"] == {}:
+                    settings_dict["API_KEYS"]["null"] = "null"
+
+                config_item = {
+                    "name": data.name,
+                    "settings": settings_dict,
+                    "style": style,
+                    "agent_description": agent_description,
+                    "end_goal": end_goal,
+                    "branch_initialisation": branch_initialisation,
+                    "frontend_config": user["frontend_config"].config,
+                    "config_id": config_id,
+                    "user_id": user_id,
+                    "default": data.default,
+                }
+
+                # if the config is a default config, set all other default configs to False
+                if data.default:
+                    existing_default_config = await collection.query.fetch_objects(
+                        filters=Filter.all_of(
+                            [
+                                Filter.by_property("default").equal(True),
+                                Filter.by_property("user_id").equal(user_id),
+                            ]
+                        )
+                    )
+                    for item in existing_default_config.objects:
+                        await collection.data.update(
+                            properties={"default": False}, uuid=item.uuid
+                        )
+
+                # save the config to the weaviate database
+                if await collection.data.exists(uuid=uuid):
+                    await collection.data.update(properties=config_item, uuid=uuid)
+                else:
+                    await collection.data.insert(config_item, uuid=uuid)
 
     except Exception as e:
         logger.exception(f"Error in /save_config_user API during weaviate save")
@@ -534,6 +548,7 @@ async def save_config_user(
                 "error": str(e),
                 "config": tree_manager.config.to_json(),
                 "frontend_config": user["frontend_config"].to_json(),
+                "warnings": warnings,
             }
         )
 
@@ -545,6 +560,7 @@ async def save_config_user(
             "error": "",
             "config": tree_manager.config.to_json(),
             "frontend_config": user["frontend_config"].to_json(),
+            "warnings": warnings,
         }
     )
 
@@ -577,6 +593,8 @@ async def load_config_user(
     logger.debug(f"User ID: {user_id}")
     logger.debug(f"Config ID: {config_id}")
 
+    warnings = []
+
     # Retrieve the user info
     try:
         user = await user_manager.get_user_local(user_id)
@@ -585,7 +603,12 @@ async def load_config_user(
     except Exception as e:
         logger.exception(f"Error in /load_config_user API during user retrieval")
         return JSONResponse(
-            content={"error": str(e), "config": {}, "frontend_config": {}}
+            content={
+                "error": str(e),
+                "config": {},
+                "frontend_config": {},
+                "warnings": warnings,
+            }
         )
 
     try:
@@ -620,14 +643,12 @@ async def load_config_user(
 
         format_dict_to_serialisable(config_item)
 
-        invalid_token = False
         if "settings" in config_item:
             try:
                 config_item["settings"] = decrypt_api_keys(config_item["settings"])
             except InvalidToken:
-                invalid_token = True
-                logger.warning(
-                    f"Invalid token for config {config_id}, returning empty API keys. You will need to update the API keys in the frontend."
+                warnings.append(
+                    "Invalid token for config. You will need to re-enter your API keys in the settings."
                 )
                 config_item["settings"]["API_KEYS"] = {}
                 config_item["settings"]["WCD_API_KEY"] = ""
@@ -663,6 +684,7 @@ async def load_config_user(
                 "error": str(e),
                 "config": config.to_json(),
                 "frontend_config": frontend_config.to_json(),
+                "warnings": warnings,
             }
         )
 
@@ -671,13 +693,10 @@ async def load_config_user(
     frontend_config = user["frontend_config"]
     return JSONResponse(
         content={
-            "error": (
-                "Invalid token for config. You will need to supply the API keys in the frontend."
-                if invalid_token
-                else ""
-            ),
+            "error": "",
             "config": config.to_json(),
             "frontend_config": frontend_config.to_json(),
+            "warnings": warnings,
         }
     )
 
@@ -734,6 +753,7 @@ async def list_configs(
     logger.debug(f"User ID: {user_id}")
 
     headers = {"Cache-Control": "no-cache"}
+    warnings = []
 
     try:
         user = await user_manager.get_user_local(user_id)
@@ -752,7 +772,14 @@ async def list_configs(
                 "no valid destination for config location found. "
                 "Returning no error but an empty list of configs."
             )
-            return JSONResponse(content={"error": "", "configs": []}, headers=headers)
+            warnings.append(
+                "No valid destination for config location found. "
+                "Cannot show saved configs."
+            )
+            return JSONResponse(
+                content={"error": "", "configs": [], "warnings": warnings},
+                headers=headers,
+            )
 
         if not user["frontend_config"].save_location_client_manager.is_client:
             logger.warning(
@@ -760,7 +787,13 @@ async def list_configs(
                 "Client manager is not connected to a client. "
                 "Returning no error but an empty list of configs."
             )
-            return JSONResponse(content={"error": "", "configs": []}, headers=headers)
+            warnings.append(
+                "Weaviate client is not connected. Cannot show saved configs."
+            )
+            return JSONResponse(
+                content={"error": "", "configs": [], "warnings": warnings},
+                headers=headers,
+            )
 
         if user_id is not None:
             user_id_filter = Filter.by_property("user_id").equal(user_id)
@@ -800,6 +833,11 @@ async def list_configs(
 
     except Exception as e:
         logger.exception(f"Error in /list_configs API")
-        return JSONResponse(content={"error": str(e), "configs": []}, headers=headers)
+        return JSONResponse(
+            content={"error": str(e), "configs": [], "warnings": warnings},
+            headers=headers,
+        )
 
-    return JSONResponse(content={"error": "", "configs": configs}, headers=headers)
+    return JSONResponse(
+        content={"error": "", "configs": configs, "warnings": warnings}, headers=headers
+    )
