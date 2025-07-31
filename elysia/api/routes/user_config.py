@@ -17,7 +17,6 @@ from elysia.api.utils.config import Config
 from elysia.api.core.log import logger
 from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
-from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable, format_datetime
 from elysia.config import Settings
 from elysia.api.services.tree import TreeManager
@@ -230,23 +229,28 @@ async def new_user_config(
         tree_manager: TreeManager = user["tree_manager"]
         frontend_config: FrontendConfig = user["frontend_config"]
 
+        # get existing config
+
         settings = Settings()
         settings.smart_setup()
 
-        tree_manager.settings.load_settings(settings.to_json())
-        tree_manager.config.settings = settings
-        tree_manager.config.style = "Informative, polite and friendly."
-        tree_manager.config.agent_description = "You search and query Weaviate to satisfy the user's query, providing a concise summary of the results."
-        tree_manager.config.end_goal = (
-            "You have satisfied the user's query, and provided a concise summary of the results. "
-            "Or, you have exhausted all options available, or asked the user for clarification."
+        config = Config(
+            id=str(uuid4()),
+            name="New Config",
+            settings=settings,
+            style="Informative, polite and friendly.",
+            agent_description="You search and query Weaviate to satisfy the user's query, providing a concise summary of the results.",
+            end_goal=(
+                "You have satisfied the user's query, and provided a concise summary of the results. "
+                "Or, you have exhausted all options available, or asked the user for clarification."
+            ),
+            branch_initialisation="one_branch",
         )
-        tree_manager.config.branch_initialisation = "one_branch"
-        tree_manager.config.name = "New Config"
-        tree_manager.config.id = str(uuid4())
 
-        frontend_config.save_location_wcd_url = os.getenv("WCD_URL", "")
-        frontend_config.save_location_wcd_api_key = os.getenv("WCD_API_KEY", "")
+        frontend_config.save_location_wcd_url = frontend_config.save_location_wcd_url
+        frontend_config.save_location_wcd_api_key = (
+            frontend_config.save_location_wcd_api_key
+        )
         frontend_config.config = {
             "save_trees_to_weaviate": True,
             "save_configs_to_weaviate": True,
@@ -259,15 +263,15 @@ async def new_user_config(
         return JSONResponse(
             content={
                 "error": str(e),
-                "config": tree_manager.config.to_json(),
-                "frontend_config": user["frontend_config"].to_json(),
+                "config": {},
+                "frontend_config": {},
             }
         )
 
     return JSONResponse(
         content={
             "error": "",
-            "config": tree_manager.config.to_json(),
+            "config": config.to_json(),
             "frontend_config": user["frontend_config"].to_json(),
         }
     )
