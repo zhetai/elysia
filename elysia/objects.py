@@ -906,7 +906,7 @@ class Retrieval(Result):
         }
 
 
-class Error:
+class Error(Update):
     """
     Error objects are used to communicate errors to the decision agent/tool calls.
     When yielded, Error objects are automatically saved inside the TreeData object.
@@ -914,13 +914,20 @@ class Error:
     All errors are shown to the decision agent to help decide whether the tool should be called again (retried), or a different tool should be called.
     """
 
-    def __init__(self, feedback: str):
+    def __init__(self, feedback: str = "", error_message: str = ""):
         """
         Args:
             feedback (str): The feedback to display to the decision agent.
                 Usually this will be the error message, but it could be formatted more specifically.
         """
         self.feedback = feedback
+        self.error_message = error_message
 
-    def to_json(self):
-        return {"feedback": self.feedback}
+        if feedback == "":
+            self.feedback = "An unknown issue occurred."
+
+        Update.__init__(
+            self,
+            "self_healing_error",
+            {"feedback": self.feedback, "error_message": self.error_message},
+        )

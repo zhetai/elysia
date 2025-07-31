@@ -103,14 +103,14 @@ class TestGenericPrompts:
         tree = await self.run_tree(
             user_prompt,
             [
-                "ecommerce",
-                "example_verba_email_chains",
-                "example_verba_github_issues",
-                "example_verba_slack_conversations",
-                "weather",
+                "Ecommerce",
+                "Example_verba_email_chains",
+                "Example_verba_github_issues",
+                "Example_verba_slack_conversations",
+                "Weather",
                 "ML_Wikipedia",
-                "weaviate_blogs",
-                "weaviate_documentation",
+                "Weaviate_blogs",
+                "Weaviate_documentation",
             ],
         )
 
@@ -134,7 +134,7 @@ class TestGenericPrompts:
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            assert test_case.success
+            assert test_case.success, test_case.metrics_data[0].reason
 
     @pytest.mark.asyncio
     async def test_text_response(self):
@@ -176,7 +176,7 @@ class TestGenericPrompts:
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            assert test_case.success
+            assert test_case.success, test_case.metrics_data[0].reason
 
     @pytest.mark.asyncio
     async def test_summarising_output(self):
@@ -199,8 +199,8 @@ class TestGenericPrompts:
         assert "query" in all_decision_history
 
         env_key = (
-            "summarise_items"
-            if "summarise_items" in tree.tree_data.environment.environment
+            "query_postprocessing"
+            if "query_postprocessing" in tree.tree_data.environment.environment
             else "query"
         )
 
@@ -249,7 +249,7 @@ class TestGenericPrompts:
             test_cases=[summarisation_test_case], metrics=[summarisation_metric]
         )
         for test_case in res.test_results:
-            assert test_case.success
+            assert test_case.success, test_case.metrics_data[0].reason
 
     @pytest.mark.asyncio
     async def test_itemised_summaries(self):
@@ -274,15 +274,15 @@ class TestGenericPrompts:
         assert "query" in all_decision_history
         assert (
             "Example_verba_slack_conversations"
-            in tree.tree_data.environment.environment["summarise_items"]
+            in tree.tree_data.environment.environment["query_postprocessing"]
         )
-        for item in tree.tree_data.environment.environment["summarise_items"][
+        for item in tree.tree_data.environment.environment["query_postprocessing"][
             "Example_verba_slack_conversations"
         ][0]["objects"]:
             assert "ELYSIA_SUMMARY" in item.keys() and len(item["ELYSIA_SUMMARY"]) > 0
 
 
-if __name__ == "__main__":
-    import asyncio
+# if __name__ == "__main__":
+#     import asyncio
 
-    asyncio.run(TestGenericPrompts().test_itemised_summaries())
+#     asyncio.run(TestGenericPrompts().test_itemised_summaries())

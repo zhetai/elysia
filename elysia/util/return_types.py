@@ -1,6 +1,6 @@
 specific_return_types = {
     "conversation": (
-        "Full conversations, including all messages and message authors, with timestamps and context of other messages in the conversation."
+        "Full conversations, including all messages and message authors, with timestamps and context of other messages in the conversation."  # TODO: explaint hat it needs conversation_id or equivalent
     ),
     "message": (
         "Individual messages, only including the author of each individual message and timestamp, "

@@ -11,7 +11,7 @@ from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
 from elysia.objects import Response, Status, Tool, Warning, Error
 from elysia.tools.retrieval.objects import Aggregation
 from elysia.tools.retrieval.prompt_templates import AggregationPrompt
-from elysia.tools.retrieval.util import execute_weaviate_aggregation
+from elysia.tools.retrieval.util import execute_weaviate_aggregation, QueryError
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
 from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
@@ -161,7 +161,7 @@ class Aggregate(Tool):
                     previous_aggregation_queries=previous_aggregations,
                 )
         except Exception as e:
-            yield Error(str(e))
+            yield Error(error_message=str(e))
             return
 
         if self.logger and aggregation.aggregation_queries is not None:
@@ -219,16 +219,27 @@ class Aggregate(Tool):
             async with client_manager.connect_to_async_client() as client:
                 try:
                     responses, code_strings = await execute_weaviate_aggregation(
-                        client, aggregation_output
+                        client,
+                        aggregation_output,
+                        property_types={
+                            collection_name: {
+                                field: schemas[collection_name]["fields"][field]["type"]
+                                for field in schemas[collection_name]["fields"]
+                            }
+                            for collection_name in collection_names
+                        },
                     )
+                except QueryError as e:
+                    yield Error(feedback=str(e))
+                    return
                 except Exception as e:
                     for collection_name in aggregation_output.target_collections:
                         if self.logger:
                             self.logger.exception(
                                 f"Error executing aggregation for {collection_name}: {str(e)}"
                             )
-                        yield Error(str(e))
-                    continue  # continue to next aggregation output
+                        yield Error(error_message=str(e))
+                    continue  # don't exit, try again for next aggregation output (might not error)
 
             yield Status(
                 f"Aggregated over {', '.join(aggregation_output.target_collections)}"

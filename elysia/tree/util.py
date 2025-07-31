@@ -13,6 +13,7 @@ from weaviate.classes.query import MetadataQuery, Sort, Filter
 from elysia.objects import (
     Response,
     Result,
+    Error,
     Text,
     Tool,
     Update,
@@ -595,11 +596,11 @@ class TreeReturner:
 
     async def __call__(
         self,
-        result: Result | TreeUpdate | Update | Text,
+        result: Result | TreeUpdate | Update | Text | Error,
         query_id: str,
     ) -> dict[str, str | dict] | None:
 
-        if isinstance(result, (Update, Text, Result)):
+        if isinstance(result, (Update, Text, Result, Error)):
             payload = await result.to_frontend(
                 self.user_id, self.conversation_id, query_id
             )
