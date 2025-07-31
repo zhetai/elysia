@@ -1214,7 +1214,11 @@ class Tree:
             if self.settings.LOGGING_LEVEL_INT <= 20:
                 print(
                     Panel.fit(
-                        result.feedback,
+                        (
+                            result.error_message
+                            if result.feedback == "An unknown issue occurred."
+                            else result.feedback
+                        ),
                         title="Error",
                         border_style="red",
                         padding=(1, 1),

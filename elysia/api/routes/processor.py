@@ -32,10 +32,6 @@ async def process_collection(
     user = await user_manager.get_user_local(data["user_id"])
     settings = user["tree_manager"].settings
 
-    print(f"\nUSER ID: {data['user_id']}")
-    print(f"SETTINGS: {settings}")
-    print(f"API KEYS: {settings.API_KEYS}\n\n")
-
     async for result in preprocess_async(
         collection_name=data["collection_name"],
         client_manager=user["client_manager"],
@@ -47,10 +43,6 @@ async def process_collection(
                 f"(process_collection) sending result with progress: {result['progress']*100}%"
             )
             await websocket.send_json(result)
-            if "error" in result:
-                print(f"ERROR: {result['error']}")
-                if "message" in result:
-                    print(f"MESSAGE: {result['message']}")
         except WebSocketDisconnect:
             logger.info("Client disconnected during process_collection")
             break

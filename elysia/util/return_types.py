@@ -12,8 +12,8 @@ specific_return_types = {
         "Contains an image field, and space for plenty of metadata."
     ),
     "document": (
-        "Text-based information, usually with a title, author, date, and content, but not always. "
-        "Ideal for longer text."
+        "Text-based information, optionally with a title, author, date, and content, but not always. "
+        "Ideal for any text-based information."
     ),
 }
 

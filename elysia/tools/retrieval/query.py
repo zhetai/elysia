@@ -409,6 +409,21 @@ class Query(Tool):
                     ),
                 )
                 return
+            for collection_name in query.fields_to_search:
+                if query.fields_to_search[collection_name] is not None and any(
+                    [
+                        q not in searchable_fields[collection_name]
+                        for q in query.fields_to_search[collection_name]
+                    ]
+                ):
+                    yield Error(
+                        feedback=(
+                            f"The chosen named vector (field_to_search) was '{query.fields_to_search[collection_name]}', "
+                            f"but this is not a valid named vector for collection '{collection_name}'. "
+                            f"The available named vectors are: {searchable_fields[collection_name]}. "
+                        ),
+                    )
+                    return
 
         # Go through outputs for each unique query
         for i, query_output in enumerate(query.query_outputs):

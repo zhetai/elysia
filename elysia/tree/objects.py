@@ -415,7 +415,6 @@ class CollectionData:
             # check if the metadata collection exists
             if not await client.collections.exists(metadata_name):
                 self.removed_collections.extend(collections_to_get)
-                pass_on = True
             else:
                 metadata_collection = client.collections.get(metadata_name)
                 metadata = await metadata_collection.query.fetch_objects(
@@ -430,9 +429,7 @@ class CollectionData:
                     metadata_obj.properties["name"]: metadata_obj.properties
                     for metadata_obj in metadata.objects
                 }
-                pass_on = False
 
-            if not pass_on:
                 for collection_name in collections_to_get:
 
                     if not await client.collections.exists(collection_name):

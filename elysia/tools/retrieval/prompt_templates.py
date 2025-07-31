@@ -240,23 +240,25 @@ class QueryCreatorPrompt(dspy.Signature):
     )
     searchable_fields: dict[str, list[str]] = dspy.InputField(
         desc="""
-        A dictionary of the fields to search for each collection. Use this to determine the field in `vector_to_search`, for each collection.
+        A dictionary of the named vector fields to search for each collection. Use this to determine the field in `vector_to_search`, for each collection.
+        IMPORTANT: these are not property names, they are the names of vectors to search on (if using hybrid or vector search).
         The keys are the collection names, and the values are the fields that are possible to perform the search on.
         """.strip(),
         format=dict[str, list[str]],
     )
 
-    query_outputs: Union[List[QueryOutput], None] = dspy.OutputField(
+    query_outputs: Union[list[QueryOutput], None] = dspy.OutputField(
         description="The query(-ies) to be executed. Return None if query is impossible to execute"
     )
-    fields_to_search: dict[str, List[str] | None] = dspy.OutputField(
+    fields_to_search: dict[str, list[str] | None] = dspy.OutputField(
         desc="""
-        A dictionary of the fields to search for each collection.
+        A dictionary of the named vector fields to search for each collection.
+        IMPORTANT: these are not property names, they are the names of vectors to search on (if using hybrid or vector search).
+        Always only choose a field from the `searchable_fields` list.
         The keys are the collection names, and the values are the fields to search for.
         These come from the `searchable_fields` list. If this list is empty, the value should be None.
         Otherwise, you should choose the field(s) that would be most relevant to the user's query.
-        This should never be None unless the `searchable_fields` list is empty.
-        If in doubt, choose all of the available fields.
+        If in doubt, set the value inside the dictionary to None.
         """.strip()
     )
     data_display: dict[str, DataDisplay] = dspy.OutputField(

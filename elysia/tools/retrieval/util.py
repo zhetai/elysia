@@ -200,10 +200,18 @@ def catch_typing_errors(
                     ) and not collection_property_types[filter.property_name].endswith(
                         "[]"
                     ):
-                        raise QueryError(
-                            f"Attempted to filter on property '{filter.property_name}' using a list filter, "
-                            "but the property type is not a list."
-                        )
+                        if collection_property_types[filter.property_name] == "text":
+                            raise QueryError(
+                                f"Attempted to filter on property '{filter.property_name}' using a list filter, "
+                                "but the property type is text. Text properties cannot be filtered on. "
+                                "Hint: use a text filter with the 'LIKE' operator instead."
+                            )
+                        else:
+                            raise QueryError(
+                                f"Attempted to filter on property '{filter.property_name}' using a list filter, "
+                                "but the property type is not a list. It is a "
+                                f"{collection_property_types[filter.property_name]}."
+                            )
 
                     # check number
                     if isinstance(filter, NumberPropertyFilter):
@@ -275,7 +283,10 @@ async def execute_weaviate_query(
         tool_args["reference_property"] = reference_property
 
     if named_vector_fields:
-        tool_args["named_vector_fields"] = named_vector_fields
+        tool_args["named_vector_fields"] = {
+            name: fields if fields != [] else None
+            for name, fields in named_vector_fields.items()
+        }
 
     catch_typing_errors(tool_args, property_types)
 
