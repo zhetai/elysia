@@ -296,7 +296,7 @@ async def preprocess_async(
     max_sample_size: int = 20,
     num_sample_tokens: int = 30000,
     force: bool = False,
-    percentage_correct_threshold: float = 0.6,
+    percentage_correct_threshold: float = 0.3,
     settings: Settings = environment_settings,
 ) -> AsyncGenerator[dict, None]:
     """

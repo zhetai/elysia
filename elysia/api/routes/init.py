@@ -95,6 +95,7 @@ async def initialise_user(
                         end_goal=default_config.end_goal,
                         branch_initialisation=default_config.branch_initialisation,
                     )
+                    logger.debug("Using default config")
 
         # if a user exists, get the existing configs
         user = await user_manager.get_user_local(user_id)

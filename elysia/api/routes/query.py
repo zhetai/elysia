@@ -70,6 +70,9 @@ async def process(data: dict, websocket: WebSocket, user_manager: UserManager):
     logger.debug(f"Training mimick model: {data['mimick']}")
     logger.debug(f"Collection names: {data['collection_names']}")
 
+    user = await user_manager.get_user_local(user_id=data["user_id"])
+    print(f"CONFIG: {user['tree_manager'].config.to_json()}")
+
     try:
         # optional arguments
         if "route" in data:
@@ -167,4 +170,5 @@ async def query_websocket(
     WebSocket endpoint for processing pipelines.
     Handles real-time communication for pipeline execution and status updates.
     """
+
     await help_websocket(websocket, lambda data, ws: process(data, ws, user_manager))

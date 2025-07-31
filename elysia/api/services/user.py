@@ -47,7 +47,6 @@ async def load_frontend_config_from_file(
         elysia_package_dir = Path(__file__).parent.parent.parent  # Gets to elysia/
         config_dir = elysia_package_dir / "api" / "user_configs"
         config_file = config_dir / f"frontend_config_{user_id}.json"
-        print(f"\n\nLoading frontend config from file: {config_file}\n\n")
 
         if not config_file.exists():
             return FrontendConfig(logger=logger)
@@ -168,9 +167,16 @@ class UserManager:
                 tree_timeout=fe_config.config["tree_timeout"],
             )
 
+            print(
+                "\n\n USER MANAGER SETTINGS: ",
+                self.users[user_id]["tree_manager"].config.settings,
+            )
+
             # client manager starts with env variables, when config is updated, api keys are updated
             self.users[user_id]["client_manager"] = ClientManager(
-                logger=logger, client_timeout=fe_config.config["client_timeout"]
+                logger=logger,
+                client_timeout=fe_config.config["client_timeout"],
+                settings=self.users[user_id]["tree_manager"].config.settings,
             )
 
     async def get_user_local(self, user_id: str):
@@ -568,11 +574,6 @@ class UserManager:
 
         local_user = await self.get_user_local(user_id)
         await self.update_user_last_request(user_id)
-
-        print("\n\n PROCESSING TREE \n\n")
-        print("\n\n CONFIG \n\n")
-        print(local_user["tree_manager"].config.to_json())
-        print("\n\n")
 
         tree_manager: TreeManager = local_user["tree_manager"]
 

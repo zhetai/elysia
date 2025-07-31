@@ -10,7 +10,7 @@ from logging import Logger
 import weaviate
 from weaviate.classes.init import Auth
 from weaviate.client import WeaviateClient, WeaviateAsyncClient
-from elysia.config import settings as environment_settings
+from elysia.config import settings as environment_settings, Settings
 
 api_key_map = {
     # Regular API keys
@@ -66,6 +66,7 @@ class ClientManager:
         wcd_api_key: str | None = None,
         client_timeout: datetime.timedelta | int | None = None,
         logger: Logger | None = None,
+        settings: Settings | None = None,
         **kwargs,
     ) -> None:
         """
@@ -74,6 +75,7 @@ class ClientManager:
             wcd_api_key (str): the api key for the Weaviate cluster. Defaults to global settings config.
             client_timeout (datetime.timedelta | int | None): how long (in minutes) means the client should be restarted. Defaults to 3 minutes.
             logger (Logger | None): a logger object for logging messages. Defaults to None.
+            settings (Settings | None): a settings object for the client manager. Defaults to environment settings.
             **kwargs (Any): any other api keys for third party services (formatted as e.g. OPENAI_APIKEY).
 
         Example:
@@ -98,29 +100,41 @@ class ClientManager:
         else:
             self.client_timeout = client_timeout
 
+        if settings is None:
+            self.settings = environment_settings
+            print("\n USING ENVIRONMENT SETTINGS")
+        else:
+            self.settings = settings
+            print("\n USING SETTINGS")
+
+        print("\n\n SETTINGS API KEYS: ", self.settings.API_KEYS)
+        print("\n\n kwargs: ", kwargs)
+
         # Set the weaviate cluster url and api key
         if wcd_url is None:
-            self.wcd_url = environment_settings.WCD_URL
+            self.wcd_url = self.settings.WCD_URL
         else:
             self.wcd_url = wcd_url
 
         if wcd_api_key is None:
-            self.wcd_api_key = environment_settings.WCD_API_KEY
+            self.wcd_api_key = self.settings.WCD_API_KEY
         else:
             self.wcd_api_key = wcd_api_key
 
         # Set the api keys for non weaviate cluster (third parties)
         self.headers = {}
-        for api_key in environment_settings.API_KEYS:
+        for api_key in self.settings.API_KEYS:
             if api_key.lower() in [a.lower() for a in api_key_map.keys()]:
-                self.headers[api_key_map[api_key.upper()]] = (
-                    environment_settings.API_KEYS[api_key]
-                )
+                self.headers[api_key_map[api_key.upper()]] = self.settings.API_KEYS[
+                    api_key
+                ]
 
         # From kwargs
         for kwarg in kwargs:
             if kwarg.lower() in [a.lower() for a in api_key_map.keys()]:
                 self.headers[api_key_map[kwarg.upper()]] = kwargs[kwarg]
+
+        print("\n\n HEADERS: ", self.headers)
 
         # Create locks for client events
         self.async_lock = asyncio.Lock()
@@ -184,6 +198,8 @@ class ClientManager:
         """
         self.wcd_url = wcd_url
         self.wcd_api_key = wcd_api_key
+
+        self.headers = {}
 
         for api_key in api_keys:
             if api_key.lower() in [a.lower() for a in api_key_map.keys()]:

@@ -168,6 +168,11 @@ class FakeTextResponse(Tool):
             name="text_response",
             description="""
             End the conversation. This should be used when the user has finished their query, or you have nothing more to do except reply.
+            If there is an error and you could not complete a task, use this tool to suggest a brief reason why.
+            If, for example, there is a missing API key, then the user needs to add it to the settings (which you should inform them of).
+            Or you cannot connect to weaviate, then the user needs to input their API keys in the settings.
+            If there are no collections available, the user needs to analyze this in the 'data' tab.
+            If there are other problems, and it looks like the user can fix it, then provide a suggestion.
             """,
             status="Writing response...",
             inputs={

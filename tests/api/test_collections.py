@@ -117,7 +117,7 @@ class TestEndpoints:
             await initialise_user_and_tree(user_id, conversation_id)
             basic = await collection_metadata(
                 user_id,
-                collection_name="example_verba_github_issues",
+                collection_name="Example_verba_github_issues",
                 user_manager=user_manager,
             )
             basic = read_response(basic)
