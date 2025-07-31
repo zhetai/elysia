@@ -22,6 +22,7 @@ from elysia.api.api_types import (
 
 from fastapi.responses import JSONResponse
 import json
+from weaviate.util import generate_uuid5
 
 
 def read_response(response: JSONResponse):
@@ -62,6 +63,21 @@ async def initialise_user_and_tree(user_id: str, conversation_id: str):
     )
 
 
+async def remove_feedback_after_completion(
+    user_id: str, conversation_id: str, query_id: str, client_manager: ClientManager
+):
+    async with client_manager.connect_to_async_client() as client:
+        feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
+        session_uuid = generate_uuid5(
+            {
+                "user_id": user_id,
+                "conversation_id": conversation_id,
+                "query_id": query_id,
+            }
+        )
+        await feedback_collection.data.delete_by_id(uuid=session_uuid)
+
+
 class TestFeedback:
 
     @pytest.mark.asyncio
@@ -75,101 +91,156 @@ class TestFeedback:
 
         await initialise_user_and_tree(user_id, conversation_id)
 
-        out = await process(
-            QueryData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                query="hi!",
-                query_id=query_id,
-                collection_names=["Example_verba_github_issues"],
-            ).model_dump(),
-            websocket,
-            user_manager,
-        )
+        try:
 
-        response = await run_feedback_metadata(
-            user_id=user_id,
-            user_manager=user_manager,
-        )
-
-        assert read_response(response)["error"] == ""
-
-        # record number of feedbacks
-        num_feedbacks = read_response(response)["total_feedback"]
-
-        # number of positives
-        num_positives = read_response(response)["feedback_by_value"]["positive"]
-
-        # number of dates
-        date = datetime.now().strftime("%Y-%m-%d")
-        if date in read_response(response)["feedback_by_date"]:
-            num_feedbacks_on_this_date = read_response(response)["feedback_by_date"][
-                date
-            ]["count"]
-        else:
-            num_feedbacks_on_this_date = 0
-
-        response = await run_add_feedback(
-            AddFeedbackData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                query_id=query_id,
-                feedback=1,
-            ),
-            user_manager,
-        )
-
-        assert read_response(response)["error"] == ""
-
-        response = await run_feedback_metadata(
-            user_id=user_id,
-            user_manager=user_manager,
-        )
-
-        assert read_response(response)["error"] == ""
-
-        # number of positives should have increased by 1
-        assert (
-            read_response(response)["feedback_by_value"]["positive"]
-            == num_positives + 1
-        )
-
-        # number of feedbacks on this date should have increased by 1
-        assert (
-            read_response(response)["feedback_by_date"][date]["positive"]
-            == num_feedbacks_on_this_date + 1
-        )
-
-        # number of feedbacks should have increased by 1
-        assert read_response(response)["total_feedback"] == num_feedbacks + 1
-
-        response = await run_remove_feedback(
-            RemoveFeedbackData(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                query_id=query_id,
-            ),
-            user_manager,
-        )
-
-        assert read_response(response)["error"] == ""
-
-        response = await run_feedback_metadata(
-            user_id=user_id,
-            user_manager=user_manager,
-        )
-
-        assert read_response(response)["error"] == ""
-
-        # number of positives should have decreased by 1
-        assert read_response(response)["feedback_by_value"]["positive"] == num_positives
-
-        # number of feedbacks on this date should have decreased by 1 or been removed
-        if date in read_response(response)["feedback_by_date"]:
-            assert (
-                read_response(response)["feedback_by_date"][date]["positive"]
-                == num_feedbacks_on_this_date
+            out = await process(
+                QueryData(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    query="hi!",
+                    query_id=query_id,
+                    collection_names=["Example_verba_github_issues"],
+                ).model_dump(),
+                websocket,
+                user_manager,
             )
 
-        # number of feedbacks should have decreased by 1
-        assert read_response(response)["total_feedback"] == num_feedbacks
+            response = await run_feedback_metadata(
+                user_id=user_id,
+                user_manager=user_manager,
+            )
+
+            assert read_response(response)["error"] == ""
+
+            # record number of feedbacks
+            num_feedbacks = read_response(response)["total_feedback"]
+
+            # number of positives
+            num_positives = read_response(response)["feedback_by_value"]["positive"]
+
+            # number of dates
+            date = datetime.now().strftime("%Y-%m-%d")
+            if date in read_response(response)["feedback_by_date"]:
+                num_feedbacks_on_this_date = read_response(response)[
+                    "feedback_by_date"
+                ][date]["count"]
+            else:
+                num_feedbacks_on_this_date = 0
+
+            # check if the feedback exists already
+            async with user_manager.users[user_id][
+                "client_manager"
+            ].connect_to_async_client() as client:
+                feedback_collection = client.collections.get("ELYSIA_FEEDBACK__")
+                session_uuid = generate_uuid5(
+                    {
+                        "user_id": user_id,
+                        "conversation_id": conversation_id,
+                        "query_id": query_id,
+                    }
+                )
+                feedback_exists = await feedback_collection.data.exists(
+                    uuid=session_uuid
+                )
+
+            response = await run_add_feedback(
+                AddFeedbackData(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    query_id=query_id,
+                    feedback=1,
+                ),
+                user_manager,
+            )
+
+            assert read_response(response)["error"] == ""
+
+            response = await run_feedback_metadata(
+                user_id=user_id,
+                user_manager=user_manager,
+            )
+
+            assert read_response(response)["error"] == ""
+
+            # number of positives should have increased by 1
+            if not feedback_exists:
+                assert (
+                    read_response(response)["feedback_by_value"]["positive"]
+                    == num_positives + 1
+                )
+
+                # number of feedbacks on this date should have increased by 1
+                assert (
+                    read_response(response)["feedback_by_date"][date]["count"]
+                    == num_feedbacks_on_this_date + 1
+                )
+
+                # number of feedbacks should have increased by 1
+                assert read_response(response)["total_feedback"] == num_feedbacks + 1
+            else:
+                assert (
+                    read_response(response)["feedback_by_value"]["positive"]
+                    == num_positives
+                )
+                assert (
+                    read_response(response)["feedback_by_date"][date]["count"]
+                    == num_feedbacks_on_this_date
+                )
+                assert read_response(response)["total_feedback"] == num_feedbacks
+
+            response = await run_remove_feedback(
+                RemoveFeedbackData(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    query_id=query_id,
+                ),
+                user_manager,
+            )
+
+            assert read_response(response)["error"] == ""
+
+            response = await run_feedback_metadata(
+                user_id=user_id,
+                user_manager=user_manager,
+            )
+
+            assert read_response(response)["error"] == ""
+
+            if not feedback_exists:
+                # number of positives should have decreased by 1
+                assert (
+                    read_response(response)["feedback_by_value"]["positive"]
+                    == num_positives
+                )
+
+                # number of feedbacks on this date should have decreased by 1 or been removed
+                if date in read_response(response)["feedback_by_date"]:
+                    assert (
+                        read_response(response)["feedback_by_date"][date]["count"]
+                        == num_feedbacks_on_this_date
+                    )
+
+                # number of feedbacks should have decreased by 1
+                assert read_response(response)["total_feedback"] == num_feedbacks
+            else:
+                assert (
+                    read_response(response)["feedback_by_value"]["positive"]
+                    == num_positives - 1
+                )
+                assert read_response(response)["total_feedback"] == num_feedbacks - 1
+
+                # number of feedbacks on this date should have decreased by 1 or been removed
+                if date in read_response(response)["feedback_by_date"]:
+                    assert (
+                        read_response(response)["feedback_by_date"][date]["count"]
+                        == num_feedbacks_on_this_date - 1
+                    )
+
+        finally:
+            await user_manager.close_all_clients()
+            await remove_feedback_after_completion(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                query_id=query_id,
+                client_manager=user_manager.users[user_id]["client_manager"],
+            )

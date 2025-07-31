@@ -1221,7 +1221,6 @@ class Tree:
                     )
                 )
             error = True
-            return None, error
 
         if isinstance(result, Text):
             self._update_conversation_history("assistant", result.text)

@@ -23,7 +23,7 @@ from elysia.tools.retrieval.prompt_templates import (
     QueryCreatorPrompt,
     SimpleQueryCreatorPrompt,
 )
-from elysia.tools.retrieval.util import execute_weaviate_query
+from elysia.tools.retrieval.util import execute_weaviate_query, QueryError
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
 from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
@@ -90,10 +90,13 @@ class Query(Tool):
         client_manager: ClientManager,
     ) -> bool:
         """
-        Only available when there is a Weaviate connection.
-        If this tool is not available, inform the user that they need to set the WCD_URL and WCD_API_KEY in the settings.
+        Only available if:
+        1. There is a Weaviate connection
+        2. There are collections available
+        If this tool is not available, inform the user that they should make sure they have set the WCD_URL and WCD_API_KEY in the settings.
+        And also they should make sure they have added collections to the tree.
         """
-        return client_manager.is_client
+        return client_manager.is_client and tree_data.collection_names != []
 
     def _find_previous_queries(
         self, environment: dict, collection_names: list[str]
@@ -169,6 +172,23 @@ class Query(Tool):
         true_collection_names = list(schemas.keys())
         truth_map = {k.lower(): k for k in true_collection_names}
         return {truth_map.get(k.lower(), k): v for k, v in collection_dict.items()}
+
+    def _parse_weaviate_error(self, error_message: str) -> str:
+        if "no api key found" in error_message.lower():
+            api_error_message = error_message[
+                (
+                    error_message.find("environment variable under ")
+                    + len("environment variable under ")
+                ) :
+            ]
+            api_error_message = api_error_message[: api_error_message.find('"\n')]
+            return (
+                f"The following API key is needed: {api_error_message} for this collection. "
+                "The user must set the API key in the settings. "
+                "Alternatively, you can try keyword (BM25) search instead."
+            )
+
+        return error_message
 
     async def __call__(
         self,
@@ -287,7 +307,7 @@ class Query(Tool):
                 )
 
         except Exception as e:
-            yield Error(str(e))
+            yield Error(error_message=str(e))
             return
 
         if self.logger and query.query_outputs is not None:
@@ -352,9 +372,11 @@ class Query(Tool):
             for collection_name in current_query_output.target_collections:
                 if collection_name not in collection_names:
                     yield Error(
-                        f"Collection {collection_name} in target_collections field of the query output, "
-                        "but not found in the available collections. "
-                        "Make sure you are using the correct collection names."
+                        feedback=(
+                            f"Collection {collection_name} in target_collections field of the query output, "
+                            "but not found in the available collections. "
+                            "Make sure you are using the correct collection names."
+                        ),
                     )
                     return
 
@@ -369,18 +391,22 @@ class Query(Tool):
 
             if collection_name not in collection_names:
                 yield Error(
-                    f"Collection {collection_name} in data_display keys, "
-                    "but not found in the available collections. "
-                    "Make sure you are using the correct collection names."
+                    feedback=(
+                        f"Collection {collection_name} in data_display keys, "
+                        "but not found in the available collections. "
+                        "Make sure you are using the correct collection names."
+                    ),
                 )
                 return
 
         for collection_name in query.fields_to_search:
             if collection_name not in collection_names:
                 yield Error(
-                    f"Collection {collection_name} in fields_to_search keys, "
-                    "but not found in the available collections. "
-                    "Make sure you are using the correct collection names."
+                    feedback=(
+                        f"Collection {collection_name} in fields_to_search keys, "
+                        "but not found in the available collections. "
+                        "Make sure you are using the correct collection names."
+                    ),
                 )
                 return
 
@@ -438,9 +464,20 @@ class Query(Tool):
                                 query_output_copy,
                                 reference_property="isChunked",
                                 named_vector_fields=query.fields_to_search,
+                                property_types={
+                                    collection_name: {
+                                        field: schemas[collection_name]["fields"][
+                                            field
+                                        ]["type"]
+                                    }
+                                    for field in schemas[collection_name]["fields"]
+                                },
                             )
+                        except QueryError as e:
+                            yield Error(feedback=str(e))
+                            continue
                         except Exception as e:
-                            yield Error(str(e))
+                            yield Error(error_message=str(e))
                             continue
 
                     # chunk the unchunked response
@@ -473,11 +510,21 @@ class Query(Tool):
                         client,
                         query_output,
                         named_vector_fields=query.fields_to_search,
+                        property_types={
+                            collection_name: {
+                                field: schemas[collection_name]["fields"][field]["type"]
+                                for field in schemas[collection_name]["fields"]
+                            }
+                            for collection_name in collection_names
+                        },
                     )
+                except QueryError as e:
+                    yield Error(feedback=str(e))
+                    continue
                 except Exception as e:
                     for collection_name in collection_names:
-                        yield Error(str(e))
-                    continue  # don't exit, try again for next query_output (might not error)
+                        yield Error(error_message=str(e))
+                    continue
 
                 yield Status(
                     f"Retrieved {sum(len(x.objects) for x in responses)} objects from {len(collection_names)} collections..."
@@ -731,7 +778,7 @@ class SimpleQuery(Tool):
                 )
 
         except Exception as e:
-            yield Error(str(e))
+            yield Error(error_message=str(e))
             return
 
         if self.logger and query.query_outputs is not None:
@@ -793,9 +840,11 @@ class SimpleQuery(Tool):
             for collection_name in current_query_output.target_collections:
                 if collection_name not in collection_names:
                     yield Error(
-                        f"Collection {collection_name} in target_collections field of the query output, "
-                        "but not found in the available collections. "
-                        "Make sure you are using the correct collection names."
+                        feedback=(
+                            f"Collection {collection_name} in target_collections field of the query output, "
+                            "but not found in the available collections. "
+                            "Make sure you are using the correct collection names."
+                        ),
                     )
                     return
 
@@ -806,9 +855,11 @@ class SimpleQuery(Tool):
         for collection_name in query.fields_to_search:
             if collection_name not in collection_names:
                 yield Error(
-                    f"Collection {collection_name} in fields_to_search keys, "
-                    "but not found in the available collections. "
-                    "Make sure you are using the correct collection names."
+                    feedback=(
+                        f"Collection {collection_name} in fields_to_search keys, "
+                        "but not found in the available collections. "
+                        "Make sure you are using the correct collection names."
+                    ),
                 )
                 return
 
@@ -823,11 +874,21 @@ class SimpleQuery(Tool):
                         client,
                         query_output,
                         named_vector_fields=query.fields_to_search,
+                        property_types={
+                            collection_name: {
+                                field: schemas[collection_name]["fields"][field]["type"]
+                            }
+                            for field in schemas[collection_name]["fields"]
+                            for collection_name in collection_names
+                        },
                     )
                 except Exception as e:
                     for collection_name in collection_names:
                         yield Error(
-                            f"Query failed for collection {collection_name}: {str(e)}. Query was: {query_output.model_dump()}"
+                            feedback=(
+                                f"Query failed for collection {collection_name}: {str(e)}. "
+                                f"Query was: {query_output.model_dump()}"
+                            ),
                         )
                     continue  # don't exit, try again for next query_output (might not error)
 

@@ -871,6 +871,9 @@ async def edit_preprocessed_collection(
 
         # update the mappings
         if mappings is not None:
+            if "table" in mappings:
+                mappings["table"] = {field: field for field in properties["fields"]}
+
             properties["mappings"] = mappings
 
         # update the fields

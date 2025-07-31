@@ -361,6 +361,7 @@ async def feedback_metadata(client, user_id: str):
                     "feedback"
                 ].count  # type: ignore
 
+    # fill in empties with zeros
     for date in feedback_by_date:
         for feedback_name in feedback_values:
             if feedback_name not in feedback_by_date[date]:
