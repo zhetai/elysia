@@ -71,7 +71,6 @@ async def process(data: dict, websocket: WebSocket, user_manager: UserManager):
     logger.debug(f"Collection names: {data['collection_names']}")
 
     user = await user_manager.get_user_local(user_id=data["user_id"])
-    print(f"CONFIG: {user['tree_manager'].config.to_json()}")
 
     try:
         # optional arguments
