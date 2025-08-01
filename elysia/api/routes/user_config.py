@@ -285,7 +285,6 @@ def save_frontend_config_to_file(user_id: str, frontend_config: dict):
         config_dir = elysia_package_dir / "api" / "user_configs"
         config_dir.mkdir(parents=True, exist_ok=True)
         config_file = config_dir / f"frontend_config_{user_id}.json"
-        print(f"\n\nSaving frontend config to file: {config_file}\n\n")
 
         with open(config_file, "w") as f:
             json.dump(frontend_config, f)

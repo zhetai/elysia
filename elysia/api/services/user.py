@@ -167,11 +167,6 @@ class UserManager:
                 tree_timeout=fe_config.config["tree_timeout"],
             )
 
-            print(
-                "\n\n USER MANAGER SETTINGS: ",
-                self.users[user_id]["tree_manager"].config.settings,
-            )
-
             # client manager starts with env variables, when config is updated, api keys are updated
             self.users[user_id]["client_manager"] = ClientManager(
                 logger=logger,

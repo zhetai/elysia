@@ -41,9 +41,6 @@ class ProcessUpdate:
     async def to_frontend(
         self, completed: bool = False, message: str = "", error: str = "", **kwargs
     ) -> dict:
-
-        print(f"Progress: {self.progress} / {self.total}")
-        print(f"Message: {message}")
         return {
             "type": ("update" if not completed else "completed"),
             "collection_name": self.collection_name,
