@@ -97,8 +97,8 @@ class TestUserManager:
         new_settings = Settings()
         new_settings.configure(
             openai_api_key="new_openai_api_key",
-            wcd_url="new_wcd_url",
-            wcd_api_key="new_wcd_api_key",
+            wcd_url=os.getenv("WCD_URL"),
+            wcd_api_key=os.getenv("WCD_API_KEY"),
             base_model="gpt-4o-mini",
             base_provider="openai",
             complex_model="gpt-4o",
@@ -131,11 +131,11 @@ class TestUserManager:
         assert (
             tree_manager_2.settings.API_KEYS["openai_api_key"] == "new_openai_api_key"
         )
-        assert tree_manager_2.settings.WCD_URL == "new_wcd_url"
-        assert tree_manager_2.settings.WCD_API_KEY == "new_wcd_api_key"
+        assert tree_manager_2.settings.WCD_URL == os.getenv("WCD_URL")
+        assert tree_manager_2.settings.WCD_API_KEY == os.getenv("WCD_API_KEY")
 
         # check that the tree has these settings too
         tree_2 = await user_manager.get_tree(user_id_2, conversation_id_2)
         assert tree_2.settings.API_KEYS["openai_api_key"] == "new_openai_api_key"
-        assert tree_2.settings.WCD_URL == "new_wcd_url"
-        assert tree_2.settings.WCD_API_KEY == "new_wcd_api_key"
+        assert tree_2.settings.WCD_URL == os.getenv("WCD_URL")
+        assert tree_2.settings.WCD_API_KEY == os.getenv("WCD_API_KEY")
