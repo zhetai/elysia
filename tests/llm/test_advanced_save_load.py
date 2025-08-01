@@ -51,13 +51,10 @@ async def test_save_load_weaviate():
         response, objects = loaded_tree("what about his most recent email?")
 
         # check that the output includes emails from edward
-
+        # Use a more appropriate metric for the test: check that the response references Edward's email.
         metric = metrics.GEval(
-            name="Judge of agent knowledge lacking awareness",
-            criteria="""
-            The model should not attempt to answer a question that is not possible to answer.
-            So the model may attempt to answer this but should eventually realise it is not possible.
-            """,
+            name="Check Edward's email is referenced",
+            criteria="The response should reference Edward's most recent email. The answer should be about Edward's email, not someone else's, and should not hallucinate information if not present.",
             evaluation_params=[
                 LLMTestCaseParams.INPUT,
                 LLMTestCaseParams.ACTUAL_OUTPUT,

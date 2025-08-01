@@ -1457,6 +1457,22 @@ class TestConfig:
             assert response["error"] == ""
             new_user_config_id = response["config"]["id"]
 
+            # save config
+            response = await save_config_user(
+                user_id=user_id,
+                config_id=new_user_config_id,
+                data=SaveConfigUserData(
+                    name=config_name,
+                    id=new_user_config_id,
+                    default=True,
+                    config=response["config"],
+                    frontend_config={},
+                ),
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
             response = await initialise_user(
                 user_id,
                 user_manager=self.user_manager,
