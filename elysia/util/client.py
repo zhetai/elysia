@@ -102,13 +102,8 @@ class ClientManager:
 
         if settings is None:
             self.settings = environment_settings
-            print("\n USING ENVIRONMENT SETTINGS")
         else:
             self.settings = settings
-            print("\n USING SETTINGS")
-
-        print("\n\n SETTINGS API KEYS: ", self.settings.API_KEYS)
-        print("\n\n kwargs: ", kwargs)
 
         # Set the weaviate cluster url and api key
         if wcd_url is None:
@@ -133,8 +128,6 @@ class ClientManager:
         for kwarg in kwargs:
             if kwarg.lower() in [a.lower() for a in api_key_map.keys()]:
                 self.headers[api_key_map[kwarg.upper()]] = kwargs[kwarg]
-
-        print("\n\n HEADERS: ", self.headers)
 
         # Create locks for client events
         self.async_lock = asyncio.Lock()

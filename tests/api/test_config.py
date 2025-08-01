@@ -1489,3 +1489,87 @@ class TestConfig:
                 )
             except Exception as e:
                 pass
+
+    @pytest.mark.asyncio
+    async def test_new_config_no_overwrite(self):
+        user_id = "test_user_new_config_no_overwrite"
+        conversation_id = "test_conversation_new_config_no_overwrite"
+        config_name = "Test new config no overwrite"
+
+        try:
+            await initialise_user_and_tree(user_id, conversation_id)
+
+            # get config id
+            user = await self.user_manager.get_user_local(user_id)
+            config_id = user["tree_manager"].config.id
+
+            # save some values
+            response = await save_config_user(
+                user_id=user_id,
+                config_id=config_id,
+                data=SaveConfigUserData(
+                    name=config_name,
+                    id=config_id,
+                    default=True,
+                    config={
+                        "settings": {
+                            "BASE_MODEL": "gpt-4o-mini",
+                            "BASE_PROVIDER": "openai",
+                            "COMPLEX_MODEL": "gpt-4o",
+                            "COMPLEX_PROVIDER": "openai",
+                            "WCD_URL": os.getenv("WCD_URL"),
+                            "WCD_API_KEY": os.getenv("WCD_API_KEY"),
+                            "API_KEYS": {
+                                "openai_api_key": os.getenv("OPENAI_API_KEY"),
+                            },
+                        },
+                        "style": "New style for no overwrite",
+                        "agent_description": "New agent description for no overwrite",
+                        "end_goal": "New end goal for no overwrite",
+                        "branch_initialisation": "one_branch",
+                    },
+                    frontend_config={
+                        "save_location_wcd_url": os.getenv("WCD_URL"),
+                        "save_location_wcd_api_key": os.getenv("WCD_API_KEY"),
+                        "save_trees_to_weaviate": True,
+                        "save_configs_to_weaviate": True,
+                    },
+                ),
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+
+            # create a new config
+            response = await new_user_config(
+                user_id=user_id,
+                user_manager=self.user_manager,
+            )
+            response = read_response(response)
+            assert response["error"] == ""
+            new_config_id = response["config"]["id"]
+
+            # check the user values were NOT saved
+            user = await self.user_manager.get_user_local(user_id)
+            assert user["tree_manager"].config.id == config_id
+            assert user["tree_manager"].config.settings.BASE_MODEL == "gpt-4o-mini"
+            assert user["tree_manager"].config.settings.BASE_PROVIDER == "openai"
+            assert user["tree_manager"].config.settings.COMPLEX_MODEL == "gpt-4o"
+            assert user["tree_manager"].config.settings.COMPLEX_PROVIDER == "openai"
+
+        finally:
+            await self.user_manager.close_all_clients()
+            try:
+                await delete_config_after_completion(
+                    self.user_manager, user_id, new_config_id
+                )
+
+            except Exception as e:
+                pass
+
+            try:
+                await delete_config_after_completion(
+                    self.user_manager, user_id, config_id
+                )
+            except Exception as e:
+                pass
