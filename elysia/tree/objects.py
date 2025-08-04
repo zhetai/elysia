@@ -814,7 +814,7 @@ class TreeData:
                 ```python
                 {
                     # summary statistics of each field in the collection
-                    "fields": dict = {
+                    "fields": list = [
                         field_name_1: dict = {
                             "description": str,
                             "range": list[float],
@@ -826,7 +826,7 @@ class TreeData:
                             ... # same fields as above
                         },
                         ...
-                    },
+                    ],
 
                     # mapping_1, mapping_2 etc refer to frontend-specific types that the AI has deemed appropriate for this data
                     # then the dict is to map the frontend fields to the data fields
@@ -852,11 +852,15 @@ class TreeData:
                     "name": str,
 
                     # what named vectors are available and their properties (if any)
-                    "named_vectors": dict = {
-                        "enabled": bool,
-                        "source_properties": list,
-                        "description": str # defaults to empty
-                    },
+                    "named_vectors": list = [
+                        {
+                            "name": str,
+                            "enabled": bool,
+                            "source_properties": list,
+                            "description": str # defaults to empty
+                        },
+                        ...
+                    ],
 
                     # some config settings relevant for queries
                     "index_properties": {

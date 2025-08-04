@@ -114,15 +114,16 @@ class DataMappingPrompt(dspy.Signature):
             "name": collection name,
             "length": number of objects in the collection,
             "summary": summary of the collection,
-            "fields": {
-                "field_name": {
+            "fields": [
+                {
+                    "name": field_name,
                     "groups": a comprehensive list of all unique text values that exist in the field. if the field is not text, this should be an empty list,
                     "mean": mean of the field. if the field is text, this refers to the means length (in tokens) of the texts in this field. if the type is a list, this refers to the mean length of the lists,
                     "range": minimum and maximum values of the length.
                     "type": the data type of the field.
                 },
                 ...
-            }
+            ]
         }
         """.strip(),
         format=str,
@@ -173,15 +174,16 @@ class PromptSuggestorPrompt(dspy.Signature):
             "name": collection name,
             "length": number of objects in the collection,
             "summary": summary of the collection,
-            "fields": {
-                "field_name": {
+            "fields": [
+                {
+                    "name": field_name,
                     "groups": a comprehensive list of all unique text values that exist in the field. if the field is not text, this should be an empty list,
                     "mean": mean of the field. if the field is text, this refers to the means length (in tokens) of the texts in this field. if the type is a list, this refers to the mean length of the lists,
                     "range": minimum and maximum values of the length.
                     "type": the data type of the field.
                 },
                 ...
-            }
+            ]
         }
         """.strip(),
         format=str,

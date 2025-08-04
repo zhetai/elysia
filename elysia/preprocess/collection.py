@@ -7,7 +7,7 @@ from typing import AsyncGenerator
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Metrics, Filter
 from weaviate.collections import CollectionAsync
-from weaviate.classes.config import Configure
+from weaviate.classes.config import Configure, Property, DataType
 
 from elysia.config import nlp, Settings, load_base_lm, ElysiaKeyManager
 from elysia.config import settings as environment_settings
@@ -102,6 +102,7 @@ async def _evaluate_field_statistics(
 ) -> dict:
     out = {}
     out["type"] = properties[property]
+    out["name"] = property
 
     # Number (summary statistics)
     if properties[property] == "number":
@@ -115,7 +116,9 @@ async def _evaluate_field_statistics(
             response.properties[property].maximum,
         ]
         out["mean"] = response.properties[property].mean
-        out["groups"] = []
+        out["groups"] = None
+        out["date_range"] = None
+        out["date_mean"] = None
 
     # Text (grouping + lengths)
     elif properties[property] == "text":
@@ -130,7 +133,7 @@ async def _evaluate_field_statistics(
         if len(groups) < 30:
             out["groups"] = groups
         else:
-            out["groups"] = []
+            out["groups"] = None
 
         if full_response is not None:
             # For text, we want to evaluate the length of the text in tokens (use spacy)
@@ -143,19 +146,25 @@ async def _evaluate_field_statistics(
 
             out["range"] = [min(lengths), max(lengths)]
             out["mean"] = sum(lengths) / len(lengths)
+            out["date_mean"] = None
+            out["date_range"] = None
 
         else:
             out["range"] = []
-            out["mean"] = -9999999
+            out["mean"] = None
+            out["date_range"] = None
+            out["date_mean"] = None
 
     # Boolean (grouping + mean)
     elif properties[property] == "boolean":
         response = await collection.aggregate.over_all(
             return_metrics=[Metrics(property).boolean(percentage_true=True)]
         )
-        out["groups"] = [True, False]
+        out["groups"] = ["1", "0"]
         out["mean"] = response.properties[property].percentage_true
         out["range"] = [0, 1]
+        out["date_range"] = None
+        out["date_mean"] = None
 
     # Date (summary statistics)
     elif properties[property] == "date":
@@ -164,11 +173,15 @@ async def _evaluate_field_statistics(
                 Metrics(property).date_(median=True, minimum=True, maximum=True)
             ]
         )
-        out["range"] = [
+        out["date_range"] = [
             response.properties[property].minimum,
             response.properties[property].maximum,
         ]
         out["mean"] = response.properties[property].median
+        out["date_mean"] = None
+        out["groups"] = None
+        out["range"] = None
+        out["mean"] = None
 
     # List (lengths)
     elif properties[property].endswith("[]"):
@@ -178,11 +191,15 @@ async def _evaluate_field_statistics(
             out["range"] = [min(lengths), max(lengths)]
             out["mean"] = sum(lengths) / len(lengths)
             out["groups"] = []
+            out["date_range"] = []
+            out["date_mean"] = None
 
     else:
         out["range"] = []
-        out["mean"] = -9999999
+        out["mean"] = None
         out["groups"] = []
+        out["date_range"] = []
+        out["date_mean"] = None
 
     return out
 
@@ -268,8 +285,9 @@ async def _find_named_vectors(collection: CollectionAsync) -> dict[str, dict]:
     if not schema_info.vector_config:
         return None
     else:
-        return {
-            vector: {
+        return [
+            {
+                "name": vector,
                 "source_properties": schema_info.vector_config[
                     vector
                 ].vectorizer.source_properties,
@@ -277,7 +295,7 @@ async def _find_named_vectors(collection: CollectionAsync) -> dict[str, dict]:
                 "description": "",
             }
             for vector in schema_info.vector_config
-        }
+        ]
 
 
 async def preprocess_async(
@@ -405,19 +423,21 @@ async def preprocess_async(
             "summary": summary,
             "index_properties": await _evaluate_index_properties(collection),
             "named_vectors": await _find_named_vectors(collection),
-            "fields": {},
+            "fields": [],
             "mappings": {},
         }
 
         # Evaluate the summary statistics of each field
         for property in properties:
-            out["fields"][property] = await _evaluate_field_statistics(
-                collection, properties, property, full_response
+            out["fields"].append(
+                await _evaluate_field_statistics(
+                    collection, properties, property, full_response
+                )
             )
             if property in field_descriptions:
-                out["fields"][property]["description"] = field_descriptions[property]
+                out["fields"][-1]["description"] = field_descriptions[property]
             else:
-                out["fields"][property]["description"] = ""
+                out["fields"][-1]["description"] = ""
 
         yield await process_update(
             message="Evaluated field statistics",
@@ -531,6 +551,99 @@ async def preprocess_async(
                 metadata_collection = await client.collections.create(
                     f"ELYSIA_METADATA__",
                     vectorizer_config=Configure.Vectorizer.none(),
+                    properties=[
+                        Property(
+                            name="name",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="length",
+                            data_type=DataType.NUMBER,
+                        ),
+                        Property(
+                            name="summary",
+                            data_type=DataType.TEXT,
+                        ),
+                        Property(
+                            name="index_properties",
+                            data_type=DataType.OBJECT,
+                            nested_properties=[
+                                Property(
+                                    name="isNullIndexed",
+                                    data_type=DataType.BOOL,
+                                ),
+                                Property(
+                                    name="isLengthIndexed",
+                                    data_type=DataType.BOOL,
+                                ),
+                                Property(
+                                    name="isTimestampIndexed",
+                                    data_type=DataType.BOOL,
+                                ),
+                            ],
+                        ),
+                        Property(
+                            name="named_vectors",
+                            data_type=DataType.OBJECT_ARRAY,
+                            nested_properties=[
+                                Property(
+                                    name="name",
+                                    data_type=DataType.TEXT,
+                                ),
+                                Property(
+                                    name="source_properties",
+                                    data_type=DataType.TEXT_ARRAY,
+                                ),
+                                Property(
+                                    name="enabled",
+                                    data_type=DataType.BOOL,
+                                ),
+                                Property(
+                                    name="description",
+                                    data_type=DataType.TEXT,
+                                ),
+                            ],
+                        ),
+                        Property(
+                            name="fields",
+                            data_type=DataType.OBJECT_ARRAY,
+                            nested_properties=[
+                                Property(
+                                    name="name",
+                                    data_type=DataType.TEXT,
+                                ),
+                                Property(
+                                    name="type",
+                                    data_type=DataType.TEXT,
+                                ),
+                                Property(
+                                    name="description",
+                                    data_type=DataType.TEXT,
+                                ),
+                                Property(
+                                    name="range",
+                                    data_type=DataType.NUMBER_ARRAY,
+                                ),
+                                Property(
+                                    name="date_range",
+                                    data_type=DataType.DATE_ARRAY,
+                                ),
+                                Property(
+                                    name="groups",
+                                    data_type=DataType.TEXT_ARRAY,
+                                ),
+                                Property(
+                                    name="date_mean",
+                                    data_type=DataType.NUMBER_ARRAY,
+                                ),
+                                Property(
+                                    name="mean",
+                                    data_type=DataType.NUMBER,
+                                ),
+                            ],
+                        ),
+                        # leave mappings for auto-schema generation
+                    ],
                     inverted_index_config=Configure.inverted_index(
                         index_null_state=True,
                     ),
@@ -848,16 +961,16 @@ async def edit_preprocessed_collection(
         # update the named vectors
         if named_vectors is not None:
             for named_vector in named_vectors:
+                for property_named_vector in properties["named_vectors"]:
+                    if property_named_vector["name"] == named_vector["name"]:
 
-                if named_vector["enabled"] is not None:
-                    properties["named_vectors"][named_vector["name"]]["enabled"] = (
-                        named_vector["enabled"]
-                    )
+                        if named_vector["enabled"] is not None:
+                            property_named_vector["enabled"] = named_vector["enabled"]
 
-                if named_vector["description"] is not None:
-                    properties["named_vectors"][named_vector["name"]]["description"] = (
-                        named_vector["description"]
-                    )
+                        if named_vector["description"] is not None:
+                            property_named_vector["description"] = named_vector[
+                                "description"
+                            ]
 
         # update the summary
         if summary is not None:
@@ -866,17 +979,18 @@ async def edit_preprocessed_collection(
         # update the mappings
         if mappings is not None:
             if "table" in mappings:
-                mappings["table"] = {field: field for field in properties["fields"]}
+                mappings["table"] = {
+                    field["name"]: field["name"] for field in properties["fields"]
+                }
 
             properties["mappings"] = mappings
 
         # update the fields
         if fields is not None:
             for field in fields:
-                if field is not None:
-                    properties["fields"][field["name"]]["description"] = field[
-                        "description"
-                    ]
+                for property_field in properties["fields"]:
+                    if field is not None and property_field["name"] == field["name"]:
+                        property_field["description"] = field["description"]
 
         format_dict_to_serialisable(properties)
 

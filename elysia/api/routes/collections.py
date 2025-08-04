@@ -16,6 +16,7 @@ from elysia.util.collection import (
 from elysia.preprocess.collection import (
     edit_preprocessed_collection,
     delete_preprocessed_collection_async,
+    preprocessed_collection_exists_async,
 )
 from elysia.util.return_types import specific_return_types, types_dict, all_return_types
 from elysia.util.client import ClientManager
@@ -425,49 +426,54 @@ async def collection_metadata(
     {
         "metadata": dict = {
 
-        # summary statistics of each field in the collection
-        "fields": dict = {
-            field_name_1: dict = {
-                "description": str,
-                "range": list[float],
-                "type": str,
-                "groups": list[str],
-                "mean": float
+            # summary statistics of each field in the collection
+            "fields": list = [
+                {
+                    "name": str,
+                    "description": str,
+                    "range": list[float],
+                    "type": str,
+                    "groups": list[str],
+                    "mean": float
+                },
+                field_name_2: dict,
+                ...
+            ],
+
+            # mapping_1, mapping_2 etc refer to frontend-specific types that the AI has deemed appropriate for this data
+            # then the dict is to map the frontend fields to the data fields
+            "mappings": dict = {
+                mapping_1: dict,
+                mapping_2: dict,
+                ...,
             },
-            field_name_2: dict,
-            ...
-        },
 
-        # mapping_1, mapping_2 etc refer to frontend-specific types that the AI has deemed appropriate for this data
-        # then the dict is to map the frontend fields to the data fields
-        "mappings": dict = {
-            mapping_1: dict,
-            mapping_2: dict,
-            ...,
-        },
+            # number of items in collection (float but just for consistency)
+            "length": float,
 
-        # number of items in collection (float but just for consistency)
-        "length": float,
+            # AI generated summary of the dataset
+            "summary": str,
 
-        # AI generated summary of the dataset
-        "summary": str,
+            # name of collection
+            "name": str,
 
-        # name of collection
-        "name": str,
+            # what named vectors are available (if any)
+            "named_vectors": list = [
+                {
+                    "name": str,
+                    "enabled": bool,
+                    "source_properties": list,
+                    "description": str # defaults to empty
+                },
+                ...
+            ],
 
-        # what named vectors are available (if any)
-        "named_vectors": dict = {
-            "enabled": bool,
-            "source_properties": list,
-            "description": str # defaults to empty
-        },
-
-        # some config settings relevant for queries
-        "index_properties": {
-        "isNullIndexed": bool,
-        "isLengthIndexed": bool,
-        "isTimestampIndexed": bool,
-        }
+            # some config settings relevant for queries
+            "index_properties": {
+                "isNullIndexed": bool,
+                "isLengthIndexed": bool,
+                "isTimestampIndexed": bool,
+            }
         }
         "error": ""
     }
@@ -491,24 +497,21 @@ async def collection_metadata(
                 raise Exception(f"Collection {collection_name} does not exist")
 
             # check if the metadata collection exists
-            if not await client.collections.exists(metadata_name):
+            if not await preprocessed_collection_exists_async(collection_name):
                 raise Exception(
                     f"Metadata collection for {collection_name} does not exist"
                 )
-            else:
-                metadata_collection = client.collections.get(metadata_name)
-                metadata = await metadata_collection.query.fetch_objects(
-                    filters=Filter.by_property("name").equal(collection_name),
-                    limit=1,
-                )
-                properties = metadata.objects[0].properties
-                format_dict_to_serialisable(properties)
 
-                if properties["named_vectors"] is None:
-                    properties["named_vectors"] = {}
+            metadata_collection = client.collections.get(metadata_name)
+            metadata = await metadata_collection.query.fetch_objects(
+                filters=Filter.by_property("name").equal(collection_name),
+                limit=1,
+            )
+            properties = metadata.objects[0].properties
+            format_dict_to_serialisable(properties)
 
-                elif "null" in properties["named_vectors"]:
-                    del properties["named_vectors"]["null"]
+            if properties["named_vectors"] is None:
+                properties["named_vectors"] = []
 
     except Exception as e:
         logger.exception(f"Error in /collection_metadata API")

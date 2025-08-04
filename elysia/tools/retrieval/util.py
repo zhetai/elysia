@@ -165,12 +165,11 @@ def catch_typing_errors(
 
     # check search query
     if (
-        "search_query" in tool_args
-        and "search_type" in tool_args
-        and tool_args["search_type"] not in ["hybrid", "keyword", "vector"]
+        "search_type" in tool_args
+        and tool_args["search_type"] in ["hybrid", "keyword", "vector"]
+        and "search_query" not in tool_args
     ):
-        if tool_args["search_query"] is None:
-            raise QueryError("Search query cannot be None for non-filter-only search.")
+        raise QueryError("Search query cannot be None for non-filter-only search.")
 
     for collection_name, collection_property_types in property_types.items():
 
@@ -528,8 +527,6 @@ async def execute_weaviate_aggregation(
 
     if predicted_query.search_type:
         tool_args["search_type"] = predicted_query.search_type
-    else:
-        tool_args["search_type"] = "hybrid"
 
     if predicted_query.filter_buckets:
         tool_args["filter_buckets"] = [
