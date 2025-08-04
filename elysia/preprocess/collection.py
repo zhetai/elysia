@@ -266,13 +266,7 @@ async def _evaluate_index_properties(collection: CollectionAsync) -> dict:
 async def _find_named_vectors(collection: CollectionAsync) -> dict[str, dict]:
     schema_info = await collection.config.get()
     if not schema_info.vector_config:
-        return {
-            "null": {
-                "source_properties": [],
-                "enabled": False,
-                "description": "",
-            }
-        }
+        return None
     else:
         return {
             vector: {
@@ -537,6 +531,9 @@ async def preprocess_async(
                 metadata_collection = await client.collections.create(
                     f"ELYSIA_METADATA__",
                     vectorizer_config=Configure.Vectorizer.none(),
+                    inverted_index_config=Configure.inverted_index(
+                        index_null_state=True,
+                    ),
                 )
             await metadata_collection.data.insert(out)
 
