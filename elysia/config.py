@@ -1,7 +1,7 @@
 import os
 import logging
 import litellm
-from litellm import AuthenticationError
+from litellm import AuthenticationError, models_by_provider
 from litellm.utils import get_valid_models, check_valid_key
 from rich.logging import RichHandler
 from typing import Callable, Literal
@@ -521,6 +521,10 @@ class APIKeyError(Exception):
     pass
 
 
+class IncorrectModelError(Exception):
+    pass
+
+
 class ElysiaKeyManager:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -547,19 +551,37 @@ class ElysiaKeyManager:
 
         if not any_valid_base:
             required_api_keys = get_required_api_keys(self.settings.BASE_MODEL)
-            raise APIKeyError(
-                f"You are trying to use the model '{self.settings.BASE_MODEL}' "
-                f"but you have not one of the following API keys: {', '.join(required_api_keys)}. "
-                f"Please update your API keys in the settings."
-            )
+            if len(required_api_keys) > 0:
+                raise APIKeyError(
+                    f"You are trying to use the model '{self.settings.BASE_MODEL}' "
+                    f"but you do not have one of the following API keys: {', '.join(required_api_keys)}. "
+                    f"Please update your API keys in the settings."
+                )
+            else:
+                raise APIKeyError(
+                    f"You are trying to use the model '{self.settings.BASE_MODEL}' "
+                    f"but you have not set the required API keys. "
+                    f"Check the model documentation (https://docs.litellm.ai/docs/providers) "
+                    f"for provider {self.settings.BASE_PROVIDER} "
+                    "for the required API keys."
+                )
 
         if not any_valid_complex:
             required_api_keys = get_required_api_keys(self.settings.COMPLEX_MODEL)
-            raise APIKeyError(
-                f"You are trying to use the model '{self.settings.COMPLEX_MODEL}' "
-                f"but you have not one of the following API keys: {', '.join(required_api_keys)}. "
-                f"Please update your API keys in the settings."
-            )
+            if len(required_api_keys) > 0:
+                raise APIKeyError(
+                    f"You are trying to use the model '{self.settings.COMPLEX_MODEL}' "
+                    f"but you do not have one of the following API keys: {', '.join(required_api_keys)}. "
+                    f"Please update your API keys in the settings."
+                )
+            else:
+                raise APIKeyError(
+                    f"You are trying to use the model '{self.settings.COMPLEX_MODEL}' "
+                    f"but you do not have the required API keys. "
+                    f"Check the model documentation (https://docs.litellm.ai/docs/providers) "
+                    f"for provider {self.settings.COMPLEX_PROVIDER} "
+                    "for the required API keys."
+                )
 
     def __enter__(self):
 
@@ -685,32 +707,48 @@ class ElysiaKeyManager:
 def check_base_lm_settings(settings: Settings):
     if "BASE_MODEL" not in dir(settings) or settings.BASE_MODEL is None:
         available_models = get_available_models(list(settings.API_KEYS.keys()))
-        raise ValueError(
+        raise IncorrectModelError(
             f"No base model specified. "
             f"Available models based on your API keys: {', '.join(available_models)}"
         )
 
     if "BASE_PROVIDER" not in dir(settings) or settings.BASE_PROVIDER is None:
         available_providers = get_available_providers(list(settings.API_KEYS.keys()))
-        raise ValueError(
+        raise IncorrectModelError(
             f"No base provider specified. "
             f"Available providers based on your API keys: {', '.join(available_providers)}"
+        )
+
+    if settings.BASE_MODEL not in models_by_provider[settings.BASE_PROVIDER]:
+        raise IncorrectModelError(
+            f"The model {settings.BASE_MODEL} is not available for provider {settings.BASE_PROVIDER}. "
+            f"Some example models for {settings.BASE_PROVIDER} are: "
+            f"{', '.join(models_by_provider[settings.BASE_PROVIDER][:5])}. "
+            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
         )
 
 
 def check_complex_lm_settings(settings: Settings):
     if "COMPLEX_MODEL" not in dir(settings) or settings.COMPLEX_MODEL is None:
         available_models = get_available_models(list(settings.API_KEYS.keys()))
-        raise ValueError(
+        raise IncorrectModelError(
             f"No complex model specified. "
             f"Available models based on your API keys: {', '.join(available_models)}"
         )
 
     if "COMPLEX_PROVIDER" not in dir(settings) or settings.COMPLEX_PROVIDER is None:
         available_providers = get_available_providers(list(settings.API_KEYS.keys()))
-        raise ValueError(
+        raise IncorrectModelError(
             f"No complex provider specified. "
             f"Available providers based on your API keys: {', '.join(available_providers)}"
+        )
+
+    if settings.COMPLEX_MODEL not in models_by_provider[settings.COMPLEX_PROVIDER]:
+        raise IncorrectModelError(
+            f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
+            f"Some example models for {settings.COMPLEX_PROVIDER} are: "
+            f"{', '.join(models_by_provider[settings.COMPLEX_PROVIDER][:5])}. "
+            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
         )
 
 

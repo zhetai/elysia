@@ -21,6 +21,7 @@ from elysia.api.routes.user_config import (
     new_user_config,
     list_configs,
     update_frontend_config,
+    get_models,
 )
 from elysia.api.routes.tree_config import (
     load_config_tree,
@@ -1573,3 +1574,14 @@ class TestConfig:
                 )
             except Exception as e:
                 pass
+
+    @pytest.mark.asyncio
+    async def test_get_models(self):
+        response = await get_models()
+        response = read_response(response)
+        assert response["error"] == ""
+        assert "models" in response
+        assert len(response["models"]) > 0
+        assert "openai" in response["models"]
+        assert "anthropic" in response["models"]
+        assert "google" in response["models"]
