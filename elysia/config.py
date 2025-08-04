@@ -1,7 +1,8 @@
 import os
 import logging
 import litellm
-from litellm import check_valid_key
+from litellm import AuthenticationError
+from litellm.utils import get_valid_models, check_valid_key
 from rich.logging import RichHandler
 from typing import Callable, Literal
 
@@ -18,6 +19,82 @@ try:
 except Exception:
     spacy.cli.download("en_core_web_sm")  # type: ignore
     nlp = spacy.load("en_core_web_sm")
+
+
+api_key_to_provider = {
+    "openai_api_key": ["openai"],
+    "anthropic_api_key": ["anthropic"],
+    "openrouter_api_key": [
+        "openrouter/openai",
+        "openrouter/anthropic",
+        "openrouter/google",
+    ],
+}
+
+provider_to_models = {
+    "openai": ["gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini", "gpt-4o"],
+    "anthropic": [
+        "claude-sonnet-4-20250514",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-haiku-20241022",
+    ],
+    "openrouter/openai": [
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+        "gpt-4o-mini",
+        "gpt-4o",
+    ],
+    "openrouter/anthropic": [
+        "claude-sonnet-4",
+        "claude-3.7-sonnet",
+        "claude-3.5-haiku",
+    ],
+    "openrouter/google": [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash-001",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash-lite",
+    ],
+}
+
+models_to_providers = {}
+for provider, models in provider_to_models.items():
+    for model in models:
+        if model not in models_to_providers:
+            models_to_providers[model] = []
+        models_to_providers[model].append(provider)
+
+provider_to_api_keys = {}
+for api_key, providers in api_key_to_provider.items():
+    for provider in providers:
+        if provider not in provider_to_api_keys:
+            provider_to_api_keys[provider] = []
+        provider_to_api_keys[provider].append(api_key)
+
+
+def get_available_models(api_keys: list[str]):
+    available_models = []
+    for api_key in api_keys:
+        if api_key in api_key_to_provider:
+            for provider in api_key_to_provider[api_key]:
+                available_models.extend(provider_to_models[provider])
+    return list(set(available_models))
+
+
+def get_available_providers(api_keys: list[str]) -> list[str]:
+    available_providers = []
+    for api_key in api_keys:
+        if api_key in api_key_to_provider:
+            available_providers.extend(api_key_to_provider[api_key])
+    return list(set(available_providers))
+
+
+def get_required_api_keys(model: str) -> list[str]:
+    api_keys = []
+    for provider in models_to_providers.get(model, []):
+        api_keys.extend(provider_to_api_keys.get(provider, []))
+    return list(set(api_keys))
 
 
 class Settings:
@@ -440,9 +517,49 @@ class Settings:
         }
 
 
+class APIKeyError(Exception):
+    pass
+
+
 class ElysiaKeyManager:
     def __init__(self, settings: Settings):
         self.settings = settings
+
+        # check if the keys are valid
+        any_valid_base = any(
+            [
+                check_valid_key(
+                    f"{self.settings.BASE_PROVIDER}/{self.settings.BASE_MODEL}",
+                    api_key,
+                )
+                for api_key in self.settings.API_KEYS.values()
+            ]
+        )
+        any_valid_complex = any(
+            [
+                check_valid_key(
+                    f"{self.settings.COMPLEX_PROVIDER}/{self.settings.COMPLEX_MODEL}",
+                    api_key,
+                )
+                for api_key in self.settings.API_KEYS.values()
+            ]
+        )
+
+        if not any_valid_base:
+            required_api_keys = get_required_api_keys(self.settings.BASE_MODEL)
+            raise APIKeyError(
+                f"You are trying to use the model '{self.settings.BASE_MODEL}' "
+                f"but you have not one of the following API keys: {', '.join(required_api_keys)}. "
+                f"Please update your API keys in the settings."
+            )
+
+        if not any_valid_complex:
+            required_api_keys = get_required_api_keys(self.settings.COMPLEX_MODEL)
+            raise APIKeyError(
+                f"You are trying to use the model '{self.settings.COMPLEX_MODEL}' "
+                f"but you have not one of the following API keys: {', '.join(required_api_keys)}. "
+                f"Please update your API keys in the settings."
+            )
 
     def __enter__(self):
 
@@ -567,33 +684,33 @@ class ElysiaKeyManager:
 
 def check_base_lm_settings(settings: Settings):
     if "BASE_MODEL" not in dir(settings) or settings.BASE_MODEL is None:
+        available_models = get_available_models(list(settings.API_KEYS.keys()))
         raise ValueError(
-            "No base model specified. "
-            "Use `elysia.config.configure(base_model=..., base_provider=...)` to set a base model. "
-            "E.g. `elysia.config.configure(base_model='gpt-4o-mini', base_provider='openai')`"
+            f"No base model specified. "
+            f"Available models based on your API keys: {', '.join(available_models)}"
         )
 
     if "BASE_PROVIDER" not in dir(settings) or settings.BASE_PROVIDER is None:
+        available_providers = get_available_providers(list(settings.API_KEYS.keys()))
         raise ValueError(
-            "No base provider specified. "
-            "Use `elysia.config.configure(base_model=..., base_provider=...)` to set a base model. "
-            "E.g. `elysia.config.configure(base_model='gpt-4o-mini', base_provider='openai')`"
+            f"No base provider specified. "
+            f"Available providers based on your API keys: {', '.join(available_providers)}"
         )
 
 
 def check_complex_lm_settings(settings: Settings):
     if "COMPLEX_MODEL" not in dir(settings) or settings.COMPLEX_MODEL is None:
+        available_models = get_available_models(list(settings.API_KEYS.keys()))
         raise ValueError(
-            "No complex model specified. "
-            "Use `elysia.config.configure(complex_model=..., complex_provider=...)` to set a complex model. "
-            "E.g. `elysia.config.configure(complex_model='gpt-4o', complex_provider='openai')`"
+            f"No complex model specified. "
+            f"Available models based on your API keys: {', '.join(available_models)}"
         )
 
     if "COMPLEX_PROVIDER" not in dir(settings) or settings.COMPLEX_PROVIDER is None:
+        available_providers = get_available_providers(list(settings.API_KEYS.keys()))
         raise ValueError(
-            "No complex provider specified. "
-            "Use `elysia.config.configure(complex_model=..., complex_provider=...)` to set a complex model. "
-            "E.g. `elysia.config.configure(complex_model='gpt-4o', complex_provider='openai')`"
+            f"No complex provider specified. "
+            f"Available providers based on your API keys: {', '.join(available_providers)}"
         )
 
 

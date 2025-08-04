@@ -52,6 +52,16 @@ def rename_keys(config_item: dict):
 router = APIRouter()
 
 
+# @router.get("/available_models")
+# async def get_available_models(
+#     user_manager: UserManager = Depends(get_user_manager),
+
+# ):
+#     """
+#     Get the available models for a user.
+#     """
+
+
 @router.patch("/frontend_config/{user_id}")
 async def update_frontend_config(
     user_id: str,
@@ -129,6 +139,7 @@ async def load_a_config(
     logger.debug(f"User ID: {user_id}")
 
     headers = {"Cache-Control": "no-cache"}
+    warnings = []
 
     try:
         user = await user_manager.get_user_local(user_id)
@@ -164,14 +175,16 @@ async def load_a_config(
 
         format_dict_to_serialisable(config_item)
 
-        invalid_token = False
         if "settings" in config_item:
             try:
+                if "API_KEYS" in config_item["settings"]:
+                    if "null" in config_item["settings"]["API_KEYS"]:
+                        del config_item["settings"]["API_KEYS"]["null"]
+
                 config_item["settings"] = decrypt_api_keys(config_item["settings"])
             except InvalidToken:
-                invalid_token = True
-                logger.warning(
-                    f"Invalid token for config {config_id}, returning empty API keys. You will need to update the API keys in the frontend."
+                warnings.append(
+                    "Invalid token for config. You will need to re-enter your API keys in the settings."
                 )
                 config_item["settings"]["API_KEYS"] = {}
                 config_item["settings"]["WCD_API_KEY"] = ""
@@ -191,13 +204,10 @@ async def load_a_config(
 
     return JSONResponse(
         content={
-            "error": (
-                "Incorrect authentication key. You will need to update the API keys in the frontend."
-                if invalid_token
-                else ""
-            ),
+            "error": "",
             "config": renamed_config,
             "frontend_config": frontend_config.to_json(),
+            "warnings": warnings,
         },
         headers=headers,
     )

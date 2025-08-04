@@ -23,7 +23,6 @@ from elysia.objects import (
 from elysia.tree.objects import TreeData
 from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.util.reference import create_reference
 from elysia.util.parsing import format_datetime
 from elysia.util.client import ClientManager
 from elysia.tree.prompt_templates import (
@@ -652,7 +651,7 @@ async def get_follow_up_suggestions(
     # get prediction
     prediction = await follow_up_suggestor.aforward(
         user_prompt=tree_data.user_prompt,
-        reference=create_reference(),
+        reference=tree_data.atlas.datetime_reference,
         conversation_history=tree_data.conversation_history,
         environment=tree_data.environment.environment,
         data_information=tree_data.output_collection_metadata(with_mappings=False),

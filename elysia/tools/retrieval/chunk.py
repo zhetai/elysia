@@ -1,10 +1,13 @@
 import asyncio
-
+import inspect
 import spacy
+
 from weaviate.classes.config import Configure, DataType, Property, ReferenceProperty
 from weaviate.collections.classes.data import DataObject, DataReference
 from weaviate.collections import CollectionAsync
 from weaviate.collections.classes.internal import Object, QueryReturn
+from weaviate.collections.classes.config_vectorizers import _Vectorizer
+from weaviate.collections.classes.config_named_vectors import _NamedVectors
 from weaviate.exceptions import WeaviateInvalidInputError
 from weaviate.util import generate_uuid5
 from weaviate.client import WeaviateAsyncClient
@@ -185,6 +188,66 @@ class AsyncCollectionChunker:
     async def chunked_collection_exists(self, client: WeaviateAsyncClient) -> bool:
         return await client.collections.exists(self.get_chunked_collection_name())
 
+    async def get_vectoriser(
+        self, content_field: str, client: WeaviateAsyncClient
+    ) -> Configure.Vectorizer:
+        collection_config = await client.collections.get(
+            self.collection_name
+        ).config.get()
+
+        # see if any named vectors exclusively vectorise the content field
+        if collection_config.vector_config is not None:
+            for (
+                named_vector_name,
+                named_vector_config,
+            ) in collection_config.vector_config.items():
+
+                named_vectorizer = named_vector_config.vectorizer
+
+                if (
+                    named_vectorizer.source_properties is not None
+                    and named_vectorizer.source_properties == [content_field]
+                ):
+                    try:
+                        vectorizer = getattr(
+                            _NamedVectors, named_vector_name.replace("-", "_")
+                        )
+
+                        valid_args = inspect.signature(vectorizer).parameters
+                        return vectorizer(
+                            name=named_vector_name,
+                            source_properties=[content_field],
+                            **{
+                                arg: named_vectorizer.model[arg]
+                                for arg in named_vectorizer.model
+                                if arg in valid_args
+                            },
+                        )
+                    except AttributeError as e:
+                        pass
+
+        # if we haven't returned yet, try the overall vectoriser
+        if collection_config.vectorizer_config is not None:
+            try:
+                vectorizer_name = (
+                    collection_config.vectorizer_config.vectorizer.replace("-", "_")
+                )
+                vectorizer = getattr(_Vectorizer, vectorizer_name)
+                valid_args = inspect.signature(vectorizer).parameters
+
+                return vectorizer(
+                    **{
+                        arg: collection_config.vectorizer_config.model[arg]
+                        for arg in collection_config.vectorizer_config.model
+                        if arg in valid_args
+                    }
+                )
+            except AttributeError as e:
+                pass
+
+        # otherwise use default weaviate embedding service
+        return Configure.Vectorizer.text2vec_weaviate(dimensions=256)
+
     async def get_chunked_collection(
         self, content_field: str, client: WeaviateAsyncClient
     ) -> CollectionAsync:
@@ -205,10 +268,7 @@ class AsyncCollectionChunker:
                         name="fullDocument", target_collection=self.collection_name
                     )
                 ],
-                vectorizer_config=Configure.Vectorizer.text2vec_openai(
-                    model="text-embedding-3-large",
-                    dimensions=256,  # matryoshka embedding
-                ),
+                vectorizer_config=await self.get_vectoriser(content_field, client),
                 vector_index_config=Configure.VectorIndex.hnsw(
                     quantizer=Configure.VectorIndex.Quantizer.sq()  # scalar quantization
                 ),
