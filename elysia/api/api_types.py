@@ -149,3 +149,7 @@ class AddBranchToTreeData(BaseModel):
 
 class RemoveBranchFromTreeData(BaseModel):
     id: str
+
+
+class AvailableModelsData(BaseModel):
+    user_id: str
