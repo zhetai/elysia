@@ -22,6 +22,7 @@ from elysia.config import Settings
 from elysia.api.services.tree import TreeManager
 from elysia.api.utils.config import FrontendConfig
 from elysia.api.utils.encryption import encrypt_api_keys, decrypt_api_keys
+from elysia.api.utils.models import models
 
 import weaviate.classes.config as wc
 from weaviate.util import generate_uuid5
@@ -52,14 +53,13 @@ def rename_keys(config_item: dict):
 router = APIRouter()
 
 
-# @router.get("/available_models")
-# async def get_available_models(
-#     user_manager: UserManager = Depends(get_user_manager),
-
-# ):
-#     """
-#     Get the available models for a user.
-#     """
+@router.get("/models")
+async def get_models():
+    try:
+        return JSONResponse(content={"models": models, "error": ""})
+    except Exception as e:
+        logger.exception(f"Error in /get_models API")
+        return JSONResponse(content={"models": {}, "error": str(e)})
 
 
 @router.patch("/frontend_config/{user_id}")
