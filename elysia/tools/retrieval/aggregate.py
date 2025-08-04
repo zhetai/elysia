@@ -223,8 +223,10 @@ class Aggregate(Tool):
                         aggregation_output,
                         property_types={
                             collection_name: {
-                                field: schemas[collection_name]["fields"][field]["type"]
-                                for field in schemas[collection_name]["fields"]
+                                schemas[collection_name]["fields"][i]["name"]: schemas[
+                                    collection_name
+                                ]["fields"][i]["type"]
+                                for i in range(len(schemas[collection_name]["fields"]))
                             }
                             for collection_name in collection_names
                         },

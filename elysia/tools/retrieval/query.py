@@ -119,23 +119,24 @@ class Query(Tool):
 
         return previous_queries
 
-    def _evaluate_content_field(self, metadata_fields: dict) -> str:
+    def _evaluate_content_field(self, metadata_fields: list[dict]) -> str:
         """
         Find the largest text field in the metadata.
         Returns the field name with the highest mean value among text fields.
         """
         # Filter for text fields only
         text_fields = {
-            key: value
-            for key, value in metadata_fields.items()
-            if value.get("type") == "text"
+            field["name"]: field
+            for field in metadata_fields
+            if field.get("type") == "text"
         }
 
         if not text_fields:
             return ""
 
         # Find the text field with the largest mean value
-        return max(text_fields, key=lambda x: text_fields[x].get("mean", 0))
+        max_field = max(text_fields, key=lambda x: text_fields[x].get("mean", 0))
+        return max_field, text_fields[max_field]["mean"]
 
     def _evaluate_needs_chunking(
         self,
@@ -144,13 +145,13 @@ class Query(Tool):
         schema: dict,
         threshold: int = 400,  # number of tokens to be considered large enough to chunk
     ) -> bool:
-        content_field = self._evaluate_content_field(
+        content_field, content_len = self._evaluate_content_field(
             schema["fields"],
         )
 
         return (
             content_field != ""
-            and schema["fields"][content_field]["mean"] > threshold
+            and content_len > threshold
             and query_type != "filter_only"
             and display_type
             == "document"  # for the moment, the only type we chunk is document
@@ -268,12 +269,9 @@ class Query(Tool):
         # get searchable fields
         searchable_fields = {
             collection_name: [
-                named_vector
+                named_vector["name"]
                 for named_vector in schemas[collection_name]["named_vectors"]
-                if (
-                    schemas[collection_name]["named_vectors"][named_vector]["enabled"]
-                    and named_vector != "null"
-                )
+                if named_vector["enabled"]
             ]
             for collection_name in collection_names
             if schemas[collection_name]["named_vectors"] is not None
@@ -441,7 +439,7 @@ class Query(Tool):
                     query_output.search_type,
                     schemas[collection_name],
                 )
-                content_field = self._evaluate_content_field(
+                content_field, _ = self._evaluate_content_field(
                     schemas[collection_name]["fields"],
                 )  # used for chunking
 
@@ -474,11 +472,7 @@ class Query(Tool):
                                 reference_property="isChunked",
                                 named_vector_fields=query.fields_to_search,
                                 property_types={
-                                    collection_name: {
-                                        field: schemas[collection_name]["fields"][
-                                            field
-                                        ]["type"]
-                                    }
+                                    collection_name: {field["name"]: field["type"]}
                                     for field in schemas[collection_name]["fields"]
                                 },
                             )
@@ -521,7 +515,7 @@ class Query(Tool):
                         named_vector_fields=query.fields_to_search,
                         property_types={
                             collection_name: {
-                                field: schemas[collection_name]["fields"][field]["type"]
+                                field["name"]: field["type"]
                                 for field in schemas[collection_name]["fields"]
                             }
                             for collection_name in collection_names
@@ -752,14 +746,12 @@ class SimpleQuery(Tool):
         # get searchable fields
         searchable_fields = {
             collection_name: [
-                named_vector
+                named_vector["name"]
                 for named_vector in schemas[collection_name]["named_vectors"]
-                if (
-                    schemas[collection_name]["named_vectors"][named_vector]["enabled"]
-                    and named_vector != "null"
-                )
+                if named_vector["enabled"]
             ]
             for collection_name in collection_names
+            if schemas[collection_name]["named_vectors"] is not None
         }
 
         # Generate query with LLM
@@ -816,9 +808,9 @@ class SimpleQuery(Tool):
             or len(query.query_outputs) == 0
         ):
 
-            for collection_name in collection_names:
+            for query_output in query.query_outputs:
                 metadata = {
-                    "collection_name": collection_name,
+                    "collection_name": query_output.target_collections,
                     "impossible": tree_data.user_prompt,
                     "impossible_reasoning": (
                         query.reasoning
@@ -826,9 +818,7 @@ class SimpleQuery(Tool):
                         else ""
                     ),
                     "query_output": (
-                        query.query_outputs.model_dump()
-                        if query.query_outputs is not None
-                        else None
+                        query_output.model_dump() if query_output is not None else None
                     ),
                 }
                 yield TableRetrieval([], metadata)
@@ -884,9 +874,7 @@ class SimpleQuery(Tool):
                         query_output,
                         named_vector_fields=query.fields_to_search,
                         property_types={
-                            collection_name: {
-                                field: schemas[collection_name]["fields"][field]["type"]
-                            }
+                            collection_name: {field["name"]: field["type"]}
                             for field in schemas[collection_name]["fields"]
                             for collection_name in collection_names
                         },

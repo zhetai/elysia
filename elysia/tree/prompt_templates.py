@@ -199,14 +199,15 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
             "name": data collection name,
             "length": object count,
             "summary": collection summary,
-            "fields": {
-                "field_name": {
+            "fields": [
+                {
+                    "name": field_name,
                     "groups": unique text values (empty if non-text),
                     "mean": average field length (tokens/list items),
                     "range": min/max length values,
                     "type": data type
                 }
-            }
+            ]
         }
         Use this to see if there are cross-overs between the currently retrieved data (environment) and any other collections, to help make an interesting question.
         Also use this to NOT suggest questions that would be impossible.
