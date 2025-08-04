@@ -119,7 +119,8 @@ async def collections_list(
                 processed_collections = await metadata_collection.query.fetch_objects(
                     filters=Filter.any_of(
                         [Filter.by_property("name").equal(c) for c in collections]
-                    )
+                    ),
+                    limit=9999,
                 )
                 processed_collection_names = [
                     processed_collection.properties["name"]
@@ -202,12 +203,6 @@ async def collections_list(
                                             "model": model,
                                         }
                                     )
-
-                            # add the vectoriser and model to the global vector config
-                            # vector_config["fields"][field_name] = {
-                            #     "vectorizer": vectorised_field.vectorizer.vectorizer.name,
-                            #     "model": model,
-                            # }
 
                     if config.vectorizer_config:
                         model = config.vectorizer_config.model
@@ -431,8 +426,8 @@ async def collection_metadata(
         "metadata": dict = {
 
         # summary statistics of each field in the collection
-            "fields": dict = {
-                field_name_1: dict = {
+        "fields": dict = {
+            field_name_1: dict = {
                 "description": str,
                 "range": list[float],
                 "type": str,
@@ -508,7 +503,11 @@ async def collection_metadata(
                 )
                 properties = metadata.objects[0].properties
                 format_dict_to_serialisable(properties)
-                if "null" in properties["named_vectors"]:
+
+                if properties["named_vectors"] is None:
+                    properties["named_vectors"] = {}
+
+                elif "null" in properties["named_vectors"]:
                     del properties["named_vectors"]["null"]
 
     except Exception as e:

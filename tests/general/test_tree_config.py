@@ -1,6 +1,6 @@
 import dspy
 import pytest
-from elysia.config import Settings, configure, reset_settings
+from elysia.config import Settings, configure, reset_settings, IncorrectModelError
 from elysia.tree.tree import Tree
 
 
@@ -57,8 +57,10 @@ class TestTreeConfig:
         tree = Tree(settings=settings, low_memory=True)
 
         # should raise an error, no models set
-        with pytest.raises(ValueError):
+        with pytest.raises(IncorrectModelError):
             tree.base_lm
+
+        with pytest.raises(IncorrectModelError):
             tree.complex_lm
 
         # change the models by global configure
@@ -70,8 +72,10 @@ class TestTreeConfig:
         )
 
         # should still error because the tree doesnt use global configure
-        with pytest.raises(ValueError):
+        with pytest.raises(IncorrectModelError):
             tree.base_lm
+
+        with pytest.raises(IncorrectModelError):
             tree.complex_lm
 
         # change the models by local configure

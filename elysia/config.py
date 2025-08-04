@@ -719,11 +719,42 @@ def check_base_lm_settings(settings: Settings):
             f"Available providers based on your API keys: {', '.join(available_providers)}"
         )
 
-    if settings.BASE_MODEL not in models_by_provider[settings.BASE_PROVIDER]:
+    if (
+        settings.BASE_PROVIDER.startswith("openrouter/")
+        and f"{settings.BASE_PROVIDER}/{settings.BASE_MODEL}"
+        not in models_by_provider["openrouter"]
+    ):
+        example_models = [
+            model.split("/")[-1]
+            for model in models_by_provider["openrouter"]
+            if model.startswith(settings.BASE_PROVIDER)
+        ]
+
+        raise IncorrectModelError(
+            f"The model {settings.BASE_MODEL} is not available for provider {settings.BASE_PROVIDER}. "
+            f"Some example models for {settings.BASE_PROVIDER} are: "
+            f"{', '.join(example_models[:5])}. "
+            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+        )
+
+    elif (
+        settings.BASE_PROVIDER in models_by_provider
+        and settings.BASE_MODEL not in models_by_provider[settings.BASE_PROVIDER]
+    ):
         raise IncorrectModelError(
             f"The model {settings.BASE_MODEL} is not available for provider {settings.BASE_PROVIDER}. "
             f"Some example models for {settings.BASE_PROVIDER} are: "
             f"{', '.join(models_by_provider[settings.BASE_PROVIDER][:5])}. "
+            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+        )
+
+    elif (
+        settings.BASE_PROVIDER not in models_by_provider
+        and not settings.BASE_PROVIDER.startswith("openrouter")
+    ):
+        raise IncorrectModelError(
+            f"The provider {settings.BASE_PROVIDER} is not available. "
+            f"Some example providers are: {', '.join(list(models_by_provider.keys())[:5])}. "
             "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
         )
 
@@ -743,11 +774,42 @@ def check_complex_lm_settings(settings: Settings):
             f"Available providers based on your API keys: {', '.join(available_providers)}"
         )
 
-    if settings.COMPLEX_MODEL not in models_by_provider[settings.COMPLEX_PROVIDER]:
+    if (
+        settings.COMPLEX_PROVIDER.startswith("openrouter/")
+        and f"{settings.COMPLEX_PROVIDER}/{settings.COMPLEX_MODEL}"
+        not in models_by_provider["openrouter"]
+    ):
+        example_models = [
+            model.split("/")[-1]
+            for model in models_by_provider["openrouter"]
+            if model.startswith(settings.COMPLEX_PROVIDER)
+        ]
+
+        raise IncorrectModelError(
+            f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
+            f"Some example models for {settings.COMPLEX_PROVIDER} are: "
+            f"{', '.join(example_models[:5])}. "
+            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+        )
+
+    elif (
+        settings.COMPLEX_PROVIDER in models_by_provider
+        and settings.COMPLEX_MODEL not in models_by_provider[settings.COMPLEX_PROVIDER]
+    ):
         raise IncorrectModelError(
             f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
             f"Some example models for {settings.COMPLEX_PROVIDER} are: "
             f"{', '.join(models_by_provider[settings.COMPLEX_PROVIDER][:5])}. "
+            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+        )
+
+    elif (
+        settings.COMPLEX_PROVIDER not in models_by_provider
+        and not settings.COMPLEX_PROVIDER.startswith("openrouter")
+    ):
+        raise IncorrectModelError(
+            f"The provider {settings.COMPLEX_PROVIDER} is not available. "
+            f"Some example providers are: {', '.join(list(models_by_provider.keys())[:5])}. "
             "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
         )
 

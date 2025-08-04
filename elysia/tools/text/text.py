@@ -168,6 +168,8 @@ class FakeTextResponse(Tool):
             name="text_response",
             description="""
             End the conversation. This should be used when the user has finished their query, or you have nothing more to do except reply.
+            You should use this to answer conversational questions not related to other tools. But do not use this as a source of information.
+            All information should be from the environment if answering a complex question or an explanation.
             If there is an error and you could not complete a task, use this tool to suggest a brief reason why.
             If, for example, there is a missing API key, then the user needs to add it to the settings (which you should inform them of).
             Or you cannot connect to weaviate, then the user needs to input their API keys in the settings.

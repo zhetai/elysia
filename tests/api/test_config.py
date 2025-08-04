@@ -1584,4 +1584,4 @@ class TestConfig:
         assert len(response["models"]) > 0
         assert "openai" in response["models"]
         assert "anthropic" in response["models"]
-        assert "google" in response["models"]
+        assert "gemini" in response["models"]

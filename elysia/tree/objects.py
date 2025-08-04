@@ -423,7 +423,8 @@ class CollectionData:
                             Filter.by_property("name").equal(collection_name)
                             for collection_name in collections_to_get
                         ]
-                    )
+                    ),
+                    limit=9999,
                 )
                 metadata_map = {
                     metadata_obj.properties["name"]: metadata_obj.properties
