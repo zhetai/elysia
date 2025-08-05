@@ -50,3 +50,6 @@ class SummariseItems(Tool):
                 obj.add_summaries(summariser.summaries)
 
                 yield obj
+
+            # remove items from hidden environment
+            tree_data.environment.hidden_environment.pop("items_to_summarise")

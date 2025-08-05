@@ -109,25 +109,21 @@ class QueryOutput(BaseModel):
     search_type: Literal["hybrid", "keyword", "vector", "filter_only"]
     search_query: Optional[str] = None
     sort_by: Optional[SortBy] = None
-    filter_buckets: Optional[List[FilterBucket]] = None
+    filter_buckets: Optional[List[FilterBucket] | FilterBucket] = None
     limit: Optional[int] = 5
 
 
 # -- Full Aggregation Definition
 class AggregationOutput(BaseModel):
     target_collections: List[str]
-    search_query: Optional[str] = Field(default=None)
-    search_type: Optional[Literal["hybrid", "keyword", "vector"]] = Field(default=None)
-    filter_buckets: Optional[List[FilterBucket]] = Field(default=None)
-    groupby_property: Optional[str] = Field(default=None)
-    number_property_aggregations: Optional[List[NumberAggregation]] = Field(
-        default=None
-    )
-    text_property_aggregations: Optional[List[TextAggregation]] = Field(default=None)
-    boolean_property_aggregations: Optional[List[BooleanAggregation]] = Field(
-        default=None
-    )
-    date_property_aggregations: Optional[List[DateAggregation]] = Field(default=None)
+    search_query: Optional[str] = None
+    search_type: Optional[Literal["hybrid", "keyword", "vector"]] = None
+    filter_buckets: Optional[List[FilterBucket] | FilterBucket] = None
+    groupby_property: Optional[str] = None
+    number_property_aggregations: Optional[List[NumberAggregation]] = None
+    text_property_aggregations: Optional[List[TextAggregation]] = None
+    boolean_property_aggregations: Optional[List[BooleanAggregation]] = None
+    date_property_aggregations: Optional[List[DateAggregation]] = None
     limit: Optional[int] = 5
 
 
@@ -157,9 +153,97 @@ class QueryError(Exception):
     pass
 
 
+def _catch_filter_errors(
+    filters: list,
+    collection_property_types: dict[str, dict[str, str]],
+    collection_name: str,
+):
+    for filter in filters:
+        if isinstance(filter, FilterBucket):
+            _catch_filter_errors(
+                filter.filters, collection_property_types, collection_name
+            )
+        else:
+            # check existence
+            if filter.property_name not in collection_property_types:
+                if (
+                    "." in filter.property_name
+                    and filter.property_name.split(".")[0] in collection_property_types
+                ):
+                    raise QueryError(
+                        f"During the filter: {filter}"
+                        f"Property '{filter.property_name}' not found in the collection '{collection_name}'. "
+                        f"If you are trying to filter on a nested property of '{filter.property_name.split('.')[0]}', "
+                        "you cannot do this. Object properties cannot be filtered on. "
+                        "This is a Weaviate limitation."
+                    )
+                raise QueryError(
+                    f"During the filter: {filter}"
+                    f"Property '{filter.property_name}' not found in the collection '{collection_name}'. "
+                    f"Available properties: {list(collection_property_types.keys())}"
+                )
+
+            # check if object
+            if collection_property_types[filter.property_name].startswith("object"):
+                raise QueryError(
+                    f"Attempted to filter on property '{filter.property_name}', "
+                    "but the property type is an object. "
+                    "Object types cannot be filtered on."
+                )
+
+            # check list
+            if isinstance(filter, ListPropertyFilter) and not collection_property_types[
+                filter.property_name
+            ].endswith("[]"):
+                if collection_property_types[filter.property_name] == "text":
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a list filter, "
+                        "but the property type is text. Text properties cannot be filtered on. "
+                        "Hint: use a text filter with the 'LIKE' operator instead."
+                    )
+                else:
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a list filter, "
+                        "but the property type is not a list. It is a "
+                        f"{collection_property_types[filter.property_name]}."
+                    )
+
+            # check number
+            if isinstance(filter, NumberPropertyFilter):
+                if collection_property_types[filter.property_name] != "number":
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a number filter, "
+                        f"but the property type is not a number. It is a {collection_property_types[filter.property_name]}."
+                    )
+
+            # check date
+            if isinstance(filter, DatePropertyFilter):
+                if collection_property_types[filter.property_name] != "date":
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a date filter, "
+                        f"but the property type is not a date. It is a {collection_property_types[filter.property_name]}."
+                    )
+
+            # check boolean
+            if isinstance(filter, BooleanPropertyFilter):
+                if collection_property_types[filter.property_name] != "boolean":
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a boolean filter, "
+                        f"but the property type is not a boolean. It is a {collection_property_types[filter.property_name]}."
+                    )
+
+            # check text
+            if isinstance(filter, TextPropertyFilter):
+                if collection_property_types[filter.property_name] != "text":
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a text filter, "
+                        f"but the property type is not a text. It is a {collection_property_types[filter.property_name]}."
+                    )
+
+
 # == Define functions for executing queries and aggregations
-def catch_typing_errors(
-    tool_args: dict, property_types: dict[str, dict[str, str]]
+def _catch_typing_errors(
+    tool_args: dict[str, Any], property_types: dict[str, dict[str, str]]
 ) -> None:
     """Catch typing errors and raise a QueryError."""
 
@@ -173,76 +257,47 @@ def catch_typing_errors(
 
     for collection_name, collection_property_types in property_types.items():
 
-        if "filter_buckets" in tool_args:
-            for filter_bucket in tool_args["filter_buckets"]:
-                for filter in filter_bucket.filters:
+        aggregations = [
+            arg for arg in list(tool_args.keys()) if arg.endswith("aggregations")
+        ]
 
-                    # check existence
-                    if filter.property_name not in collection_property_types:
+        if len(aggregations) > 0:
+            for aggregation in aggregations:
+                for agg_operator in tool_args[aggregation]:
+
+                    if agg_operator.property_name not in collection_property_types:
+                        if (
+                            "." in agg_operator.property_name
+                            and agg_operator.property_name.split(".")[0]
+                            in collection_property_types
+                        ):
+                            raise QueryError(
+                                f"During the aggregation '{aggregation}': "
+                                f"Property '{agg_operator.property_name}' not found in the collection '{collection_name}'. "
+                                f"If you are trying to aggregate on a nested property of '{agg_operator.property_name.split('.')[0]}', "
+                                "you cannot do this. Object properties cannot be aggregated on. "
+                                "This is a Weaviate limitation."
+                            )
                         raise QueryError(
-                            f"Property '{filter.property_name}' not found in the collection '{collection_name}'."
+                            f"During the aggregation: {aggregation}, "
+                            f"Property '{agg_operator.property_name}' not found in the collection '{collection_name}'. "
+                            f"Available properties: {list(collection_property_types.keys())}"
                         )
 
                     # check if object
-                    if collection_property_types[filter.property_name].startswith(
+                    if collection_property_types[agg_operator.property_name].startswith(
                         "object"
                     ):
                         raise QueryError(
-                            f"Attempted to filter on property '{filter.property_name}' using a filter, "
+                            f"Attempted to filter on property '{filter.property_name}', "
                             "but the property type is an object. "
                             "Object types cannot be filtered on."
                         )
 
-                    # check list
-                    if isinstance(
-                        filter, ListPropertyFilter
-                    ) and not collection_property_types[filter.property_name].endswith(
-                        "[]"
-                    ):
-                        if collection_property_types[filter.property_name] == "text":
-                            raise QueryError(
-                                f"Attempted to filter on property '{filter.property_name}' using a list filter, "
-                                "but the property type is text. Text properties cannot be filtered on. "
-                                "Hint: use a text filter with the 'LIKE' operator instead."
-                            )
-                        else:
-                            raise QueryError(
-                                f"Attempted to filter on property '{filter.property_name}' using a list filter, "
-                                "but the property type is not a list. It is a "
-                                f"{collection_property_types[filter.property_name]}."
-                            )
-
-                    # check number
-                    if isinstance(filter, NumberPropertyFilter):
-                        if collection_property_types[filter.property_name] != "number":
-                            raise QueryError(
-                                f"Attempted to filter on property '{filter.property_name}' using a number filter, "
-                                f"but the property type is not a number. It is a {collection_property_types[filter.property_name]}."
-                            )
-
-                    # check date
-                    if isinstance(filter, DatePropertyFilter):
-                        if collection_property_types[filter.property_name] != "date":
-                            raise QueryError(
-                                f"Attempted to filter on property '{filter.property_name}' using a date filter, "
-                                f"but the property type is not a date. It is a {collection_property_types[filter.property_name]}."
-                            )
-
-                    # check boolean
-                    if isinstance(filter, BooleanPropertyFilter):
-                        if collection_property_types[filter.property_name] != "boolean":
-                            raise QueryError(
-                                f"Attempted to filter on property '{filter.property_name}' using a boolean filter, "
-                                f"but the property type is not a boolean. It is a {collection_property_types[filter.property_name]}."
-                            )
-
-                    # check text
-                    if isinstance(filter, TextPropertyFilter):
-                        if collection_property_types[filter.property_name] != "text":
-                            raise QueryError(
-                                f"Attempted to filter on property '{filter.property_name}' using a text filter, "
-                                f"but the property type is not a text. It is a {collection_property_types[filter.property_name]}."
-                            )
+        if "filter_buckets" in tool_args:
+            _catch_filter_errors(
+                tool_args["filter_buckets"], collection_property_types, collection_name
+            )
 
 
 async def execute_weaviate_query(
@@ -266,9 +321,10 @@ async def execute_weaviate_query(
         tool_args["search_type"] = predicted_query.search_type
 
     if predicted_query.filter_buckets:
-        tool_args["filter_buckets"] = [
-            filter_bucket for filter_bucket in predicted_query.filter_buckets
-        ]
+        if isinstance(predicted_query.filter_buckets, list):
+            tool_args["filter_buckets"] = predicted_query.filter_buckets
+        elif isinstance(predicted_query.filter_buckets, FilterBucket):
+            tool_args["filter_buckets"] = [predicted_query.filter_buckets]
 
     if predicted_query.sort_by:
         tool_args["sort_by"] = predicted_query.sort_by.model_dump()
@@ -287,7 +343,7 @@ async def execute_weaviate_query(
             for name, fields in named_vector_fields.items()
         }
 
-    catch_typing_errors(tool_args, property_types)
+    _catch_typing_errors(tool_args, property_types)
 
     final_responses, str_responses = await _handle_search(weaviate_client, tool_args)
 
@@ -529,9 +585,10 @@ async def execute_weaviate_aggregation(
         tool_args["search_type"] = predicted_query.search_type
 
     if predicted_query.filter_buckets:
-        tool_args["filter_buckets"] = [
-            filter_bucket for filter_bucket in predicted_query.filter_buckets
-        ]
+        if isinstance(predicted_query.filter_buckets, list):
+            tool_args["filter_buckets"] = predicted_query.filter_buckets
+        elif isinstance(predicted_query.filter_buckets, FilterBucket):
+            tool_args["filter_buckets"] = [predicted_query.filter_buckets]
 
     if predicted_query.number_property_aggregations:
         tool_args["number_property_aggregations"] = (
@@ -561,7 +618,7 @@ async def execute_weaviate_aggregation(
     if predicted_query.groupby_property:
         tool_args["groupby_property"] = predicted_query.groupby_property
 
-    catch_typing_errors(tool_args, property_types)
+    _catch_typing_errors(tool_args, property_types)
 
     # Execute query based on type
     responses, str_responses = await _handle_aggregation_query(

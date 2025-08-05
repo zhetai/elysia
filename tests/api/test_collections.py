@@ -50,13 +50,16 @@ async def initialise_user_and_tree(user_id: str, conversation_id: str):
     )
 
 
-def create_collection(client_manager: ClientManager):
+def create_collection(
+    client_manager: ClientManager, collection_name: str | None = None
+):
     """
     Create a new collection for testing.
     """
 
     r = random.randint(0, 1000)
-    collection_name = f"test_elysia_collection_{r}"
+    if collection_name is None:
+        collection_name = f"test_elysia_collection_{r}"
 
     # create the collection
     vectorizer = Configure.Vectorizer.text2vec_openai(model="text-embedding-3-small")
@@ -290,7 +293,7 @@ class TestEndpoints:
             # retrieve the metadata
             metadata = await collection_metadata(
                 user_id=user_id,
-                collection_name="example_verba_github_issues",
+                collection_name="Example_verba_github_issues",
                 user_manager=user_manager,
             )
             metadata = read_response(metadata)
@@ -353,17 +356,21 @@ class TestEndpoints:
             metadata = metadata["metadata"]
 
             # check the values have been updated
-            assert metadata["named_vectors"]["issue_content"]["enabled"] == True
-            assert (
-                metadata["named_vectors"]["issue_content"]["description"]
-                == "Directly related to the issue content."
-            )
+            for named_vector in metadata["named_vectors"]:
+                if named_vector["name"] == "issue_content":
+                    assert named_vector["enabled"] == True
+                    assert (
+                        named_vector["description"]
+                        == "Directly related to the issue content."
+                    )
+                    break
+
             assert metadata["summary"] == new_summary
             assert "ecommerce" in metadata["mappings"]
-            assert (
-                metadata["fields"]["issue_title"]["description"]
-                == new_fields[0].description
-            )
+            for field in metadata["fields"]:
+                if field["name"] == "issue_title":
+                    assert field["description"] == new_fields[0].description
+                    break
 
             # save current values
             midway_named_vectors = metadata["named_vectors"]
@@ -406,14 +413,11 @@ class TestEndpoints:
             metadata = metadata["metadata"]
 
             # check the values have been updated
-            assert (
-                metadata["fields"]["issue_updated_at"]["description"]
-                == new_fields2[0].description
-            )
-            assert (
-                metadata["fields"]["issue_created_at"]["description"]
-                == new_fields2[1].description
-            )
+            for field in metadata["fields"]:
+                if field["name"] == "issue_updated_at":
+                    assert field["description"] == new_fields2[0].description
+                if field["name"] == "issue_created_at":
+                    assert field["description"] == new_fields2[1].description
 
             # check that the other values are unchanged
             assert metadata["named_vectors"] == midway_named_vectors
@@ -422,16 +426,16 @@ class TestEndpoints:
 
             old_named_vectors_data = [
                 MetadataNamedVectorData(
-                    name=name,
-                    enabled=old_named_vectors[name]["enabled"],
-                    description=old_named_vectors[name]["description"],
+                    name=field["name"],
+                    enabled=field["enabled"],
+                    description=field["description"],
                 )
-                for name in old_named_vectors
+                for field in old_named_vectors
             ]
             old_fields_data = [
                 MetadataFieldData(
-                    name=field,
-                    description=old_fields[field]["description"],
+                    name=field["name"],
+                    description=field["description"],
                 )
                 for field in old_fields
             ]
@@ -469,17 +473,18 @@ class TestEndpoints:
     async def test_delete_metadata(self):
         user_id = "test_user_delete_metadata"
         conversation_id = "test_conversation_delete_metadata"
+        collection_name = "test_collection_delete_metadata"
+
+        user_manager = get_user_manager()
+        await initialise_user_and_tree(user_id, conversation_id)
+
+        user_local = await user_manager.get_user_local(user_id)
+        client_manager = user_local["client_manager"]
+        settings = user_local["tree_manager"].settings
 
         try:
-            user_manager = get_user_manager()
-            await initialise_user_and_tree(user_id, conversation_id)
-
-            user_local = await user_manager.get_user_local(user_id)
-            client_manager = user_local["client_manager"]
-            settings = user_local["tree_manager"].settings
-
             # create a collection
-            collection_name = create_collection(client_manager)
+            collection_name = create_collection(client_manager, collection_name)
 
             # preprocess the collection
             async for _ in preprocess_async(
@@ -520,3 +525,9 @@ class TestEndpoints:
 
         finally:
             await user_manager.close_all_clients()
+
+            try:
+                with client_manager.connect_to_client() as client:
+                    client.collections.delete(collection_name)
+            except Exception as e:
+                pass

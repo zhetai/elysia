@@ -169,15 +169,6 @@ class Aggregate(Tool):
 
         # Yield results to front end
         yield Response(text=aggregation.message_update)
-        yield TrainingUpdate(
-            module_name="aggregate",
-            inputs={
-                **tree_data.to_json(),
-                "available_collections": collection_names,
-                "previous_aggregation_queries": previous_aggregations,
-            },
-            outputs=aggregation.__dict__["_store"],
-        )
 
         if tree_data.settings.USE_FEEDBACK:
             yield FewShotExamples(uuids=example_uuids)
@@ -284,5 +275,15 @@ class Aggregate(Tool):
 
                 yield Aggregation(objects, metadata)
 
+        # if successful, yield training update
+        yield TrainingUpdate(
+            module_name="aggregate",
+            inputs={
+                **tree_data.to_json(),
+                "available_collections": collection_names,
+                "previous_aggregation_queries": previous_aggregations,
+            },
+            outputs=aggregation.__dict__["_store"],
+        )
         if self.logger:
             self.logger.debug("Aggregation Tool finished!")

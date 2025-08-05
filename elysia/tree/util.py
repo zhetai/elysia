@@ -392,6 +392,7 @@ class DecisionNode:
         client_manager: ClientManager,
         **kwargs,
     ) -> tuple[Decision, list[TrainingUpdate | Status | Response | FewShotExamples]]:
+
         available_options = self._options_to_json(available_tools)
         unavailable_options = self._unavailable_options_to_json(unavailable_tools)
 
@@ -413,7 +414,6 @@ class DecisionNode:
         )
 
         if not one_choice:
-
             decision_module = ElysiaChainOfThought(
                 DecisionPrompt,
                 tree_data=tree_data,

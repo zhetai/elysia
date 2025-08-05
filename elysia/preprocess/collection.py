@@ -150,7 +150,7 @@ async def _evaluate_field_statistics(
             out["date_range"] = None
 
         else:
-            out["range"] = []
+            out["range"] = None
             out["mean"] = None
             out["date_range"] = None
             out["date_mean"] = None
@@ -190,15 +190,15 @@ async def _evaluate_field_statistics(
 
             out["range"] = [min(lengths), max(lengths)]
             out["mean"] = sum(lengths) / len(lengths)
-            out["groups"] = []
-            out["date_range"] = []
+            out["groups"] = None
+            out["date_range"] = None
             out["date_mean"] = None
 
     else:
-        out["range"] = []
+        out["range"] = None
         out["mean"] = None
-        out["groups"] = []
-        out["date_range"] = []
+        out["groups"] = None
+        out["date_range"] = None
         out["date_mean"] = None
 
     return out
