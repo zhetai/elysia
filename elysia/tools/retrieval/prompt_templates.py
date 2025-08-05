@@ -43,6 +43,7 @@ class AggregationPrompt(dspy.Signature):
         - DatePropertyFilter: For date comparisons (=, <, >, <=, >=)
        Make sure to use the correct filter type for the property type. The property type is given in the schema (field.[field_name].type).
        If you use the incorrect filter type, the query will error. It is extremely important that you use the correct filter type!
+       You CANNOT use any type of filter on an 'object' or 'object[]' property. It will raise an error!
 
     5. Aggregation operations (can choose many per AggregationOutput object, match the property type based on the field in the schema):
         - integer_property_aggregation: MIN, MAX, MEAN, MEDIAN, MODE, SUM on numeric fields
@@ -173,6 +174,7 @@ class QueryCreatorPrompt(dspy.Signature):
 
     2. Err on the side of using larger limits, because you can parse the results later, and it's better to have more than too few.
         Additionally, if this query is part of a larger task, you may need to retrieve a lot of objects to infer correlations or trends.
+        If you are looking for overall patterns or trends, use a larger limit (greater than 10).
     3. Do not use a search term to look for specific categories of items if there is a corresponding field in the schema you can use instead as a filter.
     4. You cannot combine sorting with a search term (mutually exclusive), so if sorting is important, do not specify a search term.
     5. Nesting filter buckets is really powerful, and if the queries are particularly complex, definitely use this feature.

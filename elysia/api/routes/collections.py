@@ -524,6 +524,8 @@ async def collection_metadata(
             headers=headers,
         )
 
+    logger.debug(f"\n\nProperties: {properties}\n\n")
+
     return JSONResponse(
         content={
             "metadata": properties,

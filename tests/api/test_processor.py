@@ -86,7 +86,7 @@ class TestProcessor:
         )
         local_user = await user_manager.get_user_local(user_id)
         client_manager = local_user["client_manager"]
-        collection_name = create_collection(ClientManager())
+        collection_name = create_collection(client_manager)
 
         try:
             # get config

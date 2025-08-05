@@ -316,17 +316,6 @@ class Query(Tool):
 
         # Yield results to front end
         yield Response(text=query.message_update)
-        yield TrainingUpdate(
-            module_name="query",
-            inputs={
-                "available_collections": collection_names,
-                "previous_queries": previous_queries,
-                "collection_display_types": display_types,
-                "searchable_fields": searchable_fields,
-                **tree_data.to_json(),
-            },
-            outputs=query.__dict__["_store"],
-        )
         if tree_data.settings.USE_FEEDBACK:
             yield FewShotExamples(uuids=example_uuids)
 
@@ -424,14 +413,6 @@ class Query(Tool):
             for collection_name in collection_names:
 
                 display_type = query.data_display[collection_name].display_type
-
-                if self.logger:
-                    self.logger.debug(
-                        f"Display type for collection {collection_name}: {display_type}"
-                    )
-                    self.logger.debug(
-                        f"Fields to search for collection {collection_name}: {query.fields_to_search[collection_name]}"
-                    )
 
                 # Evaluate if this collection/query needs chunking
                 needs_chunking = self._evaluate_needs_chunking(
@@ -605,6 +586,18 @@ class Query(Tool):
                 else:
                     yield output
 
+        # if successful, yield training update
+        yield TrainingUpdate(
+            module_name="query",
+            inputs={
+                "available_collections": collection_names,
+                "previous_queries": previous_queries,
+                "collection_display_types": display_types,
+                "searchable_fields": searchable_fields,
+                **tree_data.to_json(),
+            },
+            outputs=query.__dict__["_store"],
+        )
         if self.logger:
             self.logger.debug("Query Tool finished!")
 

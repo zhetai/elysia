@@ -14,7 +14,7 @@ from elysia.api.dependencies.common import get_user_manager
 from elysia.api.services.user import UserManager
 from elysia.util.parsing import format_dict_to_serialisable
 from elysia.tree.tree import Tree
-from elysia.config import Settings
+from elysia.config import Settings, is_api_key
 
 from weaviate.util import generate_uuid5
 
@@ -190,7 +190,7 @@ async def change_config_tree(
             if "wcd_url" in data.settings:
                 del data.settings["wcd_url"]
 
-            api_keys = [key for key in data.settings if key.lower().endswith("api_key")]
+            api_keys = [key for key in data.settings if is_api_key(key)]
             for key in api_keys:
                 del data.settings[key]
 
@@ -291,7 +291,7 @@ async def load_config_tree(
             **{
                 c: renamed_config["settings"][c]
                 for c in renamed_config["settings"]
-                if (c != "api_keys" and not c.endswith("api_key"))
+                if (c != "api_keys" and not is_api_key(c))
             }
         )
 

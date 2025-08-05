@@ -103,7 +103,7 @@ class TestGenericPrompts:
         tree = await self.run_tree(
             user_prompt,
             [
-                "Ecommerce",
+                "Products",
                 "Example_verba_email_chains",
                 "Example_verba_github_issues",
                 "Example_verba_slack_conversations",

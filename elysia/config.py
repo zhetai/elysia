@@ -1,7 +1,12 @@
 import os
 import logging
 import litellm
-from litellm import AuthenticationError, models_by_provider
+from litellm import (
+    AuthenticationError,
+    NotFoundError,
+    BadRequestError,
+    models_by_provider,
+)
 from litellm.utils import get_valid_models, check_valid_key
 from rich.logging import RichHandler
 from typing import Callable, Literal
@@ -29,6 +34,8 @@ api_key_to_provider = {
         "openrouter/anthropic",
         "openrouter/google",
     ],
+    "gemini_api_key": ["gemini"],
+    "azure_api_key": ["azure"],
 }
 
 provider_to_models = {
@@ -58,19 +65,19 @@ provider_to_models = {
     ],
 }
 
-models_to_providers = {}
-for provider, models in provider_to_models.items():
-    for model in models:
-        if model not in models_to_providers:
-            models_to_providers[model] = []
-        models_to_providers[model].append(provider)
-
-provider_to_api_keys = {}
-for api_key, providers in api_key_to_provider.items():
-    for provider in providers:
-        if provider not in provider_to_api_keys:
-            provider_to_api_keys[provider] = []
-        provider_to_api_keys[provider].append(api_key)
+provider_to_api_keys = {
+    "openai": ["openai_api_key"],
+    "anthropic": ["anthropic_api_key"],
+    "openrouter/openai": ["openrouter_api_key"],
+    "openrouter/anthropic": ["openrouter_api_key"],
+    "openrouter/google": ["openrouter_api_key"],
+    "gemini": ["gemini_api_key"],
+    "azure": ["azure_api_key", "azure_api_base", "azure_api_version"],
+    "groq": ["groq_api_key"],
+    "databricks": ["databricks_api_key", "databricks_api_base"],
+    "bedrock": ["aws_access_key_id", "aws_secret_access_key", "aws_region_name"],
+    "snowflake": ["snowflake_jwt", "snowflake_account_id"],
+}
 
 
 def get_available_models(api_keys: list[str]):
@@ -90,11 +97,18 @@ def get_available_providers(api_keys: list[str]) -> list[str]:
     return list(set(available_providers))
 
 
-def get_required_api_keys(model: str) -> list[str]:
-    api_keys = []
-    for provider in models_to_providers.get(model, []):
-        api_keys.extend(provider_to_api_keys.get(provider, []))
-    return list(set(api_keys))
+def is_api_key(key: str) -> bool:
+    return (
+        key.lower().endswith("api_key")
+        or key.lower().endswith("apikey")
+        or key.lower().endswith("api_version")
+        or key.lower().endswith("api_base")
+        or key.lower().endswith("_account_id")
+        or key.lower().endswith("_jwt")
+        or key.lower().endswith("_access_key_id")
+        or key.lower().endswith("_secret_access_key")
+        or key.lower().endswith("_region_name")
+    )
 
 
 class Settings:
@@ -232,13 +246,7 @@ class Settings:
         self.API_KEYS = {
             env_var.lower(): os.getenv(env_var, "")
             for env_var in os.environ
-            if (
-                (
-                    env_var.lower().endswith("api_key")
-                    or env_var.lower().endswith("apikey")
-                )
-                and env_var.lower() != "wcd_api_key"
-            )
+            if is_api_key(env_var) and env_var.lower() != "wcd_api_key"
         }
         for api_key in self.API_KEYS:
             self.set_api_key(self.API_KEYS[api_key], api_key)
@@ -446,7 +454,7 @@ class Settings:
         # remainder of kwargs are API keys or saved there
         removed_kwargs = []
         for key, value in kwargs.items():
-            if key.endswith("api_key"):
+            if is_api_key(key):
                 self.set_api_key(value, key)
                 removed_kwargs.append(key)
 
@@ -529,178 +537,114 @@ class ElysiaKeyManager:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-        # check if the keys are valid
-        any_valid_base = any(
-            [
-                check_valid_key(
-                    f"{self.settings.BASE_PROVIDER}/{self.settings.BASE_MODEL}",
-                    api_key,
-                )
-                for api_key in self.settings.API_KEYS.values()
-            ]
-        )
-        any_valid_complex = any(
-            [
-                check_valid_key(
-                    f"{self.settings.COMPLEX_PROVIDER}/{self.settings.COMPLEX_MODEL}",
-                    api_key,
-                )
-                for api_key in self.settings.API_KEYS.values()
-            ]
-        )
+    def _check_model_availability(self, model: str, provider: str) -> bool:
+        if provider not in models_by_provider and not provider.startswith("openrouter"):
+            raise IncorrectModelError(
+                f"The provider {provider} is not available. "
+                f"Some example providers are: {', '.join(list(models_by_provider.keys())[:5])}. "
+                "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+            )
 
-        if not any_valid_base:
-            required_api_keys = get_required_api_keys(self.settings.BASE_MODEL)
-            if len(required_api_keys) > 0:
-                raise APIKeyError(
-                    f"You are trying to use the model '{self.settings.BASE_MODEL}' "
-                    f"but you do not have one of the following API keys: {', '.join(required_api_keys)}. "
-                    f"Please update your API keys in the settings."
-                )
-            else:
-                raise APIKeyError(
-                    f"You are trying to use the model '{self.settings.BASE_MODEL}' "
-                    f"but you have not set the required API keys. "
-                    f"Check the model documentation (https://docs.litellm.ai/docs/providers) "
-                    f"for provider {self.settings.BASE_PROVIDER} "
-                    "for the required API keys."
-                )
+        elif (
+            provider.startswith("openrouter/")
+            and f"{provider}/{model}" not in models_by_provider["openrouter"]
+        ):
+            example_models = [
+                model.split("/")[-1]
+                for model in models_by_provider["openrouter"]
+                if model.startswith(provider)
+            ]
 
-        if not any_valid_complex:
-            required_api_keys = get_required_api_keys(self.settings.COMPLEX_MODEL)
-            if len(required_api_keys) > 0:
-                raise APIKeyError(
-                    f"You are trying to use the model '{self.settings.COMPLEX_MODEL}' "
-                    f"but you do not have one of the following API keys: {', '.join(required_api_keys)}. "
-                    f"Please update your API keys in the settings."
-                )
-            else:
-                raise APIKeyError(
-                    f"You are trying to use the model '{self.settings.COMPLEX_MODEL}' "
-                    f"but you do not have the required API keys. "
-                    f"Check the model documentation (https://docs.litellm.ai/docs/providers) "
-                    f"for provider {self.settings.COMPLEX_PROVIDER} "
-                    "for the required API keys."
-                )
+            raise IncorrectModelError(
+                f"The model {model} is not available for provider {provider}. "
+                f"Some example models for {provider} are: "
+                f"{', '.join(example_models[:5])}. "
+                "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+            )
+
+        elif (
+            provider in models_by_provider and model not in models_by_provider[provider]
+        ):
+            raise IncorrectModelError(
+                f"The model {model} is not available for provider {provider}. "
+                f"Some example models for {provider} are: "
+                f"{', '.join(models_by_provider[provider][:5])}. "
+                "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+            )
+
+        return False
 
     def __enter__(self):
 
-        # save existing keys
-        self.existing_openrouter_key = litellm.openrouter_key
-        self.existing_openai_key = litellm.openai_key
-        self.existing_anthropic_key = litellm.anthropic_key
-        self.existing_cohere_key = litellm.cohere_key
-        self.existing_groq_key = litellm.groq_key
-        self.existing_llama_api_key = litellm.llama_api_key
-        self.existing_ollama_key = litellm.ollama_key
-        self.existing_azure_key = litellm.azure_key
-
         # save existing env
-        self.existing_openrouter_key_env = (
-            os.environ["OPENROUTER_API_KEY"]
-            if "OPENROUTER_API_KEY" in os.environ
-            else None
-        )
-        self.existing_openai_key_env = (
-            os.environ["OPENAI_API_KEY"] if "OPENAI_API_KEY" in os.environ else None
-        )
-        self.existing_anthropic_key_env = (
-            os.environ["ANTHROPIC_API_KEY"]
-            if "ANTHROPIC_API_KEY" in os.environ
-            else None
-        )
-        self.existing_cohere_key_env = (
-            os.environ["COHERE_API_KEY"] if "COHERE_API_KEY" in os.environ else None
-        )
-        self.existing_groq_key_env = (
-            os.environ["GROQ_API_KEY"] if "GROQ_API_KEY" in os.environ else None
-        )
-        self.existing_llama_api_key_env = (
-            os.environ["LLAMA_API_KEY"] if "LLAMA_API_KEY" in os.environ else None
-        )
-        self.existing_ollama_key_env = (
-            os.environ["OLLAMA_API_KEY"] if "OLLAMA_API_KEY" in os.environ else None
-        )
-        self.existing_azure_key_env = (
-            os.environ["AZURE_API_KEY"] if "AZURE_API_KEY" in os.environ else None
-        )
+        self.existing_env = os.environ.copy()
 
-        # api keys in lower case
-        api_keys = {k.lower(): v for k, v in self.settings.API_KEYS.items()}
+        # blank out the environ except for MODEL_API_BASE
+        os.environ = {
+            "MODEL_API_BASE": self.settings.MODEL_API_BASE,
+        }
 
-        # set new keys in litellm
-        litellm.openrouter_key = (
-            api_keys["openrouter_api_key"] if "openrouter_api_key" in api_keys else None
-        )
-        litellm.openai_key = (
-            api_keys["openai_api_key"] if "openai_api_key" in api_keys else None
-        )
-        litellm.anthropic_key = (
-            api_keys["anthropic_api_key"] if "anthropic_api_key" in api_keys else None
-        )
-        litellm.cohere_key = (
-            api_keys["cohere_api_key"] if "cohere_api_key" in api_keys else None
-        )
-        litellm.groq_key = (
-            api_keys["groq_api_key"] if "groq_api_key" in api_keys else None
-        )
-        litellm.llama_api_key = (
-            api_keys["llama_api_key"] if "llama_api_key" in api_keys else None
-        )
-        litellm.ollama_key = (
-            api_keys["ollama_api_key"] if "ollama_api_key" in api_keys else None
-        )
-        litellm.azure_key = (
-            api_keys["azure_api_key"] if "azure_api_key" in api_keys else None
-        )
-
-        # set in env
-        if self.existing_openrouter_key_env is not None:
-            os.environ["OPENROUTER_API_KEY"] = ""
-        if self.existing_openai_key_env is not None:
-            os.environ["OPENAI_API_KEY"] = ""
-        if self.existing_anthropic_key_env is not None:
-            os.environ["ANTHROPIC_API_KEY"] = ""
-        if self.existing_cohere_key_env is not None:
-            os.environ["COHERE_API_KEY"] = ""
-        if self.existing_groq_key_env is not None:
-            os.environ["GROQ_API_KEY"] = ""
-        if self.existing_llama_api_key_env is not None:
-            os.environ["LLAMA_API_KEY"] = ""
-        if self.existing_ollama_key_env is not None:
-            os.environ["OLLAMA_API_KEY"] = ""
-        if self.existing_azure_key_env is not None:
-            os.environ["AZURE_API_KEY"] = ""
+        # update all api keys in env
+        for api_key, value in self.settings.API_KEYS.items():
+            os.environ[api_key.upper()] = value
 
         pass
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        litellm.openrouter_key = self.existing_openrouter_key
-        litellm.openai_key = self.existing_openai_key
-        litellm.anthropic_key = self.existing_anthropic_key
-        litellm.cohere_key = self.existing_cohere_key
-        litellm.groq_key = self.existing_groq_key
-        litellm.llama_api_key = self.existing_llama_api_key
-        litellm.ollama_key = self.existing_ollama_key
-        litellm.azure_key = self.existing_azure_key
+        # reset env to original
+        os.environ = self.existing_env
 
-        # reset env
-        if self.existing_openrouter_key_env is not None:
-            os.environ["OPENROUTER_API_KEY"] = self.existing_openrouter_key_env
-        if self.existing_openai_key_env is not None:
-            os.environ["OPENAI_API_KEY"] = self.existing_openai_key_env
-        if self.existing_anthropic_key_env is not None:
-            os.environ["ANTHROPIC_API_KEY"] = self.existing_anthropic_key_env
-        if self.existing_cohere_key_env is not None:
-            os.environ["COHERE_API_KEY"] = self.existing_cohere_key_env
-        if self.existing_groq_key_env is not None:
-            os.environ["GROQ_API_KEY"] = self.existing_groq_key_env
-        if self.existing_llama_api_key_env is not None:
-            os.environ["LLAMA_API_KEY"] = self.existing_llama_api_key_env
-        if self.existing_ollama_key_env is not None:
-            os.environ["OLLAMA_API_KEY"] = self.existing_ollama_key_env
-        if self.existing_azure_key_env is not None:
-            os.environ["AZURE_API_KEY"] = self.existing_azure_key_env
+        if exc_type is NotFoundError or exc_type is BadRequestError:
+            self._check_model_availability(
+                self.settings.BASE_MODEL, self.settings.BASE_PROVIDER
+            )
+            self._check_model_availability(
+                self.settings.COMPLEX_MODEL, self.settings.COMPLEX_PROVIDER
+            )
+
+        if exc_type is AuthenticationError or exc_type is BadRequestError:
+            missing_base_api_keys = [
+                api_key
+                for api_key in provider_to_api_keys[self.settings.BASE_PROVIDER]
+                if api_key not in self.settings.API_KEYS
+            ]
+            missing_complex_api_keys = [
+                api_key
+                for api_key in provider_to_api_keys[self.settings.COMPLEX_PROVIDER]
+                if api_key not in self.settings.API_KEYS
+            ]
+            if len(missing_base_api_keys) > 0:
+                raise APIKeyError(
+                    f"You are trying to use the model '{self.settings.BASE_MODEL}' "
+                    f"but you do not have one of the following API keys: {', '.join(missing_base_api_keys)}. "
+                    f"Please update your API keys in the settings."
+                )
+            if len(missing_complex_api_keys) > 0:
+                raise APIKeyError(
+                    f"You are trying to use the model '{self.settings.COMPLEX_MODEL}' "
+                    f"but you do not have one of the following API keys: {', '.join(missing_complex_api_keys)}. "
+                    f"Please update your API keys in the settings."
+                )
+
+            raise APIKeyError(
+                f"One of your API keys is incorrect. "
+                f"Please update your API keys in the settings. "
+                f"The relevant API keys are: "
+                f"{set(provider_to_api_keys[self.settings.BASE_PROVIDER] + provider_to_api_keys[self.settings.COMPLEX_PROVIDER])}"
+            )
+
+        if (
+            exc_type is AuthenticationError
+            or exc_type is BadRequestError
+            or exc_type is NotFoundError
+        ):
+            raise IncorrectModelError(
+                f"Either one of the models or providers: '{self.settings.BASE_MODEL}' or '{self.settings.COMPLEX_MODEL}' "
+                f"({self.settings.BASE_PROVIDER} or {self.settings.COMPLEX_PROVIDER}) "
+                f"is incorrect, or you do not have the required API keys. "
+                f"Check the model documentation (https://docs.litellm.ai/docs/providers)."
+            )
+
         pass
 
 
@@ -719,45 +663,6 @@ def check_base_lm_settings(settings: Settings):
             f"Available providers based on your API keys: {', '.join(available_providers)}"
         )
 
-    if (
-        settings.BASE_PROVIDER.startswith("openrouter/")
-        and f"{settings.BASE_PROVIDER}/{settings.BASE_MODEL}"
-        not in models_by_provider["openrouter"]
-    ):
-        example_models = [
-            model.split("/")[-1]
-            for model in models_by_provider["openrouter"]
-            if model.startswith(settings.BASE_PROVIDER)
-        ]
-
-        raise IncorrectModelError(
-            f"The model {settings.BASE_MODEL} is not available for provider {settings.BASE_PROVIDER}. "
-            f"Some example models for {settings.BASE_PROVIDER} are: "
-            f"{', '.join(example_models[:5])}. "
-            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-        )
-
-    elif (
-        settings.BASE_PROVIDER in models_by_provider
-        and settings.BASE_MODEL not in models_by_provider[settings.BASE_PROVIDER]
-    ):
-        raise IncorrectModelError(
-            f"The model {settings.BASE_MODEL} is not available for provider {settings.BASE_PROVIDER}. "
-            f"Some example models for {settings.BASE_PROVIDER} are: "
-            f"{', '.join(models_by_provider[settings.BASE_PROVIDER][:5])}. "
-            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-        )
-
-    elif (
-        settings.BASE_PROVIDER not in models_by_provider
-        and not settings.BASE_PROVIDER.startswith("openrouter")
-    ):
-        raise IncorrectModelError(
-            f"The provider {settings.BASE_PROVIDER} is not available. "
-            f"Some example providers are: {', '.join(list(models_by_provider.keys())[:5])}. "
-            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-        )
-
 
 def check_complex_lm_settings(settings: Settings):
     if "COMPLEX_MODEL" not in dir(settings) or settings.COMPLEX_MODEL is None:
@@ -774,44 +679,44 @@ def check_complex_lm_settings(settings: Settings):
             f"Available providers based on your API keys: {', '.join(available_providers)}"
         )
 
-    if (
-        settings.COMPLEX_PROVIDER.startswith("openrouter/")
-        and f"{settings.COMPLEX_PROVIDER}/{settings.COMPLEX_MODEL}"
-        not in models_by_provider["openrouter"]
-    ):
-        example_models = [
-            model.split("/")[-1]
-            for model in models_by_provider["openrouter"]
-            if model.startswith(settings.COMPLEX_PROVIDER)
-        ]
+    # if (
+    #     settings.COMPLEX_PROVIDER.startswith("openrouter/")
+    #     and f"{settings.COMPLEX_PROVIDER}/{settings.COMPLEX_MODEL}"
+    #     not in models_by_provider["openrouter"]
+    # ):
+    #     example_models = [
+    #         model.split("/")[-1]
+    #         for model in models_by_provider["openrouter"]
+    #         if model.startswith(settings.COMPLEX_PROVIDER)
+    #     ]
 
-        raise IncorrectModelError(
-            f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
-            f"Some example models for {settings.COMPLEX_PROVIDER} are: "
-            f"{', '.join(example_models[:5])}. "
-            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-        )
+    #     raise IncorrectModelError(
+    #         f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
+    #         f"Some example models for {settings.COMPLEX_PROVIDER} are: "
+    #         f"{', '.join(example_models[:5])}. "
+    #         "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+    #     )
 
-    elif (
-        settings.COMPLEX_PROVIDER in models_by_provider
-        and settings.COMPLEX_MODEL not in models_by_provider[settings.COMPLEX_PROVIDER]
-    ):
-        raise IncorrectModelError(
-            f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
-            f"Some example models for {settings.COMPLEX_PROVIDER} are: "
-            f"{', '.join(models_by_provider[settings.COMPLEX_PROVIDER][:5])}. "
-            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-        )
+    # elif (
+    #     settings.COMPLEX_PROVIDER in models_by_provider
+    #     and settings.COMPLEX_MODEL not in models_by_provider[settings.COMPLEX_PROVIDER]
+    # ):
+    #     raise IncorrectModelError(
+    #         f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
+    #         f"Some example models for {settings.COMPLEX_PROVIDER} are: "
+    #         f"{', '.join(models_by_provider[settings.COMPLEX_PROVIDER][:5])}. "
+    #         "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+    #     )
 
-    elif (
-        settings.COMPLEX_PROVIDER not in models_by_provider
-        and not settings.COMPLEX_PROVIDER.startswith("openrouter")
-    ):
-        raise IncorrectModelError(
-            f"The provider {settings.COMPLEX_PROVIDER} is not available. "
-            f"Some example providers are: {', '.join(list(models_by_provider.keys())[:5])}. "
-            "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-        )
+    # elif (
+    #     settings.COMPLEX_PROVIDER not in models_by_provider
+    #     and not settings.COMPLEX_PROVIDER.startswith("openrouter")
+    # ):
+    #     raise IncorrectModelError(
+    #         f"The provider {settings.COMPLEX_PROVIDER} is not available. "
+    #         f"Some example providers are: {', '.join(list(models_by_provider.keys())[:5])}. "
+    #         "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
+    #     )
 
 
 def load_base_lm(settings: Settings) -> LM:

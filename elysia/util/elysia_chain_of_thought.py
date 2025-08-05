@@ -285,6 +285,7 @@ class ElysiaChainOfThought(Module):
                 "Reasoning: Repeat relevant parts of the any context within your environment, "
                 "Evaluate all relevant information from the inputs, including any previous errors if applicable, "
                 "use this to think step by step in order to answer the query."
+                "Limit your reasoning to maximum 150 words. Only exceed this if the task is very complex."
             )
             reasoning_prefix = "${reasoning}"
             reasoning_field: str = dspy.OutputField(

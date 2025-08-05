@@ -1528,17 +1528,6 @@ class Tree:
                 or self.tree_data.num_trees_completed > self.tree_data.recursion_limit
             )
 
-            # additional end criteria, recursion limit reached
-            # if self.tree_data.num_trees_completed > self.tree_data.recursion_limit:
-            #     self.settings.logger.warning(
-            #         f"Recursion limit reached! ({self.tree_data.num_trees_completed})"
-            #     )
-            #     yield await self.returner(
-            #         Warning("Decision tree reached recursion limit!"),
-            #         query_id=self.prompt_to_query_id[user_prompt],
-            #     )
-            #     completed = True
-
             # assign action function
             action_fn: Tool | None = current_decision_node.options[
                 self.current_decision.function_name
