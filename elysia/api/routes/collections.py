@@ -497,7 +497,9 @@ async def collection_metadata(
                 raise Exception(f"Collection {collection_name} does not exist")
 
             # check if the metadata collection exists
-            if not await preprocessed_collection_exists_async(collection_name):
+            if not await preprocessed_collection_exists_async(
+                collection_name, client_manager
+            ):
                 raise Exception(
                     f"Metadata collection for {collection_name} does not exist"
                 )
