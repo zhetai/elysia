@@ -417,13 +417,18 @@ class CollectionData:
                 self.removed_collections.extend(collections_to_get)
             else:
                 metadata_collection = client.collections.get(metadata_name)
-                metadata = await metadata_collection.query.fetch_objects(
-                    filters=Filter.any_of(
+                filters = (
+                    Filter.any_of(
                         [
                             Filter.by_property("name").equal(collection_name)
                             for collection_name in collections_to_get
                         ]
-                    ),
+                    )
+                    if len(collections_to_get) > 1
+                    else None
+                )
+                metadata = await metadata_collection.query.fetch_objects(
+                    filters=filters,
                     limit=9999,
                 )
                 metadata_map = {
