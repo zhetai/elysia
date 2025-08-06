@@ -424,7 +424,7 @@ class CollectionData:
                             for collection_name in collections_to_get
                         ]
                     )
-                    if len(collections_to_get) > 1
+                    if len(collections_to_get) >= 1
                     else None
                 )
                 metadata = await metadata_collection.query.fetch_objects(
