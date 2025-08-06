@@ -10,6 +10,11 @@ from weaviate.collections.classes.filters import _Filters
 from weaviate.collections.classes.grpc import Sorting
 from weaviate.outputs.aggregate import AggregateGroupByReturn, AggregateReturn
 from weaviate.outputs.query import QueryReturn
+from weaviate.exceptions import (
+    WeaviateBaseError,
+    WeaviateQueryError,
+    AuthenticationFailedError,
+)
 
 # == Define Pydantic models for structured outputs of LLMs
 
@@ -116,8 +121,17 @@ class QueryOutput(BaseModel):
 # -- Full Aggregation Definition
 class AggregationOutput(BaseModel):
     target_collections: List[str]
-    search_query: Optional[str] = None
-    search_type: Optional[Literal["hybrid", "keyword", "vector"]] = None
+    search_query: Optional[str] = Field(
+        default=None,
+        description="An optional search query to use for filtering the aggregation.",
+    )
+    search_type: Optional[Literal["hybrid", "keyword", "vector"]] = Field(
+        default=None,
+        description=(
+            "An optional search type to use for the aggregation. "
+            "If providing a search query, you must also provide a search type."
+        ),
+    )
     filter_buckets: Optional[List[FilterBucket] | FilterBucket] = None
     groupby_property: Optional[str] = None
     number_property_aggregations: Optional[List[NumberAggregation]] = None
@@ -255,6 +269,16 @@ def _catch_typing_errors(
     ):
         raise QueryError("Search query cannot be None for non-filter-only search.")
 
+    if (
+        "search_query" in tool_args
+        and tool_args["search_query"] is not None
+        and ("search_type" not in tool_args or tool_args["search_type"] is None)
+    ):
+        raise QueryError(
+            "A search query was provided but no search type was provided. "
+            "You can retry with a search type included. "
+        )
+
     for collection_name, collection_property_types in property_types.items():
 
         aggregations = [
@@ -298,6 +322,23 @@ def _catch_typing_errors(
             _catch_filter_errors(
                 tool_args["filter_buckets"], collection_property_types, collection_name
             )
+
+
+def _catch_weaviate_errors(e: WeaviateBaseError):
+    if isinstance(e, WeaviateQueryError):
+        if "VectorFromInput was called without vectorizer" in e.message:
+            raise QueryError(
+                "You are trying to do hybrid or vector search on a collection that has no vectorizer. "
+                "You can only perform filter-only or keyword search on this collection. "
+            )
+        else:
+            raise e
+    elif isinstance(e, AuthenticationFailedError):
+        raise QueryError(
+            "Weaviate authentication failed. The user should check their API key and cluster URL or Weaviate connection details."
+        )
+    else:
+        raise e
 
 
 async def execute_weaviate_query(
@@ -345,7 +386,12 @@ async def execute_weaviate_query(
 
     _catch_typing_errors(tool_args, property_types)
 
-    final_responses, str_responses = await _handle_search(weaviate_client, tool_args)
+    try:
+        final_responses, str_responses = await _handle_search(
+            weaviate_client, tool_args
+        )
+    except WeaviateBaseError as e:
+        _catch_weaviate_errors(e)
 
     return final_responses, str_responses
 
@@ -621,9 +667,12 @@ async def execute_weaviate_aggregation(
     _catch_typing_errors(tool_args, property_types)
 
     # Execute query based on type
-    responses, str_responses = await _handle_aggregation_query(
-        weaviate_client, tool_args
-    )
+    try:
+        responses, str_responses = await _handle_aggregation_query(
+            weaviate_client, tool_args
+        )
+    except WeaviateBaseError as e:
+        _catch_weaviate_errors(e)
 
     return responses, str_responses
 
@@ -640,7 +689,11 @@ async def _handle_aggregation_query(
     str_responses = []
 
     for collection in collections:
-        if "search_query" in tool_args and tool_args["search_query"]:
+        if (
+            "search_query" in tool_args
+            and tool_args["search_query"]
+            and tool_args["search_type"]
+        ):
             responses.append(
                 await _execute_aggregation_with_search(
                     collection, tool_args, agg_args, combined_filter

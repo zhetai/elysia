@@ -314,6 +314,9 @@ class Query(Tool):
             self.logger.debug(f"Fields to search: {query.fields_to_search}")
             self.logger.debug(f"Data display: {query.data_display}")
 
+        query.fields_to_search = {"VERBA_DOCUMENTS": ["content"]}
+        print(query.fields_to_search)
+
         # Yield results to front end
         yield Response(text=query.message_update)
         if tree_data.settings.USE_FEEDBACK:
@@ -400,9 +403,9 @@ class Query(Tool):
 
         # if the fields_to_search is non-empty but there are no named vectors, ignore this and reset it
         for collection_name in query.fields_to_search:
-            if (
-                query.fields_to_search[collection_name] is not None
-                and searchable_fields[collection_name] == []
+            if query.fields_to_search[collection_name] is not None and (
+                schemas[collection_name]["named_vectors"] is None
+                or searchable_fields[collection_name] == []
             ):
                 query.fields_to_search[collection_name] = None
 
