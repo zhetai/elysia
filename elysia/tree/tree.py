@@ -1192,7 +1192,19 @@ class Tree:
     def _add_error(self, function_name: str, error: Error) -> None:
         if function_name not in self.tree_data.errors:
             self.tree_data.errors[function_name] = []
-        self.tree_data.errors[function_name].append(error.to_json())
+
+        if error.feedback != "An unknown issue occurred.":
+            self.tree_data.errors[function_name].append(
+                "Avoidable error: "
+                f"{error.feedback} "
+                "(this error is likely to be solved by incorporating the feedback in a future tool call)"
+            )
+        else:
+            self.tree_data.errors[function_name].append(
+                "Unknown error: "
+                f"{error.error_message} "
+                "(this error is likely to be solved by incorporating the error message in a future tool call)"
+            )
 
     async def _evaluate_result(
         self,

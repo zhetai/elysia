@@ -636,7 +636,7 @@ class TreeData:
         self.collection_names = []
 
         # -- Errors --
-        self.errors = {}
+        self.errors: dict[str, list[str]] = {}
         self.current_task = None
 
     def set_property(self, property: str, value: Any):

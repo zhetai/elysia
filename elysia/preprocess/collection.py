@@ -101,14 +101,14 @@ async def _evaluate_field_statistics(
     full_response: list[dict] | None = None,
 ) -> dict:
     out = {}
-    out["type"] = properties[property]
+    out["type"] = properties[property] if properties[property] != "number" else "float"
     out["name"] = property
 
     # Number (summary statistics)
-    if properties[property] == "number":
+    if properties[property] == "int":
         response = await collection.aggregate.over_all(
             return_metrics=[
-                Metrics(property).number(mean=True, maximum=True, minimum=True)
+                Metrics(property).integer(mean=True, maximum=True, minimum=True),
             ]
         )
         out["range"] = [
@@ -118,13 +118,29 @@ async def _evaluate_field_statistics(
         out["mean"] = response.properties[property].mean
         out["groups"] = None
         out["date_range"] = None
-        out["date_mean"] = None
+        out["date_median"] = None
+
+    elif properties[property] == "number":
+        response = await collection.aggregate.over_all(
+            return_metrics=[
+                Metrics(property).number(mean=True, maximum=True, minimum=True),
+            ]
+        )
+        out["range"] = [
+            response.properties[property].minimum,
+            response.properties[property].maximum,
+        ]
+        out["mean"] = response.properties[property].mean
+        out["groups"] = None
+        out["date_range"] = None
+        out["date_median"] = None
 
     # Text (grouping + lengths)
     elif properties[property] == "text":
 
         # TODO: this returns EVERY SINGLE text value in the collection,
         # need to make this more efficient, is it possible to specify in metadata to not return the text values?
+        # with top-occurences count?
         response = await collection.aggregate.over_all(
             total_count=True, group_by=GroupByAggregate(prop=property)
         )
@@ -146,14 +162,14 @@ async def _evaluate_field_statistics(
 
             out["range"] = [min(lengths), max(lengths)]
             out["mean"] = sum(lengths) / len(lengths)
-            out["date_mean"] = None
+            out["date_median"] = None
             out["date_range"] = None
 
         else:
             out["range"] = None
             out["mean"] = None
             out["date_range"] = None
-            out["date_mean"] = None
+            out["date_median"] = None
 
     # Boolean (grouping + mean)
     elif properties[property] == "boolean":
@@ -164,7 +180,7 @@ async def _evaluate_field_statistics(
         out["mean"] = response.properties[property].percentage_true
         out["range"] = [0, 1]
         out["date_range"] = None
-        out["date_mean"] = None
+        out["date_median"] = None
 
     # Date (summary statistics)
     elif properties[property] == "date":
@@ -177,8 +193,8 @@ async def _evaluate_field_statistics(
             response.properties[property].minimum,
             response.properties[property].maximum,
         ]
-        out["mean"] = response.properties[property].median
-        out["date_mean"] = None
+        out["mean"] = None
+        out["date_median"] = response.properties[property].median
         out["groups"] = None
         out["range"] = None
         out["mean"] = None
@@ -192,14 +208,14 @@ async def _evaluate_field_statistics(
             out["mean"] = sum(lengths) / len(lengths)
             out["groups"] = None
             out["date_range"] = None
-            out["date_mean"] = None
+            out["date_median"] = None
 
     else:
         out["range"] = None
         out["mean"] = None
         out["groups"] = None
         out["date_range"] = None
-        out["date_mean"] = None
+        out["date_median"] = None
 
     return out
 
@@ -673,8 +689,8 @@ async def preprocess_async(
                                     data_type=DataType.TEXT_ARRAY,
                                 ),
                                 Property(
-                                    name="date_mean",
-                                    data_type=DataType.NUMBER_ARRAY,
+                                    name="date_median",
+                                    data_type=DataType.DATE,
                                 ),
                                 Property(
                                     name="mean",
@@ -1036,6 +1052,62 @@ async def edit_preprocessed_collection(
 
         # update the collection
         await metadata_collection.data.update(uuid=uuid, properties=properties)
+
+    if close_clients_after_completion:
+        await client_manager.close_clients()
+
+    return properties
+
+
+def view_preprocessed_collection(
+    collection_name: str, client_manager: ClientManager | None = None
+) -> dict:
+    return asyncio_run(
+        async_view_preprocessed_collection(collection_name, client_manager)
+    )
+
+
+async def async_view_preprocessed_collection(
+    collection_name: str, client_manager: ClientManager | None = None
+) -> dict:
+    """
+    View a preprocessed collection.
+    This function allows you to view the preprocessed collection generated by the preprocess function.
+    It does so by querying the ELYSIA_METADATA__ collection.
+
+    Args:
+        collection_name (str): The name of the collection to edit.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created using the environment variables/configured settings.
+    """
+
+    if client_manager is None:
+        client_manager = ClientManager()
+        close_clients_after_completion = True
+    else:
+        close_clients_after_completion = False
+
+    async with client_manager.connect_to_async_client() as client:
+        metadata_name = f"ELYSIA_METADATA__"
+
+        # check if the collection itself exists
+        if not await client.collections.exists(collection_name):
+            raise Exception(f"Collection {collection_name} does not exist")
+
+        # check if the metadata collection exists
+        if not await client.collections.exists(metadata_name):
+            raise Exception(f"Metadata collection does not exist")
+
+        else:
+            metadata_collection = client.collections.get(metadata_name)
+            metadata = await metadata_collection.query.fetch_objects(
+                filters=Filter.by_property("name").equal(collection_name),
+                limit=1,
+            )
+            if len(metadata.objects) == 0:
+                raise Exception(f"Metadata for {collection_name} does not exist")
+
+            properties: dict = metadata.objects[0].properties  # type: ignore
 
     if close_clients_after_completion:
         await client_manager.close_clients()

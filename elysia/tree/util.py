@@ -461,6 +461,19 @@ class DecisionNode:
                     lm=base_lm,
                 )
 
+            if output.function_name.startswith("'") and output.function_name.endswith(
+                "'"
+            ):
+                output.function_name = output.function_name[1:-1]
+            elif output.function_name.startswith('"') and output.function_name.endswith(
+                '"'
+            ):
+                output.function_name = output.function_name[1:-1]
+            elif output.function_name.startswith("`") and output.function_name.endswith(
+                "`"
+            ):
+                output.function_name = output.function_name[1:-1]
+
             if output.function_name not in available_tools:
                 raise Exception(
                     f"Model picked an action `{output.function_name}` that is not in the available tools: {available_tools}"

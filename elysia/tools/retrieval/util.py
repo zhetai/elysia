@@ -21,10 +21,17 @@ from weaviate.exceptions import (
 
 
 # -- Filters
-class NumberPropertyFilter(BaseModel):
+class IntegerPropertyFilter(BaseModel):
     property_name: str
     operator: Literal["=", "!=", "<", ">", "<=", ">=", "IS_NULL"]
-    value: int | float | bool
+    value: int | bool
+    length: Optional[bool] = False
+
+
+class FloatPropertyFilter(BaseModel):
+    property_name: str
+    operator: Literal["=", "!=", "<", ">", "<=", ">=", "IS_NULL"]
+    value: float | bool
     length: Optional[bool] = False
 
 
@@ -49,7 +56,7 @@ class DatePropertyFilter(BaseModel):
 class ListPropertyFilter(BaseModel):
     property_name: str
     operator: Literal["=", "!=", "CONTAINS_ANY", "CONTAINS_ALL", "IS_NULL"]
-    value: List[str] | bool
+    value: List[str | int | float | bool] | bool
     length: Optional[bool] = False
 
 
@@ -59,7 +66,12 @@ class CreationTimeFilter(BaseModel):
 
 
 # -- Aggregation Fields
-class NumberAggregation(BaseModel):
+class IntegerAggregation(BaseModel):
+    property_name: str
+    metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE", "SUM", "COUNT"]]
+
+
+class FloatAggregation(BaseModel):
     property_name: str
     metrics: List[Literal["MIN", "MAX", "MEAN", "MEDIAN", "MODE", "SUM", "COUNT"]]
 
@@ -89,7 +101,8 @@ class FilterBucket(BaseModel):
     filters: List[
         Union[
             "FilterBucket",
-            NumberPropertyFilter,
+            IntegerPropertyFilter,
+            FloatPropertyFilter,
             TextPropertyFilter,
             BooleanPropertyFilter,
             DatePropertyFilter,
@@ -128,7 +141,8 @@ class AggregationOutput(BaseModel):
     target_collections: List[str]
     filter_buckets: Optional[List[FilterBucket] | FilterBucket] = None
     groupby_property: Optional[str] = None
-    number_property_aggregations: Optional[List[NumberAggregation]] = None
+    integer_property_aggregations: Optional[List[IntegerAggregation]] = None
+    float_property_aggregations: Optional[List[FloatAggregation]] = None
     text_property_aggregations: Optional[List[TextAggregation]] = None
     boolean_property_aggregations: Optional[List[BooleanAggregation]] = None
     date_property_aggregations: Optional[List[DateAggregation]] = None
@@ -179,7 +193,7 @@ class QueryError(Exception):
 
 def _catch_filter_errors(
     filters: list,
-    collection_property_types: dict[str, dict[str, str]],
+    collection_property_types: dict[str, str],
     collection_name: str,
 ):
     for filter in filters:
@@ -233,36 +247,75 @@ def _catch_filter_errors(
                     )
 
             # check number
-            if isinstance(filter, NumberPropertyFilter):
-                if collection_property_types[filter.property_name] != "number":
+            if (
+                isinstance(filter, IntegerPropertyFilter)
+                and collection_property_types[filter.property_name] != "int"
+            ):
+                if collection_property_types[filter.property_name] == "float":
                     raise QueryError(
-                        f"Attempted to filter on property '{filter.property_name}' using a number filter, "
-                        f"but the property type is not a number. It is a {collection_property_types[filter.property_name]}."
+                        f"Attempted to filter on property '{filter.property_name}' using a integer filter, "
+                        f"but the property type is a {collection_property_types[filter.property_name]}. "
+                        f"Filter value: {filter.value} is a {type(filter.value)}, not an integer. "
+                        f"Hint: you could use {float(filter.value)} instead (may require adjusting the filter operator)."
+                    )
+                else:
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a integer filter, "
+                        f"but the property type is a {collection_property_types[filter.property_name]}. "
+                        f"Filter value: {filter.value} is a {type(filter.value)}, not an integer. "
+                    )
+
+            # check number
+            if (
+                isinstance(filter, FloatPropertyFilter)
+                and collection_property_types[filter.property_name] != "float"
+            ):
+                if collection_property_types[filter.property_name] == "int":
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a float filter, "
+                        f"but the property type is a {collection_property_types[filter.property_name]}. "
+                        f"Filter value: {filter.value} is a {type(filter.value)}, not a float. "
+                        f"Hint: you could use {int(filter.value)} instead (may require adjusting the filter operator)."
+                    )
+                else:
+                    raise QueryError(
+                        f"Attempted to filter on property '{filter.property_name}' using a float filter, "
+                        f"but the property type is a {collection_property_types[filter.property_name]}. "
+                        f"Filter value: {filter.value} is a {type(filter.value)}, not a float. "
                     )
 
             # check date
-            if isinstance(filter, DatePropertyFilter):
-                if collection_property_types[filter.property_name] != "date":
-                    raise QueryError(
-                        f"Attempted to filter on property '{filter.property_name}' using a date filter, "
-                        f"but the property type is not a date. It is a {collection_property_types[filter.property_name]}."
-                    )
+            if (
+                isinstance(filter, DatePropertyFilter)
+                and collection_property_types[filter.property_name] != "date"
+            ):
+                raise QueryError(
+                    f"Attempted to filter on property '{filter.property_name}' using a date filter, "
+                    f"but the property type is a {collection_property_types[filter.property_name]}. "
+                    f"Filter value: {filter.value} is a {type(filter.value)}, not a date."
+                )
 
             # check boolean
-            if isinstance(filter, BooleanPropertyFilter):
-                if collection_property_types[filter.property_name] != "boolean":
-                    raise QueryError(
-                        f"Attempted to filter on property '{filter.property_name}' using a boolean filter, "
-                        f"but the property type is not a boolean. It is a {collection_property_types[filter.property_name]}."
-                    )
+            if (
+                isinstance(filter, BooleanPropertyFilter)
+                and collection_property_types[filter.property_name] != "boolean"
+            ):
+                raise QueryError(
+                    f"Attempted to filter on property '{filter.property_name}' using a boolean filter, "
+                    f"but the property type is a {collection_property_types[filter.property_name]}. "
+                    f"Filter value: {filter.value} is a {type(filter.value)}, not a boolean."
+                )
 
             # check text
-            if isinstance(filter, TextPropertyFilter):
-                if collection_property_types[filter.property_name] != "text":
-                    raise QueryError(
-                        f"Attempted to filter on property '{filter.property_name}' using a text filter, "
-                        f"but the property type is not a text. It is a {collection_property_types[filter.property_name]}."
-                    )
+            if (
+                isinstance(filter, TextPropertyFilter)
+                and collection_property_types[filter.property_name] != "text"
+            ):
+                raise QueryError(
+                    f"Attempted to filter on property '{filter.property_name}' using a text filter, "
+                    f"but the property type is a {collection_property_types[filter.property_name]}. "
+                    f"Filter value: {filter.value} is a {type(filter.value)}, not a text."
+                )
 
 
 # == Define functions for executing queries and aggregations
@@ -498,7 +551,8 @@ def _build_sort(tool_args: dict) -> Sorting | None:
 
 def _build_single_filter(
     filter: (
-        NumberPropertyFilter
+        IntegerPropertyFilter
+        | FloatPropertyFilter
         | TextPropertyFilter
         | BooleanPropertyFilter
         | DatePropertyFilter
@@ -528,11 +582,13 @@ def _build_single_filter(
             filter_length = False
 
     if (
-        isinstance(filter, NumberPropertyFilter)
+        isinstance(filter, FloatPropertyFilter)
         and filter_operator != "IS_NULL"
         and isinstance(filter_value, (int, float, bool))
     ):
         filter_value = float(filter_value)
+    elif isinstance(filter, IntegerPropertyFilter) and isinstance(filter_value, float):
+        filter_value = int(filter_value)
     elif isinstance(filter, DatePropertyFilter) and isinstance(filter_value, str):
         filter_value = parser.parse(filter_value).replace(tzinfo=timezone.utc)
     elif isinstance(filter, CreationTimeFilter) and isinstance(filter_value, str):
@@ -587,7 +643,8 @@ def _build_filter_bucket(
         if isinstance(filter, FilterBucket):
             filters.append(_build_filter_bucket(filter))
         elif (
-            isinstance(filter, NumberPropertyFilter)
+            isinstance(filter, IntegerPropertyFilter)
+            or isinstance(filter, FloatPropertyFilter)
             or isinstance(filter, TextPropertyFilter)
             or isinstance(filter, BooleanPropertyFilter)
             or isinstance(filter, DatePropertyFilter)
@@ -655,9 +712,14 @@ async def execute_weaviate_aggregation(
         elif isinstance(predicted_query.filter_buckets, FilterBucket):
             tool_args["filter_buckets"] = [predicted_query.filter_buckets]
 
-    if predicted_query.number_property_aggregations:
-        tool_args["number_property_aggregations"] = (
-            predicted_query.number_property_aggregations
+    if predicted_query.integer_property_aggregations:
+        tool_args["integer_property_aggregations"] = (
+            predicted_query.integer_property_aggregations
+        )
+
+    if predicted_query.float_property_aggregations:
+        tool_args["float_property_aggregations"] = (
+            predicted_query.float_property_aggregations
         )
 
     if predicted_query.text_property_aggregations:
@@ -735,7 +797,8 @@ async def _handle_aggregation_query(
 
 def _build_return_metrics(tool_args: dict) -> list[Metrics] | None:
     metrics_types = [
-        "number_property_aggregations",
+        "integer_property_aggregations",
+        "float_property_aggregations",
         "text_property_aggregations",
         "boolean_property_aggregations",
         "date_property_aggregations",
@@ -748,7 +811,25 @@ def _build_return_metrics(tool_args: dict) -> list[Metrics] | None:
                 prop_name = agg.property_name
                 metrics = [m.upper() for m in agg.metrics]
                 if prop_name:
-                    if agg_type.startswith("number"):
+                    if agg_type.startswith("integer"):
+                        # Map to correct integer metric names
+                        metric_mapping = {
+                            "MEAN": "mean",
+                            "SUM": "sum_",
+                            "MAX": "maximum",
+                            "MIN": "minimum",
+                            "COUNT": "count",
+                        }
+                        metric_names = [
+                            metric_mapping.get(m, m.lower()) for m in metrics  # type: ignore
+                        ]
+                        full_metrics.append(
+                            Metrics(prop_name).integer(
+                                **{metric_name: True for metric_name in metric_names}
+                            )
+                        )
+
+                    elif agg_type.startswith("number"):
                         # Map to correct integer metric names
                         metric_mapping = {
                             "MEAN": "mean",
@@ -878,7 +959,9 @@ async def _execute_aggregation_with_search(
 
 
 async def _execute_aggregation_over_all(
-    collection, agg_args: dict, combined_filter: _Filters | None
+    collection: CollectionAsync,
+    agg_args: dict,
+    combined_filter: _Filters | None,
 ) -> AggregateReturn | AggregateGroupByReturn:
     return await collection.aggregate.over_all(
         total_count=agg_args["total_count"],
@@ -892,7 +975,8 @@ async def _execute_aggregation_over_all(
 # Repeats of the same functions above but string output
 def _build_single_filter_string(
     filter: (
-        NumberPropertyFilter
+        IntegerPropertyFilter
+        | FloatPropertyFilter
         | TextPropertyFilter
         | BooleanPropertyFilter
         | DatePropertyFilter
@@ -960,7 +1044,8 @@ def _build_filter_bucket_string(filter_bucket: FilterBucket) -> str:
         if isinstance(filter, FilterBucket):
             filter_strings.append(_build_filter_bucket_string(filter))
         elif (
-            isinstance(filter, NumberPropertyFilter)
+            isinstance(filter, IntegerPropertyFilter)
+            or isinstance(filter, FloatPropertyFilter)
             or isinstance(filter, TextPropertyFilter)
             or isinstance(filter, BooleanPropertyFilter)
             or isinstance(filter, DatePropertyFilter)
@@ -1141,7 +1226,8 @@ def _get_string_aggregation_over_all(
 
 def _build_return_metrics_string(tool_args: dict) -> str:
     metrics_types = [
-        "number_property_aggregations",
+        "integer_property_aggregations",
+        "float_property_aggregations",
         "text_property_aggregations",
         "boolean_property_aggregations",
         "date_property_aggregations",
@@ -1157,8 +1243,25 @@ def _build_return_metrics_string(tool_args: dict) -> str:
                 if not prop_name:
                     continue
 
-                if agg_type.startswith("number"):
+                if agg_type.startswith("integer"):
                     # Map to correct integer metric names
+                    metric_mapping = {
+                        "MEAN": "mean",
+                        "SUM": "sum_",
+                        "MAX": "maximum",
+                        "MIN": "minimum",
+                        "COUNT": "count",
+                        "MEDIAN": "median",
+                        "MODE": "mode",
+                    }
+                    metric_names = [metric_mapping.get(m, m.lower()) for m in metrics]
+                    metric_bools = [f"{m}=True" for m in metric_names]
+                    metric_strs.append(
+                        f"Metrics('{prop_name}').integer({', '.join(metric_bools)})"
+                    )
+
+                elif agg_type.startswith("float"):
+                    # Map to correct float metric names
                     metric_mapping = {
                         "MEAN": "mean",
                         "SUM": "sum_",

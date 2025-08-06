@@ -94,14 +94,12 @@ class DecisionPrompt(dspy.Signature):
 
     previous_errors: list[dict] = dspy.InputField(
         description="""
-        A list of errors that have occurred in previous actions.
-        These are indexed by the function_name that the error occurred in.
-        Use this to avoid repeating errors that have already occurred for those specific functions.
-        Also use this to judge whether to choose a different tool.
-        If the error looks solvable, you can still choose the same tool again, as this error will be passed down to the tool.
-        Make the judgement if this error can be solved or the corresponding tool should be avoided,
-        or if it is unavoidable and there are no other suitable tools, you can set `impossible` to True and inform the user,
-        potentially suggesting a different approach.
+        A list of errors from previous actions, organized by the function_name where each error occurred.
+        Use this list to avoid repeating the same errors for those functions.
+        If an error appears solvable, you should generally try the same tool again, as the error will be passed to the tool for handling.
+        Err on the side of attempting to solve errors if there is a reasonable chance of success.
+        Only avoid a tool if the error is clearly unsolvable or if a different tool is more appropriate.
+        If no suitable tools remain and the task is impossible, set `impossible` to True and inform the user, possibly suggesting an alternative approach.
         """.strip(),
         format=list,
     )

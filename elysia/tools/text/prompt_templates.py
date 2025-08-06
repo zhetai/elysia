@@ -42,6 +42,7 @@ class CitedSummarizingPrompt(dspy.Signature):
         3. Only cite information that exists in the retrieved objects
         4. Each text segment should map logically to its citations
         5. Use multiple TextWithCitation objects to align text with its specific sources
+        6. Do not just repeat information from the environment. Create insights, offer suggestions, do not just list objects.
         """.strip()
     )
 

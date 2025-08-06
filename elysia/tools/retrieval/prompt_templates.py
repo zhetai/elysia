@@ -29,7 +29,10 @@ def construct_aggregation_output_prompt(vectorised: bool = False) -> str:
     - Example: For "January OR March", create a structure like: OR(AND(Jan-start, Jan-end), AND(Mar-start, Mar-end))
 
     3. Property filter types:
-        - NumberPropertyFilter: For numeric comparisons (=, !=, <, >, <=, >=)
+        - IntegerPropertyFilter: For integer comparisons (=, !=, <, >, <=, >=)
+        - FloatPropertyFilter: For float comparisons (=, !=, <, >, <=, >=)
+            Note that this is for float comparisons, not integer comparisons.
+            If the property is an "int", you should use the IntegerPropertyFilter instead.
         - TextPropertyFilter: For text equality (=, !=) or pattern matching (LIKE). 
             When using LIKE, you can use the ? wildcard to match one unknown single character. e.g. "car?" matches "cart", "care", but not "car"
             You can also use the * wildcard to match any number of unknown characters. e.g. "car*" matches "car", "care", "carpet", etc
@@ -142,7 +145,13 @@ def construct_query_output_prompt(vectorised: bool = False) -> str:
         - Example: For "January OR March", create a structure like: OR(AND(Jan-start, Jan-end), AND(Mar-start, Mar-end))
 
     5. Property filter types:
-        - NumberPropertyFilter: For numeric comparisons (=, !=, <, >, <=, >=, IS_NULL)
+        - IntegerPropertyFilter: For integer comparisons (=, !=, <, >, <=, >=)
+            Note that you cannot filter on integers with float values. 
+            If you want to make a comparison between an integer property with a float value,
+            you should convert the float value to an integer manually.
+        - FloatPropertyFilter: For float comparisons (=, !=, <, >, <=, >=)
+            Note that this is for float comparisons, not integer comparisons.
+            If the property is an "int", you should use the IntegerPropertyFilter instead.
         - TextPropertyFilter: For text equality (=, !=) or pattern matching (LIKE), or IS_NULL
             When using LIKE, you can use the ? wildcard to match one unknown single character. e.g. "car?" matches "cart", "care", but not "car"
             You can also use the * wildcard to match any number of unknown characters. e.g. "car*" matches "car", "care", "carpet", etc
