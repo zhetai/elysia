@@ -5,6 +5,7 @@ from typing_extensions import TypeAlias
 import weaviate
 from dateutil import parser
 from pydantic import BaseModel, Field
+from weaviate.collections import CollectionAsync
 from weaviate.classes.query import Filter, Metrics, QueryReference, Sort
 from weaviate.collections.classes.filters import _Filters
 from weaviate.collections.classes.grpc import Sorting
@@ -22,14 +23,14 @@ from weaviate.exceptions import (
 # -- Filters
 class NumberPropertyFilter(BaseModel):
     property_name: str
-    operator: Literal["=", "<", ">", "<=", ">=", "IS_NULL"]
+    operator: Literal["=", "!=", "<", ">", "<=", ">=", "IS_NULL"]
     value: int | float | bool
     length: Optional[bool] = False
 
 
 class TextPropertyFilter(BaseModel):
     property_name: str
-    operator: Literal["=", "LIKE", "IS_NULL"]
+    operator: Literal["=", "!=", "LIKE", "IS_NULL"]
     value: str | bool
 
 
@@ -41,7 +42,7 @@ class BooleanPropertyFilter(BaseModel):
 
 class DatePropertyFilter(BaseModel):
     property_name: str
-    operator: Literal["=", "<", ">", "<=", ">=", "IS_NULL"]
+    operator: Literal["=", "!=", "<", ">", "<=", ">=", "IS_NULL"]
     value: str | bool
 
 
@@ -118,27 +119,36 @@ class QueryOutput(BaseModel):
     limit: Optional[int] = 5
 
 
+class NonVectorisedQueryOutput(QueryOutput):
+    search_type: Literal["keyword", "filter_only"]
+
+
 # -- Full Aggregation Definition
 class AggregationOutput(BaseModel):
     target_collections: List[str]
-    search_query: Optional[str] = Field(
-        default=None,
-        description="An optional search query to use for filtering the aggregation.",
-    )
-    search_type: Optional[Literal["hybrid", "keyword", "vector"]] = Field(
-        default=None,
-        description=(
-            "An optional search type to use for the aggregation. "
-            "If providing a search query, you must also provide a search type."
-        ),
-    )
     filter_buckets: Optional[List[FilterBucket] | FilterBucket] = None
     groupby_property: Optional[str] = None
     number_property_aggregations: Optional[List[NumberAggregation]] = None
     text_property_aggregations: Optional[List[TextAggregation]] = None
     boolean_property_aggregations: Optional[List[BooleanAggregation]] = None
     date_property_aggregations: Optional[List[DateAggregation]] = None
-    limit: Optional[int] = 5
+
+
+class VectorisedAggregationOutput(AggregationOutput):
+    search_type: Optional[Literal["vector", "hybrid"]] = Field(
+        default=None,
+        description=(
+            "The type of search to use for the aggregation. If None, no search is used. "
+        ),
+    )
+    search_query: Optional[str] = Field(
+        default=None,
+        description="The text to search for (using search). Only set this if search_type is specified.",
+    )
+    limit: Optional[int] = Field(
+        default=100,
+        description="The number of results to return. Only set this if search_type is specified.",
+    )
 
 
 # -- Schema for collections/data
@@ -616,6 +626,7 @@ async def execute_weaviate_aggregation(
     weaviate_client: weaviate.WeaviateAsyncClient,
     predicted_query: AggregationOutput,
     property_types: dict[str, dict[str, str]],
+    vectorised_by_collection: dict[str, bool],
 ) -> tuple[list[AggregateReturn], list[str]]:
     """Execute a predicted WeaviateAggregation and return formatted results."""
 
@@ -624,11 +635,19 @@ async def execute_weaviate_aggregation(
         "collection_names": predicted_query.target_collections,
     }
 
-    if predicted_query.search_query:
-        tool_args["search_query"] = predicted_query.search_query
+    if isinstance(predicted_query, VectorisedAggregationOutput):
+        if predicted_query.search_query:
+            tool_args["search_query"] = predicted_query.search_query
 
-    if predicted_query.search_type:
-        tool_args["search_type"] = predicted_query.search_type
+        if predicted_query.search_type:
+            tool_args["search_type"] = predicted_query.search_type
+
+        if predicted_query.limit:
+            tool_args["limit"] = predicted_query.limit
+        else:
+            tool_args["limit"] = VectorisedAggregationOutput.model_fields[
+                "limit"
+            ].default
 
     if predicted_query.filter_buckets:
         if isinstance(predicted_query.filter_buckets, list):
@@ -656,11 +675,6 @@ async def execute_weaviate_aggregation(
             predicted_query.date_property_aggregations
         )
 
-    if predicted_query.limit:
-        tool_args["limit"] = predicted_query.limit
-    else:
-        tool_args["limit"] = AggregationOutput.model_fields["limit"].default
-
     if predicted_query.groupby_property:
         tool_args["groupby_property"] = predicted_query.groupby_property
 
@@ -669,7 +683,7 @@ async def execute_weaviate_aggregation(
     # Execute query based on type
     try:
         responses, str_responses = await _handle_aggregation_query(
-            weaviate_client, tool_args
+            weaviate_client, tool_args, vectorised_by_collection
         )
     except WeaviateBaseError as e:
         _catch_weaviate_errors(e)
@@ -678,7 +692,9 @@ async def execute_weaviate_aggregation(
 
 
 async def _handle_aggregation_query(
-    weaviate_client: weaviate.WeaviateAsyncClient, tool_args: dict
+    weaviate_client: weaviate.WeaviateAsyncClient,
+    tool_args: dict,
+    vectorised_by_collection: dict[str, bool],
 ) -> tuple[list[AggregateReturn], list[str]]:
     collection_names = tool_args["collection_names"]
     collections = [weaviate_client.collections.get(name) for name in collection_names]
@@ -692,7 +708,9 @@ async def _handle_aggregation_query(
         if (
             "search_query" in tool_args
             and tool_args["search_query"]
+            and "search_type" in tool_args
             and tool_args["search_type"]
+            and vectorised_by_collection[collection.name]
         ):
             responses.append(
                 await _execute_aggregation_with_search(
@@ -837,12 +855,13 @@ def _build_aggregation_args(tool_args: dict) -> dict:
 
 
 async def _execute_aggregation_with_search(
-    collection, tool_args: dict, agg_args: dict, combined_filter: _Filters | None
+    collection: CollectionAsync,
+    tool_args: dict,
+    agg_args: dict,
+    combined_filter: _Filters | None,
 ) -> AggregateReturn | AggregateGroupByReturn:
     if tool_args["search_type"] == "hybrid" or tool_args["search_type"] is None:
         search = collection.aggregate.hybrid
-    elif tool_args["search_type"] == "keyword":
-        search = collection.aggregate.bm25
     elif tool_args["search_type"] == "vector":
         search = collection.aggregate.near_text
     else:
@@ -1048,8 +1067,6 @@ def _get_string_aggregation_with_search(
 
     if tool_args["search_type"] == "hybrid":
         search = "collection.aggregate.hybrid"
-    elif tool_args["search_type"] == "keyword":
-        search = "collection.aggregate.bm25"
     elif tool_args["search_type"] == "vector":
         search = "collection.aggregate.near_text"
 

@@ -1,4 +1,4 @@
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Union
 from logging import Logger
 from pydantic import BaseModel, Field
 
@@ -22,8 +22,14 @@ from elysia.tools.retrieval.objects import (
 from elysia.tools.retrieval.prompt_templates import (
     QueryCreatorPrompt,
     SimpleQueryCreatorPrompt,
+    construct_query_output_prompt,
 )
-from elysia.tools.retrieval.util import execute_weaviate_query, QueryError
+from elysia.tools.retrieval.util import (
+    execute_weaviate_query,
+    QueryError,
+    QueryOutput,
+    NonVectorisedQueryOutput,
+)
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
 from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
@@ -233,8 +239,39 @@ class Query(Tool):
             self.logger.debug(f"Collection names received: {collection_names}")
 
         # Set up the dspy model
+        query_creator_prompt = QueryCreatorPrompt
+
+        # check if collections are vectorised
+        vectorised = any(
+            (
+                schemas[collection_name]["vectorizer"] is not None
+                or (
+                    schemas[collection_name]["named_vectors"] is not None
+                    and schemas[collection_name]["named_vectors"] != []
+                )
+            )
+            for collection_name in collection_names
+        )
+
+        if vectorised:
+            query_creator_prompt = query_creator_prompt.append(
+                name="query_outputs",
+                type_=Union[list[QueryOutput], None],
+                field=dspy.OutputField(
+                    desc=construct_query_output_prompt(True),
+                ),
+            )
+        else:
+            query_creator_prompt = query_creator_prompt.append(
+                name="query_outputs",
+                type_=Union[list[NonVectorisedQueryOutput], None],
+                field=dspy.OutputField(
+                    desc=construct_query_output_prompt(False),
+                ),
+            )
+
         query_generator = ElysiaChainOfThought(
-            QueryCreatorPrompt,
+            query_creator_prompt,
             tree_data=tree_data,
             environment=True,
             collection_schemas=True,
@@ -313,9 +350,6 @@ class Query(Tool):
             self.logger.debug(f"Query: {query.query_outputs}")
             self.logger.debug(f"Fields to search: {query.fields_to_search}")
             self.logger.debug(f"Data display: {query.data_display}")
-
-        query.fields_to_search = {"VERBA_DOCUMENTS": ["content"]}
-        print(query.fields_to_search)
 
         # Yield results to front end
         yield Response(text=query.message_update)

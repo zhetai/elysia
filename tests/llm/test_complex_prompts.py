@@ -78,7 +78,7 @@ class TestComplexPrompts:
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            assert test_case.success
+            assert test_case.success, test_case.metrics_data[0].reason
 
     @pytest.mark.asyncio
     async def test_query_with_chunking(self):
@@ -129,7 +129,7 @@ class TestComplexPrompts:
 
         res = evaluate(test_cases=[test_case], metrics=[deepeval_metric])
         for test_case in res.test_results:
-            assert test_case.success
+            assert test_case.success, test_case.metrics_data[0].reason
 
     @pytest.mark.asyncio
     async def test_impossible_query(self):
@@ -165,4 +165,4 @@ class TestComplexPrompts:
 
         res = evaluate(test_cases=[test_case], metrics=[metric])
         for test_case in res.test_results:
-            assert test_case.success
+            assert test_case.success, test_case.metrics_data[0].reason
