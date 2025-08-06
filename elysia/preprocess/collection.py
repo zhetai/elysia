@@ -280,14 +280,22 @@ async def _evaluate_index_properties(collection: CollectionAsync) -> dict:
     return index_properties
 
 
-async def _find_named_vectors(collection: CollectionAsync) -> dict[str, dict]:
+async def _find_vectorisers(collection: CollectionAsync) -> dict[str, dict]:
     schema_info = await collection.config.get()
     if not schema_info.vector_config:
-        return None
+        named_vectors = None
     else:
-        return [
+        named_vectors = [
             {
                 "name": vector,
+                "vectorizer": schema_info.vector_config[
+                    vector
+                ].vectorizer.vectorizer.name,
+                "model": (
+                    schema_info.vector_config[vector].vectorizer.model["model"]
+                    if "model" in schema_info.vector_config[vector].vectorizer.model
+                    else None
+                ),
                 "source_properties": schema_info.vector_config[
                     vector
                 ].vectorizer.source_properties,
@@ -296,6 +304,20 @@ async def _find_named_vectors(collection: CollectionAsync) -> dict[str, dict]:
             }
             for vector in schema_info.vector_config
         ]
+
+    if not schema_info.vectorizer_config:
+        vectoriser = None
+    else:
+        vectoriser = {
+            "vectorizer": schema_info.vectorizer_config.vectorizer.name,
+            "model": (
+                schema_info.vectorizer_config.model["model"]
+                if "model" in schema_info.vectorizer_config.model
+                else None
+            ),
+        }
+
+    return named_vectors, vectoriser
 
 
 async def preprocess_async(
@@ -417,12 +439,14 @@ async def preprocess_async(
         )
 
         # Initialise the output
+        named_vectors, vectoriser = await _find_vectorisers(collection)
         out = {
             "name": collection_name,
             "length": len_collection,
             "summary": summary,
             "index_properties": await _evaluate_index_properties(collection),
-            "named_vectors": await _find_named_vectors(collection),
+            "named_vectors": named_vectors,
+            "vectorizer": vectoriser,
             "fields": [],
             "mappings": {},
         }
@@ -591,6 +615,14 @@ async def preprocess_async(
                                     data_type=DataType.TEXT,
                                 ),
                                 Property(
+                                    name="vectorizer",
+                                    data_type=DataType.TEXT,
+                                ),
+                                Property(
+                                    name="model",
+                                    data_type=DataType.TEXT,
+                                ),
+                                Property(
                                     name="source_properties",
                                     data_type=DataType.TEXT_ARRAY,
                                 ),
@@ -602,6 +634,14 @@ async def preprocess_async(
                                     name="description",
                                     data_type=DataType.TEXT,
                                 ),
+                            ],
+                        ),
+                        Property(
+                            name="vectorizer",
+                            data_type=DataType.OBJECT,
+                            nested_properties=[
+                                Property(name="vectorizer", data_type=DataType.TEXT),
+                                Property(name="model", data_type=DataType.TEXT),
                             ],
                         ),
                         Property(

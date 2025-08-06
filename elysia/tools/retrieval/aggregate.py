@@ -1,6 +1,5 @@
-from typing import List
+from typing import Union
 from logging import Logger
-from pydantic import BaseModel
 
 from rich import print
 from rich.panel import Panel
@@ -8,13 +7,21 @@ from rich.panel import Panel
 import dspy
 
 from elysia.util.elysia_chain_of_thought import ElysiaChainOfThought
-from elysia.objects import Response, Status, Tool, Warning, Error
+from elysia.objects import Response, Status, Tool, Error
 from elysia.tools.retrieval.objects import Aggregation
-from elysia.tools.retrieval.prompt_templates import AggregationPrompt
-from elysia.tools.retrieval.util import execute_weaviate_aggregation, QueryError
+from elysia.tools.retrieval.prompt_templates import (
+    AggregationPrompt,
+    construct_aggregation_output_prompt,
+)
+from elysia.tools.retrieval.util import (
+    execute_weaviate_aggregation,
+    QueryError,
+    AggregationOutput,
+    VectorisedAggregationOutput,
+)
 from elysia.tree.objects import TreeData
 from elysia.util.client import ClientManager
-from elysia.util.objects import TrainingUpdate, TreeUpdate, FewShotExamples
+from elysia.util.objects import TrainingUpdate, FewShotExamples
 from elysia.util.parsing import format_aggregation_response
 
 
@@ -120,8 +127,39 @@ class Aggregate(Tool):
             )
 
         # Set up the dspy model
+        aggregation_prompt = AggregationPrompt
+
+        # check if collections are vectorised
+        vectorised_by_collection = {
+            collection_name: (
+                schemas[collection_name]["vectorizer"] is not None
+                or (
+                    schemas[collection_name]["named_vectors"] is not None
+                    and schemas[collection_name]["named_vectors"] != []
+                )
+            )
+            for collection_name in collection_names
+        }
+
+        if any(vectorised_by_collection.values()):
+            aggregation_prompt = aggregation_prompt.append(
+                name="aggregation_queries",
+                type_=Union[list[VectorisedAggregationOutput], None],
+                field=dspy.OutputField(
+                    desc=construct_aggregation_output_prompt(True),
+                ),
+            )
+        else:
+            aggregation_prompt = aggregation_prompt.append(
+                name="aggregation_queries",
+                type_=Union[list[AggregationOutput], None],
+                field=dspy.OutputField(
+                    desc=construct_aggregation_output_prompt(False),
+                ),
+            )
+
         aggregate_generator = ElysiaChainOfThought(
-            AggregationPrompt,
+            aggregation_prompt,
             tree_data=tree_data,
             environment=True,
             collection_schemas=True,
@@ -132,6 +170,9 @@ class Aggregate(Tool):
         )
 
         if self.logger:
+            self.logger.info(
+                f"Any collections vectorised: {any(vectorised_by_collection.values())}"
+            )
             self.logger.info(f"Collection names received: {collection_names}")
 
         # Get some metadata about the collection
@@ -221,6 +262,7 @@ class Aggregate(Tool):
                             }
                             for collection_name in collection_names
                         },
+                        vectorised_by_collection=vectorised_by_collection,
                     )
                 except QueryError as e:
                     yield Error(feedback=str(e))

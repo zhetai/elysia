@@ -461,12 +461,20 @@ async def collection_metadata(
             "named_vectors": list = [
                 {
                     "name": str,
+                    "vectorizer": str,
+                    "model": str,
                     "enabled": bool,
                     "source_properties": list,
                     "description": str # defaults to empty
                 },
                 ...
             ],
+
+            # vectoriser configuration
+            "vectoriser": dict = {
+                "vectorizer": str,
+                "model": str,
+            },
 
             # some config settings relevant for queries
             "index_properties": {
