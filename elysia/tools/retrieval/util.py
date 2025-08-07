@@ -7,6 +7,7 @@ from dateutil import parser
 from pydantic import BaseModel, Field
 from weaviate.collections import CollectionAsync
 from weaviate.classes.query import Filter, Metrics, QueryReference, Sort
+from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.collections.classes.filters import _Filters
 from weaviate.collections.classes.grpc import Sorting
 from weaviate.outputs.aggregate import AggregateGroupByReturn, AggregateReturn
@@ -926,7 +927,10 @@ def _build_aggregation_args(tool_args: dict) -> dict:
     agg_args: dict = {"total_count": True}
 
     if "groupby_property" in tool_args:
-        agg_args["group_by"] = tool_args["groupby_property"]
+        agg_args["group_by"] = GroupByAggregate(
+            prop=tool_args["groupby_property"],
+            limit=200,
+        )
 
     agg_args["return_metrics"] = _build_return_metrics(tool_args)
 

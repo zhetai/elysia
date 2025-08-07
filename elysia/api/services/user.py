@@ -260,7 +260,10 @@ class UserManager:
         The restart_client() methods will check if the client has been inactive for the last client_timeout minutes (set in init).
         """
         for user_id in self.users:
-            if "client_manager" in self.users[user_id]:
+            if (
+                "client_manager" in self.users[user_id]
+                and self.users[user_id]["client_manager"].is_client
+            ):
                 await self.users[user_id]["client_manager"].restart_client()
                 await self.users[user_id]["client_manager"].restart_async_client()
 
