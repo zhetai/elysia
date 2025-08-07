@@ -17,7 +17,6 @@ from elysia.tools.retrieval.objects import (
 )
 from elysia.tools.retrieval.prompt_templates import (
     QueryCreatorPrompt,
-    SimpleQueryCreatorPrompt,
     construct_query_output_prompt,
 )
 from elysia.tools.retrieval.util import (
@@ -116,7 +115,9 @@ class Query(Tool):
 
         return previous_queries
 
-    def _evaluate_content_field(self, metadata_fields: list[dict]) -> str:
+    def _evaluate_content_field(
+        self, metadata_fields: list[dict]
+    ) -> tuple[str | None, float | None]:
         """
         Find the largest text field in the metadata.
         Returns the field name with the highest mean value among text fields.
@@ -125,11 +126,11 @@ class Query(Tool):
         text_fields = {
             field["name"]: field
             for field in metadata_fields
-            if field.get("type") == "text"
+            if (field.get("type") == "text" and field.get("mean") is not None)
         }
 
         if not text_fields:
-            return ""
+            return None, None
 
         # Find the text field with the largest mean value
         max_field = max(text_fields, key=lambda x: text_fields[x].get("mean", 0))
@@ -147,7 +148,7 @@ class Query(Tool):
         )
 
         return (
-            content_field != ""
+            content_field is not None
             and content_len > threshold
             and query_type != "filter_only"
             and display_type
@@ -452,7 +453,7 @@ class Query(Tool):
                     schemas[collection_name]["fields"],
                 )  # used for chunking
 
-                if needs_chunking:
+                if needs_chunking and content_field is not None:
 
                     if self.logger:
                         self.logger.debug(f"Chunking {collection_name}")
@@ -601,6 +602,7 @@ class Query(Tool):
                         objects,
                         metadata,
                         payload_type=display_type,
+                        name=collection_name,
                         mapping=(
                             schemas[collection_name]["mappings"][display_type]
                             if display_type != "table"

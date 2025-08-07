@@ -98,11 +98,51 @@ async def _evaluate_field_statistics(
     collection: CollectionAsync,
     properties: dict,
     property: str,
-    full_response: list[dict] | None = None,
+    len_collection: int,
+    sample_objects: list[dict],
 ) -> dict:
     out = {}
     out["type"] = properties[property] if properties[property] != "number" else "float"
     out["name"] = property
+
+    groups_response = await collection.aggregate.over_all(
+        total_count=True, group_by=GroupByAggregate(prop=property, limit=30)
+    )
+
+    if len(groups_response.groups) > 15:
+        groups = [
+            {
+                "value": str(
+                    group.grouped_by.value
+                ),  # must force to string for weaviate
+                "count": group.total_count,
+            }
+            for group in groups_response.groups
+            if group.total_count > 1
+        ]
+    else:
+        groups = [
+            {
+                "value": str(group.grouped_by.value),
+                "count": group.total_count,
+            }
+            for group in groups_response.groups
+        ]
+
+    total_count = sum(group["count"] for group in groups)
+    remainder = len_collection - total_count
+    group_coverage = total_count / len_collection
+    if remainder > 0:
+        groups.append(
+            {
+                "value": "<undefined_group> (not used for filtering)",
+                "count": remainder,
+            }
+        )
+
+    # check if groups are useful
+    if len(groups) == 1 or group_coverage < 0.5:
+        out["groups"] = None
 
     # Number (summary statistics)
     if properties[property] == "int":
@@ -116,7 +156,6 @@ async def _evaluate_field_statistics(
             response.properties[property].maximum,
         ]
         out["mean"] = response.properties[property].mean
-        out["groups"] = None
         out["date_range"] = None
         out["date_median"] = None
 
@@ -131,54 +170,28 @@ async def _evaluate_field_statistics(
             response.properties[property].maximum,
         ]
         out["mean"] = response.properties[property].mean
-        out["groups"] = None
         out["date_range"] = None
         out["date_median"] = None
 
-    # Text (grouping + lengths)
+    # Text (lengths)
     elif properties[property] == "text":
 
-        # TODO: this returns EVERY SINGLE text value in the collection,
-        # need to make this more efficient, is it possible to specify in metadata to not return the text values?
-        # with top-occurences count?
-        # only return the top 30 groups
-        # then return the rest as "other"
-        response = await collection.aggregate.over_all(
-            total_count=True, group_by=GroupByAggregate(prop=property)
-        )
-        groups = [group.grouped_by.value for group in response.groups]
+        # For text, we want to evaluate the length of the text in tokens (use spacy)
+        lengths = []
+        for obj in sample_objects:
+            if property in obj and isinstance(obj[property], str):
+                lengths.append(len(nlp(obj[property])))
 
-        if len(groups) < 30:
-            out["groups"] = groups
-        else:
-            out["groups"] = None
-
-        if full_response is not None:
-            # For text, we want to evaluate the length of the text in tokens (use spacy)
-            lengths = []
-            for obj in full_response.objects:
-                if property in obj.properties and isinstance(
-                    obj.properties[property], str
-                ):
-                    lengths.append(len(nlp(obj.properties[property])))
-
-            out["range"] = [min(lengths), max(lengths)]
-            out["mean"] = sum(lengths) / len(lengths)
-            out["date_median"] = None
-            out["date_range"] = None
-
-        else:
-            out["range"] = None
-            out["mean"] = None
-            out["date_range"] = None
-            out["date_median"] = None
+        out["range"] = [min(lengths), max(lengths)]
+        out["mean"] = sum(lengths) / len(lengths)
+        out["date_median"] = None
+        out["date_range"] = None
 
     # Boolean (grouping + mean)
     elif properties[property] == "boolean":
         response = await collection.aggregate.over_all(
             return_metrics=[Metrics(property).boolean(percentage_true=True)]
         )
-        out["groups"] = ["1", "0"]
         out["mean"] = response.properties[property].percentage_true
         out["range"] = [0, 1]
         out["date_range"] = None
@@ -197,25 +210,21 @@ async def _evaluate_field_statistics(
         ]
         out["mean"] = None
         out["date_median"] = response.properties[property].median
-        out["groups"] = None
         out["range"] = None
         out["mean"] = None
 
     # List (lengths)
     elif properties[property].endswith("[]"):
-        if full_response is not None:
-            lengths = [len(obj.properties[property]) for obj in full_response.objects]
+        lengths = [len(obj[property]) for obj in sample_objects]
 
-            out["range"] = [min(lengths), max(lengths)]
-            out["mean"] = sum(lengths) / len(lengths)
-            out["groups"] = None
-            out["date_range"] = None
-            out["date_median"] = None
+        out["range"] = [min(lengths), max(lengths)]
+        out["mean"] = sum(lengths) / len(lengths)
+        out["date_range"] = None
+        out["date_median"] = None
 
     else:
         out["range"] = None
         out["mean"] = None
-        out["groups"] = None
         out["date_range"] = None
         out["date_median"] = None
 
@@ -456,9 +465,12 @@ async def preprocess_async(
             message="Generated summary of collection",
         )
 
-        full_response = await collection.query.fetch_objects(
-            limit=min(len_collection, max_sample_size)
-        )
+        if len_collection > max_sample_size:
+            full_response = subset_objects
+        else:
+            full_response = (
+                await collection.query.fetch_objects(limit=len_collection)
+            ).objects
 
         # Initialise the output
         named_vectors, vectoriser = await _find_vectorisers(collection)
@@ -477,7 +489,7 @@ async def preprocess_async(
         for property in properties:
             out["fields"].append(
                 await _evaluate_field_statistics(
-                    collection, properties, property, full_response
+                    collection, properties, property, len_collection, full_response
                 )
             )
             if property in field_descriptions:
@@ -700,7 +712,14 @@ async def preprocess_async(
                                 ),
                                 Property(
                                     name="groups",
-                                    data_type=DataType.TEXT_ARRAY,
+                                    data_type=DataType.OBJECT_ARRAY,
+                                    nested_properties=[
+                                        Property(
+                                            name="value",
+                                            data_type=DataType.TEXT,
+                                        ),
+                                        Property(name="count", data_type=DataType.INT),
+                                    ],
                                 ),
                                 Property(
                                     name="date_median",

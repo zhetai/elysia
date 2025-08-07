@@ -117,10 +117,13 @@ class DataMappingPrompt(dspy.Signature):
             "fields": [
                 {
                     "name": field_name,
-                    "groups": a comprehensive list of all unique text values that exist in the field. if the field is not text, this should be an empty list,
+                    "type": the data type of the field.
+                    "groups": a dict with the value and count of each group.
+                        a comprehensive list of all unique values that exist in the field.
+                        if this is None, then no relevant groups were found.
+                        these values are string, but the actual values in the collection are the 'type' of the field.
                     "mean": mean of the field. if the field is text, this refers to the means length (in tokens) of the texts in this field. if the type is a list, this refers to the mean length of the lists,
                     "range": minimum and maximum values of the length.
-                    "type": the data type of the field.
                 },
                 ...
             ]
@@ -177,7 +180,10 @@ class PromptSuggestorPrompt(dspy.Signature):
             "fields": [
                 {
                     "name": field_name,
-                    "groups": a comprehensive list of all unique text values that exist in the field. if the field is not text, this should be an empty list,
+                    "groups": a dict with the value and count of each group.
+                        a comprehensive list of all unique values that exist in the field.
+                        if this is None, then no relevant groups were found.
+                        these values are string, but the actual values in the collection are the 'type' of the field.
                     "mean": mean of the field. if the field is text, this refers to the means length (in tokens) of the texts in this field. if the type is a list, this refers to the mean length of the lists,
                     "range": minimum and maximum values of the length.
                     "type": the data type of the field.

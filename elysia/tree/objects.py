@@ -824,7 +824,7 @@ class TreeData:
                             "description": str,
                             "range": list[float],
                             "type": str,
-                            "groups": list[str],
+                            "groups": dict[str, str],
                             "mean": float
                         },
                         field_name_2: dict = {

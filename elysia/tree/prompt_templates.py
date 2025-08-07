@@ -200,7 +200,9 @@ class FollowUpSuggestionsPrompt(dspy.Signature):
             "fields": [
                 {
                     "name": field_name,
-                    "groups": unique text values (empty if non-text),
+                    "groups": a dict with the value and count of each group.
+                        a comprehensive list of all unique values that exist in the field.
+                        if this is None, then no relevant groups were found,
                     "mean": average field length (tokens/list items),
                     "range": min/max length values,
                     "type": data type

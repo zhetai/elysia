@@ -433,7 +433,7 @@ async def collection_metadata(
                     "description": str,
                     "range": list[float],
                     "type": str,
-                    "groups": list[str],
+                    "groups": dict[str, str],
                     "mean": float
                 },
                 field_name_2: dict,
@@ -646,6 +646,39 @@ async def delete_metadata(
 
     except Exception as e:
         logger.exception(f"Error in /delete_metadata API")
+        return JSONResponse(content={"error": str(e)}, status_code=200)
+
+    return JSONResponse(content={"error": ""}, status_code=200)
+
+
+@router.delete("/{user_id}/metadata/all")
+async def delete_all_metadata(
+    user_id: str,
+    user_manager: UserManager = Depends(get_user_manager),
+) -> JSONResponse:
+    """
+    Delete the metadata for a collection.
+
+    Args:
+        user_id (str): The ID of the user.
+        user_manager (UserManager): The user manager.
+
+    Returns:
+        (JSONResponse): A JSON response containing an error message if there is an error, otherwise an empty string.
+    """
+    logger.debug(f"/delete_all_metadata API request received")
+    logger.debug(f"User ID: {user_id}")
+
+    # retrieve the current metadata
+    try:
+        user_local = await user_manager.get_user_local(user_id)
+        client_manager: ClientManager = user_local["client_manager"]
+        async with client_manager.connect_to_async_client() as client:
+            if await client.collections.exists("ELYSIA_METADATA__"):
+                await client.collections.delete("ELYSIA_METADATA__")
+
+    except Exception as e:
+        logger.exception(f"Error in /delete_all_metadata API")
         return JSONResponse(content={"error": str(e)}, status_code=200)
 
     return JSONResponse(content={"error": ""}, status_code=200)
