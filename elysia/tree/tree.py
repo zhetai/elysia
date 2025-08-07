@@ -1202,7 +1202,9 @@ class Tree:
             self.tree_data.errors[function_name].append(
                 "Unknown error: "
                 f"{error.error_message} "
-                "(this error is likely to be solved by incorporating the error message in a future tool call)"
+                "(this error is likely outside of your capacity to be solved - "
+                "judge the error message based on other information and if it seems fixable, call this tool again "
+                "if it is repeated, you may need to try something else or inform the user of the issue)"
             )
 
     async def _evaluate_result(

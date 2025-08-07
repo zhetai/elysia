@@ -168,7 +168,7 @@ class VectorisedAggregationOutput(AggregationOutput):
 # -- Schema for collections/data
 class FieldSchema(BaseModel):
     type: Literal[
-        "text", "number", "boolean", "date", "text[]", "number[]", "boolean[]", "date[]"
+        "text", "float", "boolean", "date", "text[]", "float[]", "boolean[]", "date[]"
     ]
     groups: List[str]
     mean: float
@@ -829,7 +829,7 @@ def _build_return_metrics(tool_args: dict) -> list[Metrics] | None:
                             )
                         )
 
-                    elif agg_type.startswith("number"):
+                    elif agg_type.startswith("float"):
                         # Map to correct integer metric names
                         metric_mapping = {
                             "MEAN": "mean",
@@ -911,9 +911,7 @@ def _build_return_metrics(tool_args: dict) -> list[Metrics] | None:
                             "COUNT": "count",
                         }
                         metric_names = [
-                            metric_name
-                            for m in metrics
-                            for metric_name in metric_mapping.get(m, [m.lower()])
+                            metric_mapping.get(m, m.lower()) for m in metrics  # type: ignore
                         ]
                         full_metrics.append(
                             Metrics(prop_name).date_(
