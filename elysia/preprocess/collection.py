@@ -385,6 +385,9 @@ async def preprocess_async(
         force (bool): Whether to force the preprocessor to run even if the collection already exists. Optional, defaults to False.
         threshold_for_missing_fields (float): The threshold for the number of missing fields in the data mapping. Optional, defaults to 0.1.
         settings (Settings): The settings to use. Optional, defaults to the environment variables/configured settings.
+
+    Returns:
+        AsyncGenerator[dict, None]: A generator that yields dictionaries with the status updates and progress of the preprocessor.
     """
 
     collection_summariser_prompt = dspy.ChainOfThought(CollectionSummariserPrompt)
@@ -894,9 +897,7 @@ async def preprocessed_collection_exists_async(
     collection_name: str, client_manager: ClientManager | None = None
 ) -> bool:
     """
-    Check if the preprocessed collection exists in the Weaviate cluster.
-    This function simply checks if the cached preprocessed metadata exists in the Weaviate cluster.
-    It does so by checking if the collection name exists in the ELYSIA_METADATA__ collection.
+    Async version of `preprocessed_collection_exists`.
 
     Args:
         collection_name (str): The name of the collection to check.
@@ -931,6 +932,15 @@ async def preprocessed_collection_exists_async(
 def preprocessed_collection_exists(
     collection_name: str, client_manager: ClientManager | None = None
 ) -> bool:
+    """
+    Check if the preprocessed collection exists in the Weaviate cluster.
+    This function simply checks if the cached preprocessed metadata exists in the Weaviate cluster.
+    It does so by checking if the collection name exists in the ELYSIA_METADATA__ collection.
+
+    Args:
+        collection_name (str): The name of the collection to check.
+        client_manager (ClientManager): The client manager to use.
+    """
     return asyncio_run(
         preprocessed_collection_exists_async(collection_name, client_manager)
     )
@@ -974,6 +984,15 @@ async def delete_preprocessed_collection_async(
 def delete_preprocessed_collection(
     collection_name: str, client_manager: ClientManager | None = None
 ) -> None:
+    """
+    Delete a preprocessed collection.
+    This function allows you to delete the preprocessing done for a particular collection.
+    It does so by deleting the object in the ELYSIA_METADATA__ collection with the name of the collection.
+
+    Args:
+        collection_name (str): The name of the collection to delete.
+        client_manager (ClientManager): The client manager to use.
+    """
     return asyncio_run(
         delete_preprocessed_collection_async(collection_name, client_manager)
     )
@@ -987,21 +1006,6 @@ def edit_preprocessed_collection(
     mappings: dict[str, dict[str, str]] | None = None,
     fields: list[dict[str, str] | None] | None = None,
 ) -> None:
-    return asyncio_run(
-        async_edit_preprocessed_collection(
-            collection_name, client_manager, named_vectors, summary, mappings, fields
-        )
-    )
-
-
-async def async_edit_preprocessed_collection(
-    collection_name: str,
-    client_manager: ClientManager | None = None,
-    named_vectors: list[dict] | None = None,
-    summary: str | None = None,
-    mappings: dict[str, dict[str, str]] | None = None,
-    fields: list[dict[str, str] | None] | None = None,
-) -> dict:
     """
     Edit a preprocessed collection.
     This function allows you to edit the named vectors, summary, mappings, and fields of a preprocessed collection.
@@ -1035,6 +1039,59 @@ async def async_edit_preprocessed_collection(
             - "description": The description of the field to update.
             Any fields that are not provided will not be updated.
             If None or not provided, the fields will not be updated.
+
+    Returns:
+        dict: The updated preprocessed collection.
+    """
+
+    return asyncio_run(
+        edit_preprocessed_collection_async(
+            collection_name, client_manager, named_vectors, summary, mappings, fields
+        )
+    )
+
+
+async def edit_preprocessed_collection_async(
+    collection_name: str,
+    client_manager: ClientManager | None = None,
+    named_vectors: list[dict] | None = None,
+    summary: str | None = None,
+    mappings: dict[str, dict[str, str]] | None = None,
+    fields: list[dict[str, str] | None] | None = None,
+) -> dict:
+    """
+    Async version of `edit_preprocessed_collection`.
+
+    Args:
+        collection_name (str): The name of the collection to edit.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created using the environment variables/configured settings.
+        named_vectors (list[dict]): The named vectors to update. This has fields "name", "enabled", and "description".
+            The "name" is used to identify the named vector to change (the name will not change).
+            Set "enabled" to True/False to enable/disable the named vector.
+            Set "description" to describe the named vector.
+            The description of named vectors is not automatically generated by the LLM.
+            Any named vectors that are not provided will not be updated.
+            If None or not provided, the named vectors will not be updated.
+        summary (str): The summary to update.
+            The summary is a short description of the collection, generated by the LLM.
+            This will replace the existing summary of the collection.
+            If None or not provided, the summary will not be updated.
+        mappings (dict): The mappings to update.
+            The mappings are what the frontend will use to display the collection, and the associated fields.
+            I.e., which fields correspond to which output fields on the frontend.
+            The keys of the outer level of the dictionary are the mapping names, the values are dictionaries with the mappings.
+            The inner dictionary has the keys as the collection fields, and the values as the frontend fields.
+            If None or not provided, the mappings will not be updated.
+        fields (list[dict]): The fields to update.
+            Each element in the list is a dictionary with the following fields:
+            - "name": The name of the field. (This is used to identify the field to change, the name will not change).
+            - "description": The description of the field to update.
+            Any fields that are not provided will not be updated.
+            If None or not provided, the fields will not be updated.
+
+    Returns:
+        dict: The updated preprocessed collection.
     """
 
     if client_manager is None:
@@ -1158,23 +1215,37 @@ async def async_edit_preprocessed_collection(
 def view_preprocessed_collection(
     collection_name: str, client_manager: ClientManager | None = None
 ) -> dict:
-    return asyncio_run(
-        async_view_preprocessed_collection(collection_name, client_manager)
-    )
-
-
-async def async_view_preprocessed_collection(
-    collection_name: str, client_manager: ClientManager | None = None
-) -> dict:
     """
     View a preprocessed collection.
     This function allows you to view the preprocessed collection generated by the preprocess function.
     It does so by querying the ELYSIA_METADATA__ collection.
 
     Args:
-        collection_name (str): The name of the collection to edit.
+        collection_name (str): The name of the collection to view.
         client_manager (ClientManager): The client manager to use.
             If not provided, a new ClientManager will be created using the environment variables/configured settings.
+
+    Returns:
+        dict: The preprocessed collection.
+    """
+    return asyncio_run(
+        view_preprocessed_collection_async(collection_name, client_manager)
+    )
+
+
+async def view_preprocessed_collection_async(
+    collection_name: str, client_manager: ClientManager | None = None
+) -> dict:
+    """
+    Async version of `view_preprocessed_collection`.
+
+    Args:
+        collection_name (str): The name of the collection to view.
+        client_manager (ClientManager): The client manager to use.
+            If not provided, a new ClientManager will be created using the environment variables/configured settings.
+
+    Returns:
+        dict: The preprocessed collection.
     """
 
     if client_manager is None:

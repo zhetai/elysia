@@ -6,6 +6,22 @@ For more detail, [see the `Result` description in the reference](../Reference/Ob
 
 A `Result` is a class with a `to_json()` and `to_frontend()` method which returns the objects defined within the class, and their metadata, to either the decision tree environment and an attached frontend, respectively. By default, any `Result` objects yielded within a tool will automatically have these objects assigned and sent.
 
+I.e.
+```python
+# top of file
+from elysia.objects import Result
+
+# existing tool code
+yield Result(
+    objects = [...],
+    metadata = {...},
+    payload_type = "<your_type_here>",
+    name = "<name_to_go_in_environment>",
+    mapping = {...}
+)
+# continued tool code
+```
+
 ### Parameters
 
 **Objects**
@@ -16,11 +32,15 @@ For example, an Elysia frontend knows what the payload of a 'document' object sh
 
 **Metadata**
 
-Results also can have metadata attached to them, which is a single dictionary that contains any information about this particular list of objects that exist across all objects, rather than on an individual level. For example, if we have retrieved some documents using a search query, the metadata can contain what that search query was, whereas `objects` are the objects themselves.
+Results also can have metadata attached to them, which is a single dictionary that contains any information about this particular list of objects that exist across all objects, rather than on an individual level. For example, if we have retrieved some documents using a search query, the metadata can contain what that search query was and what collection was searched, whereas `objects` are the objects themselves.
+
+**Payload Type**
+
+The `payload_type` parameter is used to tell the frontend what to expect. Within Elysia, there are some predefined types ([see here](../Reference/PayloadTypes.md)) that the built-in frontend is aware of. However, you can specify your own payload types if you are building a different frontend that is aware of different payload types.
 
 **Mapping**
 
-So within the `Result` there is also a `mapping` field which is a dictionary which maps from these fields to the fields contained within the objects themselves. In this case, this would be
+Within the `Result` there is also a `mapping` field which is a dictionary which maps from these fields to the fields contained within the objects themselves. For example, if we had an object with fields `"document_header"`, `"text_content"` and `"writer"`, then you may want to specify the `mapping` as
 ```python
 {
     "title": "document_header",
@@ -28,12 +48,7 @@ So within the `Result` there is also a `mapping` field which is a dictionary whi
     "author": "writer
 }
 ```
-
-**Payload Type**
-
-The `payload_type` parameter is used to tell the frontend what to expect. In the earlier example, this would be `payload_type="document"`.
-
-[Within Elysia, there exists supported subclasses of `Result` that automatically have their payload types declared within the class](../Reference/Objects.md#elysia.tools.objects). However, you can specify your own payload types if you are building a different frontend that is aware of different payload types.
+So that on the frontend, when a document is displayed, the correct field values appear in the relevant fields.
 
 **Name**
 

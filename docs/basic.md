@@ -6,7 +6,7 @@ Let's assume we have access to the following Weaviate collections:
 
 - `ml_wikipedia`: a collection of long Wikipedia articles related to machine learning, with fields such as `categories`, `content`, `title` etc.
 
-- `example_verba_github_issues`: Github issues data for the repository [Verba](https://github.com/weaviate/Verba), with fields such as `issue_author`, `issue_content`, `issue_updated_at` etc.
+- `Tickets`: Github issues for a fictional company
 
 These Weaviate collections are those which we want to search over using Elysia.
 
@@ -28,6 +28,13 @@ configure(
 ```
 
 You need to specify both a `base_model` and a `complex_model`, as well as their providers. This hooks into LiteLLM through DSPy, [so any LiteLLM supported models and providers will work](https://docs.litellm.ai/docs/providers). [See the setup page for more details](setting_up.md).
+
+Then for a collection to be accessible within Elysia, we need to preprocess it - so that the models are aware of the schemas and information about the collection.
+
+```python
+from elysia import preprocess
+preprocess("Tickets")
+```
  
 ## Running Elysia
 
@@ -44,7 +51,7 @@ Elysia will _dynamically_ run through the decision tree, choosing tools to use b
 print(response)
 ```
 ```
-I will now query the GitHub issues collection to retrieve the 10 most recent issues for you. I applied a descending sort on the "issue_created_at" field to retrieve the 10 most recent issues. I will now summarize the 10 most recent GitHub issues for you. The latest GitHub issues reflect ongoing discussions and developments within the Verba project. Notable entries include a closed issue regarding the use of specific model inputs, a report on a breaking change affecting the code chunker functionality, and requests for enhancements like custom JSON support and improved metadata handling during file uploads. The issues also highlight user concerns about application performance when processing large document uploads and the integration of external language models. Overall, these issues illustrate a dynamic environment with active contributions and feedback from the community.
+I will now query the Tickets collection to retrieve the 10 most recent issues for you. I applied a descending sort on the "issue_created_at" field to retrieve the 10 most recent issues. I will now summarize the 10 most recent Github issues for you. The latest tickets reflect ongoing discussions and developments within the Verba project. Notable entries include a closed issue regarding the use of specific model inputs, a report on a breaking change affecting the code chunker functionality, and requests for enhancements like custom JSON support and improved metadata handling during file uploads. The issues also highlight user concerns about application performance when processing large document uploads and the integration of external language models. Overall, these issues illustrate a dynamic environment with active contributions and feedback from the community.
 ```
 ```python
 print(objects)

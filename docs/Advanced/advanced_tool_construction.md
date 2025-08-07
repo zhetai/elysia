@@ -107,10 +107,12 @@ A **[`Warning`](../Reference/Objects.md#elysia.objects.Warning)** is initialised
 Running inside of the call something like:
 ```python
     yield Result(
-        objects = [{
-            "title": "Example Result",
-            "content": "This is just an example of a result"
-        }]
+        objects = [
+            {
+                "title": "Example Result",
+                "content": "This is just an example of a result"
+            }
+        ]
     )
 ```
 will mean that this particular object gets added to the Tree's `Environment`, and the LLM can look at this to make further decisions. This will also automatically parse this object as a payload to a frontend, if one is connected.
@@ -118,12 +120,10 @@ will mean that this particular object gets added to the Tree's `Environment`, an
 The arguments for the `Result` are:
  - `objects`: a list of dictionaries that contain your specific objects. Currently, the keys of the dictionary do not matter, but if you want to display these items on the frontend, they need to conform to specific keys ([see later](#displaying-objects-frontend-only))
  - `metadata`: a dictionary of metadata items. You can use this to separate global information from object-specific information.
- - `type`: a string describing the type of objects you are giving.
+ - `payload_type`: a string describing the type of objects you are giving.
+ - `mapping`: a dictionary mapping frontend-aware fields to the fields in `objects` ([see here](../Reference/PayloadTypes.md)).
 
-[There are a few pre-made `Result` objects that you can use to add objects to the environment.](../Reference/Result.md)
-
-These specific pre-made `Result` objects also will show a custom display to the frontend also. For example, a document object will be shown on the frontend with the specific fields of the document. This has important considerations however, which we will discuss in the next section.
-
+[See the custom objects page for more detail.](custom_objects.md)
 
 ## Interacting with the Environment
 
@@ -136,44 +136,9 @@ You can do so via calling the `.add()`, `.add_objects()`, `.replace()` or `.remo
 
 ## Displaying Objects (Frontend Only)
 
-You can (currently) choose one of the following objects that are *supported by the frontend*. If you do not use one of these objects, then the LLM will still receive the data for the decision agent, it will still be added to the environment, but the frontend will not recognise its type and it will not be shown in the app.
+You can yield a `Result` to the frontend, and by specifying the `payload_type`, the frontend will be aware of the type of object sent. The payload type currently must be one of the objects in [the reference page](../Reference/PayloadTypes.md), and you must also either conform to the field structure for each type or provide a `mapping` that maps from the expected fields to the fields in the objects.
 
-- `Table`
-- `Generic`
-- `Conversation`
-- `Document`
-- `Ecommerce`
-- `Message`
-- `Ticket`
-
-These are all unique display types, but they follow the same format as a `Result`. Let's look at an example. Say I wanted to return a `Message` object from my tool, then I need to yield as follows
-```python
-yield Message(
-    objects = [
-        {
-            "author": "Customer",
-            "content": "My keyboard is faulty.",
-            "timestamp": "2024-05-31",
-            "conversation_id": 0,
-            "message_id": 0,
-        },
-        {
-            "author": "Customer Support",
-            "content": "We are refunding you $24.99 for the faulty keyboard.",
-            "timestamp": "2024-05-31",
-            "conversation_id": 0,
-            "message_id": 1,
-        }
-    ],
-    metadata = {
-        "collection_name": "customer_support_messages"
-    }
-)
-```
-
-And this will both add the `objects` to the tree's environment, as well as displaying these messages specifically on the frontend.
-
-Note that the fields inside of `objects` need to conform to the correct properties as described in the reference, [see here for a full description of the fields in the reference.](../Reference/Result.md)
+To display your objects without any mappings or display types, you can specify the payload type as `table`.
 
 ## Easy LLM calls with Elysia Chain of Thought
 

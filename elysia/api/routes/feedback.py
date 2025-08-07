@@ -17,8 +17,6 @@ from elysia.util.client import ClientManager
 
 router = APIRouter()
 
-# TODO: feedback is based on individual users now, not the auth client manager, so these are broken
-
 
 @router.post("/add")
 async def run_add_feedback(

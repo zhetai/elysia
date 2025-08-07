@@ -1186,7 +1186,6 @@ class Tree:
         )
 
         # add to log of actions called
-        # TODO: is this the same thing as action_information? but better?
         self._update_actions_called(result, decision)
 
     def _add_error(self, function_name: str, error: Error) -> None:
@@ -1353,7 +1352,6 @@ class Tree:
         Async version of .run() for running Elysia in an async environment.
         See .run() for full documentation.
         """
-        # TODO: error handling here
 
         if client_manager is None:
             client_manager = ClientManager(

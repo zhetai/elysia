@@ -81,7 +81,14 @@ Additionally, you need to _preprocess_ your collections for Elysia to use the bu
 
 ## Preprocessing Collections
 
-[The `preprocess` function](Reference/Preprocessor.md) must be used on the Weaviate collections you plan to use within Elysia. Preprocessing does several things:
+[The `preprocess` function](Reference/Preprocessor.md) must be used on the Weaviate collections you plan to use within Elysia. 
+
+```python
+from elysia import preprocess
+preprocess("<your_collection_name>")
+```
+
+Preprocessing does several things:
 
 - Creates an LLM generated summary of the collection, including descriptions of the fields in the dataset.
 - Creates 'mappings', so that fields in the collection can be mapped to frontend-specific fields. This enables the Elysia frontend app to display items from the collection when retrieved in the app.

@@ -14,7 +14,7 @@ from elysia.util.collection import (
     paginated_collection,
 )
 from elysia.preprocess.collection import (
-    async_edit_preprocessed_collection,
+    edit_preprocessed_collection_async,
     delete_preprocessed_collection_async,
     preprocessed_collection_exists_async,
 )
@@ -583,7 +583,7 @@ async def update_metadata(
         user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
 
-        properties = await async_edit_preprocessed_collection(
+        properties = await edit_preprocessed_collection_async(
             collection_name=collection_name,
             client_manager=client_manager,
             named_vectors=(
