@@ -32,7 +32,7 @@ nav:
   - Basic Usage: basic.md
   - Customising Elysia: advanced_usage.md
   - Creating a Tool: creating_tools.md
-  - Advanced Elysia:
+  - Advanced:
     - Overview: Advanced/index.md
     - Technical Overview: Advanced/technical_overview.md
     - Tool Construction: Advanced/advanced_tool_construction.md
@@ -55,7 +55,8 @@ nav:
     - Settings: Reference/Settings.md
     - Objects: Reference/Objects.md
     # - Tools: Reference/Tools.md
-    - Result: Reference/Result.md
+    # - Result: Reference/Result.md
+    - Payload Types: Reference/PayloadTypes.md
     - Util: Reference/Util.md
 plugins:
   - social
