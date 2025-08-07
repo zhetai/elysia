@@ -1,13 +1,16 @@
 specific_return_types = {
     "conversation": (
-        "Full conversations, including all messages and message authors, with timestamps and context of other messages in the conversation."  # TODO: explaint hat it needs conversation_id or equivalent
+        "Full conversations, including all messages and message authors, with timestamps and context of other messages in the conversation. "
+        "This type can only be selected if there is a field that uniquely identifies what conversation each message belongs to, e.g. a 'Conversation ID', "
+        "as well as a field that uniquely identifies each message within the conversation, e.g. a 'Message ID'."
     ),
     "message": (
         "Individual messages, only including the author of each individual message and timestamp, "
-        "without surrounding context of other messages by different people."
+        "without surrounding context of other messages by different people. "
+        "If the 'conversation' field is suitable, then this is also suitable by definition."
     ),
     "ticket": ("Support tickets, similar to Github issues or similar."),
-    "ecommerce": (
+    "product": (
         "Products items, so usually involving descriptions, prices, ratings, reviews, etc, but not always. "
         "Contains an image field, and space for plenty of metadata."
     ),
@@ -60,7 +63,7 @@ ticket = {
     "comments": "either the comments of the ticket, or the number of comments. list[string/dict/other] / integer",
 }
 
-ecommerce = {
+product = {
     "name": "the name of the product. string",
     "description": "the description of the product. string",
     "price": "the price of the product. float/integer/other",
@@ -99,11 +102,11 @@ generic = {
     "subcategory": "some string describing a nested level of category of the data. string",
 }
 
-types_dict = {
+types_dict: dict[str, dict[str, str]] = {
     "conversation": conversation,
     "message": message,
     "ticket": ticket,
-    "ecommerce": ecommerce,
+    "product": product,
     "generic": generic,
     "document": document,
     "table": {},

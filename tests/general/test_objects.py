@@ -14,24 +14,11 @@ from elysia.objects import (
     Warning,
     Result,
 )
-from elysia.tools.objects import (
-    Table,
-    Conversation,
-    Document,
-    Ecommerce,
-    Generic,
-    Message,
-    Ticket,
-)
 from elysia.tools.retrieval.chunk import AsyncCollectionChunker
 from elysia.tools.retrieval.objects import (
-    TableRetrieval,
     ConversationRetrieval,
     DocumentRetrieval,
-    EcommerceRetrieval,
-    GenericRetrieval,
     MessageRetrieval,
-    TicketRetrieval,
 )
 from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable
@@ -120,57 +107,6 @@ class TestObjects:
         )
         assert frontend_result["type"] == object_name
         assert isinstance(frontend_result["payload"], dict)
-
-    @pytest.mark.asyncio
-    async def test_basic_results(self):
-        types = [
-            Table,
-            Generic,
-            Document,
-            Ticket,
-            Ecommerce,
-            Message,
-            Conversation,
-        ]
-        names = [
-            "table",
-            "generic",
-            "document",
-            "ticket",
-            "ecommerce",
-            "message",
-            "conversation",
-        ]
-        for object_type, object_name in zip(types, names):
-            await self.do_basic_result(object_type, object_name)
-
-    @pytest.mark.asyncio
-    async def test_result_with_mapping(self):
-        for object_type in [
-            Generic,
-            Document,
-            Ticket,
-            Ecommerce,
-            Message,
-            Conversation,
-        ]:
-            await self.do_result_with_mapping(
-                object_type,
-                [
-                    {
-                        "card_text": "this is card text",
-                        "card_value": 2,
-                        "card_id": "123",
-                    },
-                    {
-                        "card_text": "this is card text 2",
-                        "card_value": 3,
-                        "card_id": "456",
-                    },
-                ],
-                {"text": "card_text", "value": "card_value"},
-                ["card_id"],
-            )
 
     @pytest.mark.asyncio
     async def test_updates(self):

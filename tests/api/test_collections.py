@@ -333,7 +333,7 @@ class TestEndpoints:
 
             new_summary = "This is a test summary."
             new_mappings = {
-                "ecommerce": {
+                "product": {
                     "name": "issue_title",
                     "category": "issue_state",
                     "description": "issue_content",
@@ -382,7 +382,7 @@ class TestEndpoints:
                     break
 
             assert metadata["summary"] == new_summary
-            assert "ecommerce" in metadata["mappings"]
+            assert "product" in metadata["mappings"]
             for field in metadata["fields"]:
                 if field["name"] == "issue_title":
                     assert field["description"] == new_fields[0].description

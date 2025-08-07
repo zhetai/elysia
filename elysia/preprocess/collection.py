@@ -141,6 +141,8 @@ async def _evaluate_field_statistics(
         # TODO: this returns EVERY SINGLE text value in the collection,
         # need to make this more efficient, is it possible to specify in metadata to not return the text values?
         # with top-occurences count?
+        # only return the top 30 groups
+        # then return the rest as "other"
         response = await collection.aggregate.over_all(
             total_count=True, group_by=GroupByAggregate(prop=property)
         )
@@ -257,6 +259,10 @@ async def _evaluate_return_types(
 
     if return_types == []:
         return_types = ["generic"]
+
+    # if conversation is selected, then message should also be selected
+    if "conversation" in return_types and "message" not in return_types:
+        return_types.append("message")
 
     return return_types
 
@@ -535,9 +541,17 @@ async def preprocess_async(
 
             mappings[return_type] = mapping
 
-        # If less than threshold_for_missing_fields%, keep the return type
         new_return_types = []
         for return_type in return_types:
+
+            # check if the `conversation_id` field is in the mapping (required for conversation type)
+            if return_type == "conversation" and (
+                mappings[return_type]["conversation_id"] is None
+                or mappings[return_type]["conversation_id"] == ""
+            ):
+                continue
+
+            # If less than threshold_for_missing_fields%, keep the return type
             num_missing = sum([m == "" for m in list(mappings[return_type].values())])
             perc_correct = 1 - (num_missing / len(mappings[return_type].keys()))
             if perc_correct >= percentage_correct_threshold:
@@ -946,7 +960,22 @@ def delete_preprocessed_collection(
     )
 
 
-async def edit_preprocessed_collection(
+def edit_preprocessed_collection(
+    collection_name: str,
+    client_manager: ClientManager | None = None,
+    named_vectors: list[dict] | None = None,
+    summary: str | None = None,
+    mappings: dict[str, dict[str, str]] | None = None,
+    fields: list[dict[str, str] | None] | None = None,
+) -> None:
+    return asyncio_run(
+        async_edit_preprocessed_collection(
+            collection_name, client_manager, named_vectors, summary, mappings, fields
+        )
+    )
+
+
+async def async_edit_preprocessed_collection(
     collection_name: str,
     client_manager: ClientManager | None = None,
     named_vectors: list[dict] | None = None,
@@ -958,6 +987,7 @@ async def edit_preprocessed_collection(
     Edit a preprocessed collection.
     This function allows you to edit the named vectors, summary, mappings, and fields of a preprocessed collection.
     It does so by updating the ELYSIA_METADATA__ collection.
+    Find available mappings in the `elysia.util.return_types` module.
 
     Args:
         collection_name (str): The name of the collection to edit.
@@ -1039,7 +1069,54 @@ async def edit_preprocessed_collection(
                     field["name"]: field["name"] for field in properties["fields"]
                 }
 
+            # format all mappings
+            for mapping_type, mapping in mappings.items():
+                if mapping_type == "table":
+                    continue
+
+                # check if the mapping_type is valid
+                if mapping_type not in rt.types_dict:
+                    raise ValueError(
+                        f"Invalid mapping type: {mapping_type}. Valid mapping types are: {list(rt.types_dict.keys())}"
+                    )
+
+                # check if the mapping is valid
+                for field_name, field_value in mapping.items():
+                    if field_name not in rt.types_dict[mapping_type]:
+                        raise ValueError(
+                            f"Invalid field name: {field_name} for mapping type: {mapping_type}. "
+                            f"Valid fields are: {list(rt.types_dict[mapping_type].keys())}"
+                        )
+
+                # add empty fields
+                for true_field in rt.types_dict[mapping_type]:
+                    if true_field not in mapping:
+                        mapping[true_field] = ""
+
             properties["mappings"] = mappings
+
+            # check if the `conversation_id` field is in the mapping (required for conversation type)
+            if "conversation" in mappings and (
+                mappings["conversation"]["conversation_id"] is None
+                or mappings["conversation"]["conversation_id"] == ""
+            ):
+                raise ValueError(
+                    "Conversation type requires a conversation_id field, but none was found in the mappings for conversation. "
+                )
+
+            if "conversation" in mappings and (
+                mappings["conversation"]["message_index"] is None
+                or mappings["conversation"]["message_index"] == ""
+            ):
+                raise ValueError(
+                    "Conversation type requires a message_index field, but none was found in the mappings for conversation. "
+                )
+
+            # check if there is a message type as well as conversation
+            if "message" not in mappings and "conversation" not in mappings:
+                raise ValueError(
+                    "Conversation type requires message type to also be set as a fallback."
+                )
 
         # update the fields
         if fields is not None:

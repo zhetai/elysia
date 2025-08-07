@@ -647,6 +647,7 @@ class Result(Return):
         """
         Return.__init__(self, "result", payload_type)
         self.objects = objects
+        self.drop_duplicates()
         self.metadata = metadata
         self.name = name
         self.mapping = mapping
@@ -656,6 +657,26 @@ class Result(Return):
 
     def __len__(self):
         return len(self.objects)
+
+    def drop_duplicates(self):
+        """
+        Removes duplicate objects from self.objects in-place.
+        Objects are considered duplicates if their dictionary representations are equal.
+        """
+        seen = set()
+        unique_objects = []
+        for obj in self.objects:
+            # Convert dict to a tuple of sorted items for hashability
+            try:
+                obj_tuple = tuple(sorted(obj.items()))
+            except Exception:
+                # If obj is not a dict or not hashable, skip deduplication for this entry
+                unique_objects.append(obj)
+                continue
+            if obj_tuple not in seen:
+                seen.add(obj_tuple)
+                unique_objects.append(obj)
+        self.objects = unique_objects
 
     def format_llm_message(self):
         """
@@ -741,7 +762,7 @@ class Result(Return):
         This is a wrapper around the `to_json` method.
         But the objects and metadata are inside a `payload` key, which also includes a `type` key,
         being the frontend identifier for the type of payload being sent.
-        (e.g. `ticket`, `ecommerce`, `message`, etc.)
+        (e.g. `ticket`, `product`, `message`, etc.)
 
         The outside of the payload also contains the user_id, conversation_id, and query_id.
 
@@ -820,7 +841,12 @@ class Retrieval(Result):
         name: str | None = None,
         metadata: dict = {},
         mapping: dict | None = None,
-        unmapped_keys: list[str] = ["uuid", "summary", "collection_name", "_REF_ID"],
+        unmapped_keys: list[str] = [
+            "uuid",
+            "ELYSIA_SUMMARY",
+            "collection_name",
+            "_REF_ID",
+        ],
         display: bool = True,
     ) -> None:
         if name is None and "collection_name" in metadata:

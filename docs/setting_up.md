@@ -124,7 +124,7 @@ which returns True/False if the preprocess exists within this Weaviate cluster
 You can use [`edit_preprocessed_collection`](Reference/Preprocessor.md#elysia.preprocess.collection.edit_preprocessed_collection) to update the values manually:
 ```python
 from elysia import edit_preprocessed_collection
-properties = await edit_preprocessed_collection(
+properties = edit_preprocessed_collection(
     collection_name = ...,
     named_vectors = ...,
     summary = ...,

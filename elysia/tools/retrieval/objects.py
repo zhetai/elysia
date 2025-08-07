@@ -1,19 +1,7 @@
 import uuid
-
 from weaviate.classes.query import Filter, QueryReference
 
 from elysia.objects import Retrieval
-
-# Objects
-from elysia.tools.objects import (
-    Table,
-    Conversation,
-    Document,
-    Ecommerce,
-    Generic,
-    Message,
-    Ticket,
-)
 
 # Client Manager
 from elysia.util.client import ClientManager
@@ -22,83 +10,7 @@ from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable
 
 
-class GenericRetrieval(Generic, Retrieval):
-    def __init__(
-        self,
-        objects: list[dict],
-        metadata: dict,
-        mapping: dict | None = None,
-        **kwargs,
-    ) -> None:
-        # Generic.__init__(self, objects, metadata, mapping)
-        Retrieval.__init__(
-            self,
-            objects,
-            payload_type="generic",
-            metadata=metadata,
-            mapping=mapping,
-            **kwargs,
-        )
-
-
-class TableRetrieval(Table, Retrieval):
-    def __init__(
-        self,
-        objects: list[dict],
-        metadata: dict,
-        mapping: dict | None = None,
-        **kwargs,
-    ) -> None:
-        # Table.__init__(self, objects, metadata, mapping)
-        Retrieval.__init__(
-            self,
-            objects,
-            payload_type="table",
-            metadata=metadata,
-            mapping=mapping,
-            **kwargs,
-        )
-
-
-class EcommerceRetrieval(Ecommerce, Retrieval):
-    def __init__(
-        self,
-        objects: list[dict],
-        metadata: dict,
-        mapping: dict | None = None,
-        **kwargs,
-    ) -> None:
-        # Ecommerce.__init__(self, objects, metadata, mapping)
-        Retrieval.__init__(
-            self,
-            objects,
-            payload_type="ecommerce",
-            metadata=metadata,
-            mapping=mapping,
-            **kwargs,
-        )
-
-
-class TicketRetrieval(Ticket, Retrieval):
-    def __init__(
-        self,
-        objects: list[dict],
-        metadata: dict,
-        mapping: dict | None = None,
-        **kwargs,
-    ) -> None:
-        # Ticket.__init__(self, objects, metadata, mapping)
-        Retrieval.__init__(
-            self,
-            objects,
-            payload_type="ticket",
-            metadata=metadata,
-            mapping=mapping,
-            **kwargs,
-        )
-
-
-class MessageRetrieval(Message, Retrieval):
+class MessageRetrieval(Retrieval):
     def __init__(
         self,
         objects: list[dict],
@@ -109,19 +21,24 @@ class MessageRetrieval(Message, Retrieval):
         for obj in objects:
             obj["relevant"] = False
 
-        # Message.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
             self,
             objects,
             payload_type="message",
             metadata=metadata,
             mapping=mapping,
-            unmapped_keys=["uuid", "summary", "collection_name", "relevant", "_REF_ID"],
+            unmapped_keys=[
+                "uuid",
+                "ELYSIA_SUMMARY",
+                "collection_name",
+                "relevant",
+                "_REF_ID",
+            ],
             **kwargs,
         )
 
 
-class ConversationRetrieval(Conversation, Retrieval):
+class ConversationRetrieval(Retrieval):
     def __init__(
         self,
         objects: list[dict],
@@ -129,14 +46,19 @@ class ConversationRetrieval(Conversation, Retrieval):
         mapping: dict | None = None,
         **kwargs,
     ) -> None:
-        # Conversation.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
             self,
             objects,
             payload_type="conversation",
             metadata=metadata,
             mapping=mapping,
-            unmapped_keys=["uuid", "summary", "collection_name", "relevant", "_REF_ID"],
+            unmapped_keys=[
+                "uuid",
+                "ELYSIA_SUMMARY",
+                "collection_name",
+                "relevant",
+                "_REF_ID",
+            ],
             **kwargs,
         )
         self.async_init_completed = False
@@ -148,16 +70,15 @@ class ConversationRetrieval(Conversation, Retrieval):
     async def _fetch_items_in_conversation(
         self,
         conversation_id: str,
+        message_id: int,
+        conversation_id_field_name: str,
+        message_id_field_name: str,
         metadata: dict,
-        message_index: int,
         client_manager: ClientManager,
     ) -> list[dict]:
         """
         Use Weaviate to fetch all messages in a conversation based on the conversation ID.
         """
-        # TODO: use mappings to map conversation_id and message_index to the correct fields
-        # otherwise this relies on the user to have defined the correct fields in their data (stupid)
-        # then if no mapping for either conversation_id or message_index, then fall back to message type
         assert (
             "collection_name" in metadata
         ), "collection_name is required for fetching other messages in a conversation"
@@ -165,14 +86,16 @@ class ConversationRetrieval(Conversation, Retrieval):
         async with client_manager.connect_to_async_client() as client:
             collection = client.collections.get(metadata["collection_name"])
             items_in_conversation = await collection.query.fetch_objects(
-                filters=Filter.by_property("conversation_id").equal(conversation_id)
+                filters=Filter.by_property(conversation_id_field_name).equal(
+                    conversation_id
+                )
             )
 
         output = []
         for obj in items_in_conversation.objects:
             output.append(obj.properties)
             output[-1]["uuid"] = str(obj.uuid)
-            if output[-1]["message_index"] == message_index:
+            if output[-1][message_id_field_name] == message_id:
                 output[-1]["relevant"] = True
             else:
                 output[-1]["relevant"] = False
@@ -187,15 +110,42 @@ class ConversationRetrieval(Conversation, Retrieval):
         """
 
         returned_objects = []
+        conversations_seen = set()
         for o in self.objects:
+
+            if o[self.mapping["conversation_id"]] in conversations_seen:
+                continue
+
+            conversations_seen.add(o[self.mapping["conversation_id"]])
+
             items_in_conversation = await self._fetch_items_in_conversation(
-                o["conversation_id"], self.metadata, o["message_index"], client_manager
+                o[self.mapping["conversation_id"]],
+                o[self.mapping["message_id"]],
+                self.mapping["conversation_id"],
+                self.mapping["message_id"],
+                self.metadata,
+                client_manager,
             )
-            items_in_conversation.sort(key=lambda x: int(x["message_index"]))
+            # Check if all message_id values can be converted to int for sorting
+            can_sort_as_int = True
+            for x in items_in_conversation:
+                try:
+                    int(x[self.mapping["message_id"]])
+                except (ValueError, TypeError, KeyError):
+                    can_sort_as_int = False
+                    break
+
+            if can_sort_as_int:
+                items_in_conversation.sort(
+                    key=lambda x: int(x[self.mapping["message_id"]])
+                )
+            else:
+                items_in_conversation.sort(key=lambda x: x[self.mapping["message_id"]])
+
             returned_objects.append(
                 {
                     "messages": items_in_conversation,
-                    "conversation_id": o["conversation_id"],
+                    "conversation_id": o[self.mapping["conversation_id"]],
                 }
             )
 
@@ -243,7 +193,7 @@ class ConversationRetrieval(Conversation, Retrieval):
         return output_objects
 
 
-class DocumentRetrieval(Document, Retrieval):
+class DocumentRetrieval(Retrieval):
     def __init__(
         self,
         objects: list[dict],
@@ -263,7 +213,6 @@ class DocumentRetrieval(Document, Retrieval):
             if "chunk_spans" not in obj:
                 obj["chunk_spans"] = []
 
-        # Document.__init__(self, objects, metadata, mapping)
         Retrieval.__init__(
             self,
             objects,
@@ -272,7 +221,7 @@ class DocumentRetrieval(Document, Retrieval):
             mapping=mapping,
             unmapped_keys=[
                 "uuid",
-                "summary",
+                "ELYSIA_SUMMARY",
                 "collection_name",
                 "chunk_spans",
                 "chunk_uuid",
@@ -342,9 +291,6 @@ class DocumentRetrieval(Document, Retrieval):
 
                     self.full_documents = list(full_docs.values())
                 else:
-                    print(
-                        "WARNING: DocumentRetrieval has metadata['chunked'] set to True, but the chunked collection does not exist. Returning chunks only."
-                    )
                     self.full_documents = self.objects
         else:
             self.full_documents = self.objects

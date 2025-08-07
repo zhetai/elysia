@@ -14,7 +14,7 @@ from elysia.util.collection import (
     paginated_collection,
 )
 from elysia.preprocess.collection import (
-    edit_preprocessed_collection,
+    async_edit_preprocessed_collection,
     delete_preprocessed_collection_async,
     preprocessed_collection_exists_async,
 )
@@ -379,7 +379,7 @@ async def get_object(
                         "items": [],
                         "error": f"No object found with UUID {uuid} in collection {collection_name}.",
                     },
-                    status_code=500,
+                    status_code=404,
                     headers=headers,
                 )
 
@@ -583,7 +583,7 @@ async def update_metadata(
         user_local = await user_manager.get_user_local(user_id)
         client_manager = user_local["client_manager"]
 
-        properties = await edit_preprocessed_collection(
+        properties = await async_edit_preprocessed_collection(
             collection_name=collection_name,
             client_manager=client_manager,
             named_vectors=(
