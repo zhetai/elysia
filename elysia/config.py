@@ -240,8 +240,15 @@ class Settings:
         self.set_api_keys_from_env()
 
     def set_api_keys_from_env(self):
-        self.WCD_URL = os.getenv("WCD_URL", "")
-        self.WCD_API_KEY = os.getenv("WCD_API_KEY", "")
+
+        self.WCD_URL = os.getenv(
+            "WEAVIATE_URL",
+            os.getenv("WCD_URL", ""),
+        )
+        self.WCD_API_KEY = os.getenv(
+            "WEAVIATE_API_KEY",
+            os.getenv("WCD_API_KEY", ""),
+        )
 
         self.API_KEYS = {
             env_var.lower(): os.getenv(env_var, "")
@@ -399,6 +406,14 @@ class Settings:
         if "wcd_api_key" in kwargs:
             self.WCD_API_KEY = kwargs["wcd_api_key"]
             kwargs.pop("wcd_api_key")
+
+        if "weaviate_url" in kwargs:
+            self.WCD_URL = kwargs["weaviate_url"]
+            kwargs.pop("weaviate_url")
+
+        if "weaviate_api_key" in kwargs:
+            self.WCD_API_KEY = kwargs["weaviate_api_key"]
+            kwargs.pop("weaviate_api_key")
 
         if "logging_level" in kwargs or "logger_level" in kwargs:
 
@@ -678,45 +693,6 @@ def check_complex_lm_settings(settings: Settings):
             f"No complex provider specified. "
             f"Available providers based on your API keys: {', '.join(available_providers)}"
         )
-
-    # if (
-    #     settings.COMPLEX_PROVIDER.startswith("openrouter/")
-    #     and f"{settings.COMPLEX_PROVIDER}/{settings.COMPLEX_MODEL}"
-    #     not in models_by_provider["openrouter"]
-    # ):
-    #     example_models = [
-    #         model.split("/")[-1]
-    #         for model in models_by_provider["openrouter"]
-    #         if model.startswith(settings.COMPLEX_PROVIDER)
-    #     ]
-
-    #     raise IncorrectModelError(
-    #         f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
-    #         f"Some example models for {settings.COMPLEX_PROVIDER} are: "
-    #         f"{', '.join(example_models[:5])}. "
-    #         "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-    #     )
-
-    # elif (
-    #     settings.COMPLEX_PROVIDER in models_by_provider
-    #     and settings.COMPLEX_MODEL not in models_by_provider[settings.COMPLEX_PROVIDER]
-    # ):
-    #     raise IncorrectModelError(
-    #         f"The model {settings.COMPLEX_MODEL} is not available for provider {settings.COMPLEX_PROVIDER}. "
-    #         f"Some example models for {settings.COMPLEX_PROVIDER} are: "
-    #         f"{', '.join(models_by_provider[settings.COMPLEX_PROVIDER][:5])}. "
-    #         "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-    #     )
-
-    # elif (
-    #     settings.COMPLEX_PROVIDER not in models_by_provider
-    #     and not settings.COMPLEX_PROVIDER.startswith("openrouter")
-    # ):
-    #     raise IncorrectModelError(
-    #         f"The provider {settings.COMPLEX_PROVIDER} is not available. "
-    #         f"Some example providers are: {', '.join(list(models_by_provider.keys())[:5])}. "
-    #         "Check the full model documentation (https://docs.litellm.ai/docs/providers)."
-    #     )
 
 
 def load_base_lm(settings: Settings) -> LM:

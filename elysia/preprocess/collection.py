@@ -105,44 +105,46 @@ async def _evaluate_field_statistics(
     out["type"] = properties[property] if properties[property] != "number" else "float"
     out["name"] = property
 
-    groups_response = await collection.aggregate.over_all(
-        total_count=True, group_by=GroupByAggregate(prop=property, limit=30)
-    )
+    if not out["type"].startswith("object"):
 
-    if len(groups_response.groups) > 15:
-        groups = [
-            {
-                "value": str(
-                    group.grouped_by.value
-                ),  # must force to string for weaviate
-                "count": group.total_count,
-            }
-            for group in groups_response.groups
-            if group.total_count > 1
-        ]
-    else:
-        groups = [
-            {
-                "value": str(group.grouped_by.value),
-                "count": group.total_count,
-            }
-            for group in groups_response.groups
-        ]
-
-    total_count = sum(group["count"] for group in groups)
-    remainder = len_collection - total_count
-    group_coverage = total_count / len_collection
-    if remainder > 0:
-        groups.append(
-            {
-                "value": "<undefined_group> (not used for filtering)",
-                "count": remainder,
-            }
+        groups_response = await collection.aggregate.over_all(
+            total_count=True, group_by=GroupByAggregate(prop=property, limit=30)
         )
 
-    # check if groups are useful
-    if len(groups) == 1 or group_coverage < 0.5:
-        out["groups"] = None
+        if len(groups_response.groups) > 15:
+            groups = [
+                {
+                    "value": str(
+                        group.grouped_by.value
+                    ),  # must force to string for weaviate
+                    "count": group.total_count,
+                }
+                for group in groups_response.groups
+                if group.total_count > 1
+            ]
+        else:
+            groups = [
+                {
+                    "value": str(group.grouped_by.value),
+                    "count": group.total_count,
+                }
+                for group in groups_response.groups
+            ]
+
+        total_count = sum(group["count"] for group in groups)
+        remainder = len_collection - total_count
+        group_coverage = total_count / len_collection
+        if remainder > 0:
+            groups.append(
+                {
+                    "value": "<undefined_group> (not used for filtering)",
+                    "count": remainder,
+                }
+            )
+
+        # check if groups are useful
+        if len(groups) == 1 or group_coverage < 0.5:
+            out["groups"] = None
 
     # Number (summary statistics)
     if properties[property] == "int":
@@ -227,6 +229,7 @@ async def _evaluate_field_statistics(
         out["mean"] = None
         out["date_range"] = None
         out["date_median"] = None
+        out["groups"] = None
 
     return out
 
@@ -471,9 +474,8 @@ async def preprocess_async(
         if len_collection > max_sample_size:
             full_response = subset_objects
         else:
-            full_response = (
-                await collection.query.fetch_objects(limit=len_collection)
-            ).objects
+            weaviate_resp = await collection.query.fetch_objects(limit=len_collection)
+            full_response = [obj.properties for obj in weaviate_resp.objects]
 
         # Initialise the output
         named_vectors, vectoriser = await _find_vectorisers(collection)
