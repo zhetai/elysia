@@ -24,7 +24,6 @@ from elysia.util.client import ClientManager
 from elysia.util.parsing import format_dict_to_serialisable
 
 
-# TODO: add text
 class TestObjects:
 
     async def start_client_manager(self):
@@ -170,7 +169,6 @@ class TestObjects:
             format_dict_to_serialisable(properties)
             return properties
 
-    # TODO: test more retrieval types
     async def get_document_retrievals(self):
         collection_name = "ml_wikipedia"
         client_manager = await self.start_client_manager()
