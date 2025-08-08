@@ -286,12 +286,14 @@ async def _define_mappings(
     properties: dict,
     collection_information: dict,
     example_objects: list[dict],
+    mapping_type: str,
     settings: Settings,
     lm: dspy.LM,
 ) -> dict:
 
     with ElysiaKeyManager(settings):
         prediction = await data_mapping_prompt.aforward(
+            mapping_type=mapping_type,
             input_data_fields=input_fields,
             output_data_fields=output_fields,
             input_data_types=properties,
@@ -540,6 +542,7 @@ async def preprocess_async(
 
             mapping = await _define_mappings(
                 data_mapping_prompt,
+                mapping_type=return_type,
                 input_fields=list(fields.keys()),
                 output_fields=list(properties.keys()),
                 properties=properties,
@@ -563,8 +566,14 @@ async def preprocess_async(
 
             # check if the `conversation_id` field is in the mapping (required for conversation type)
             if return_type == "conversation" and (
-                mappings[return_type]["conversation_id"] is None
-                or mappings[return_type]["conversation_id"] == ""
+                (
+                    mappings[return_type]["conversation_id"] is None
+                    or mappings[return_type]["conversation_id"] == ""
+                )
+                or (
+                    mappings[return_type]["message_id"] is None
+                    or mappings[return_type]["message_id"] == ""
+                )
             ):
                 continue
 
@@ -580,6 +589,7 @@ async def preprocess_async(
             # Map for generic
             mapping = await _define_mappings(
                 data_mapping_prompt,
+                mapping_type="generic",
                 input_fields=list(rt.generic.keys()),
                 output_fields=list(properties.keys()),
                 properties=properties,
@@ -1183,11 +1193,11 @@ async def edit_preprocessed_collection_async(
                 )
 
             if "conversation" in mappings and (
-                mappings["conversation"]["message_index"] is None
-                or mappings["conversation"]["message_index"] == ""
+                mappings["conversation"]["message_id"] is None
+                or mappings["conversation"]["message_id"] == ""
             ):
                 raise ValueError(
-                    "Conversation type requires a message_index field, but none was found in the mappings for conversation. "
+                    "Conversation type requires a message_id field, but none was found in the mappings for conversation. "
                 )
 
             # check if there is a message type as well as conversation

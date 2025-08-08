@@ -96,6 +96,15 @@ class DataMappingPrompt(dspy.Signature):
     You are an expert at mapping data fields to existing field names.
     """
 
+    mapping_type: str = dspy.InputField(
+        desc=(
+            "The type of mapping to perform. "
+            "Some examples are 'conversation', 'message', 'ticket', 'product', 'document', 'table', 'generic'. "
+            "If the type is 'conversation', then the field mapping should include a 'conversation_id' field and a 'message_id' field. "
+            "If there is no suitable mapping, return these fields as empty strings."
+        ),
+        format=str,
+    )
     input_data_fields: list[str] = dspy.InputField(
         desc="The input fields to map.", format=list[str]
     )

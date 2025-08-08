@@ -1,6 +1,7 @@
 from datetime import timezone
 from typing import Any, List, Literal, Optional, Union
 from typing_extensions import TypeAlias
+from typing import get_args, get_origin
 
 import weaviate
 from dateutil import parser
@@ -57,7 +58,7 @@ class DatePropertyFilter(BaseModel):
 class ListPropertyFilter(BaseModel):
     property_name: str
     operator: Literal["=", "!=", "CONTAINS_ANY", "CONTAINS_ALL", "IS_NULL"]
-    value: List[str | int | float | bool] | bool
+    value: list[str | int | float | bool] | bool
     length: Optional[bool] = False
 
 
@@ -196,13 +197,26 @@ def _catch_filter_errors(
     filters: list,
     collection_property_types: dict[str, str],
     collection_name: str,
+    schema: dict | None = None,
 ):
     for filter in filters:
         if isinstance(filter, FilterBucket):
             _catch_filter_errors(
-                filter.filters, collection_property_types, collection_name
+                filter.filters, collection_property_types, collection_name, schema
             )
         else:
+            # check inverted index
+            if schema:
+                if (
+                    filter.operator == "IS_NULL"
+                    and not schema[collection_name]["index_properties"]["isNullIndexed"]
+                ):
+                    raise QueryError(
+                        f"For collection '{collection_name}', attempted to filter on property "
+                        f"'{filter.property_name}' using a IS_NULL filter, "
+                        "but the property is not indexed for null values, so this filter is unavailable. "
+                    )
+
             # check existence
             if filter.property_name not in collection_property_types:
                 if (
@@ -230,10 +244,15 @@ def _catch_filter_errors(
                     "Object types cannot be filtered on."
                 )
 
-            # check list
-            if isinstance(filter, ListPropertyFilter) and not collection_property_types[
-                filter.property_name
-            ].endswith("[]"):
+            # get the types from the union and extract their origins for isinstance check
+            union_list_types = get_args(ListPropertyFilter.__annotations__["value"])
+            valid_list_types = tuple(
+                get_origin(type_) or type_ for type_ in union_list_types
+            )
+
+            if not isinstance(
+                filter.value, valid_list_types
+            ) and collection_property_types[filter.property_name].endswith("[]"):
                 if collection_property_types[filter.property_name] == "text":
                     raise QueryError(
                         f"Attempted to filter on property '{filter.property_name}' using a list filter, "
@@ -249,8 +268,10 @@ def _catch_filter_errors(
 
             # check number
             if (
-                isinstance(filter, IntegerPropertyFilter)
-                and collection_property_types[filter.property_name] != "int"
+                not isinstance(
+                    filter.value, IntegerPropertyFilter.__annotations__["value"]
+                )
+                and collection_property_types[filter.property_name] == "int"
             ):
                 if collection_property_types[filter.property_name] == "float":
                     raise QueryError(
@@ -268,8 +289,10 @@ def _catch_filter_errors(
 
             # check number
             if (
-                isinstance(filter, FloatPropertyFilter)
-                and collection_property_types[filter.property_name] != "float"
+                not isinstance(
+                    filter.value, FloatPropertyFilter.__annotations__["value"]
+                )
+                and collection_property_types[filter.property_name] == "float"
             ):
                 if collection_property_types[filter.property_name] == "int":
                     raise QueryError(
@@ -287,8 +310,10 @@ def _catch_filter_errors(
 
             # check date
             if (
-                isinstance(filter, DatePropertyFilter)
-                and collection_property_types[filter.property_name] != "date"
+                not isinstance(
+                    filter.value, DatePropertyFilter.__annotations__["value"]
+                )
+                and collection_property_types[filter.property_name] == "date"
             ):
                 raise QueryError(
                     f"Attempted to filter on property '{filter.property_name}' using a date filter, "
@@ -298,8 +323,10 @@ def _catch_filter_errors(
 
             # check boolean
             if (
-                isinstance(filter, BooleanPropertyFilter)
-                and collection_property_types[filter.property_name] != "boolean"
+                not isinstance(
+                    filter.value, BooleanPropertyFilter.__annotations__["value"]
+                )
+                and collection_property_types[filter.property_name] == "boolean"
             ):
                 raise QueryError(
                     f"Attempted to filter on property '{filter.property_name}' using a boolean filter, "
@@ -309,8 +336,10 @@ def _catch_filter_errors(
 
             # check text
             if (
-                isinstance(filter, TextPropertyFilter)
-                and collection_property_types[filter.property_name] != "text"
+                not isinstance(
+                    filter.value, TextPropertyFilter.__annotations__["value"]
+                )
+                and collection_property_types[filter.property_name] == "text"
             ):
                 raise QueryError(
                     f"Attempted to filter on property '{filter.property_name}' using a text filter, "
@@ -321,7 +350,9 @@ def _catch_filter_errors(
 
 # == Define functions for executing queries and aggregations
 def _catch_typing_errors(
-    tool_args: dict[str, Any], property_types: dict[str, dict[str, str]]
+    tool_args: dict[str, Any],
+    property_types: dict[str, dict[str, str]],
+    schema: dict | None = None,
 ) -> None:
     """Catch typing errors and raise a QueryError."""
 
@@ -384,7 +415,10 @@ def _catch_typing_errors(
 
         if "filter_buckets" in tool_args:
             _catch_filter_errors(
-                tool_args["filter_buckets"], collection_property_types, collection_name
+                tool_args["filter_buckets"],
+                collection_property_types,
+                collection_name,
+                schema,
             )
 
 
@@ -411,6 +445,7 @@ async def execute_weaviate_query(
     property_types: dict[str, dict[str, str]],
     reference_property: str | None = None,
     named_vector_fields: dict[str, list[str]] | None = None,
+    schema: dict | None = None,
 ) -> tuple[list[QueryReturn], list[str]]:
     """Execute from a QueryOutput and return response."""
 
@@ -448,7 +483,7 @@ async def execute_weaviate_query(
             for name, fields in named_vector_fields.items()
         }
 
-    _catch_typing_errors(tool_args, property_types)
+    _catch_typing_errors(tool_args, property_types, schema)
 
     try:
         final_responses, str_responses = await _handle_search(
@@ -685,6 +720,7 @@ async def execute_weaviate_aggregation(
     predicted_query: AggregationOutput,
     property_types: dict[str, dict[str, str]],
     vectorised_by_collection: dict[str, bool],
+    schema: dict | None = None,
 ) -> tuple[list[AggregateReturn], list[str]]:
     """Execute a predicted WeaviateAggregation and return formatted results."""
 
@@ -741,7 +777,7 @@ async def execute_weaviate_aggregation(
     if predicted_query.groupby_property:
         tool_args["groupby_property"] = predicted_query.groupby_property
 
-    _catch_typing_errors(tool_args, property_types)
+    _catch_typing_errors(tool_args, property_types, schema)
 
     # Execute query based on type
     try:

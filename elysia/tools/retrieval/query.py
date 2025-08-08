@@ -485,6 +485,7 @@ class Query(Tool):
                                     collection_name: {field["name"]: field["type"]}
                                     for field in schemas[collection_name]["fields"]
                                 },
+                                schema=schemas,
                             )
                         except QueryError as e:
                             yield Error(feedback=str(e))
@@ -530,6 +531,7 @@ class Query(Tool):
                             }
                             for collection_name in collection_names
                         },
+                        schema=schemas,
                     )
                 except QueryError as e:
                     yield Error(feedback=str(e))

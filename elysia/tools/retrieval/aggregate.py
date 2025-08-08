@@ -263,10 +263,11 @@ class Aggregate(Tool):
                             for collection_name in collection_names
                         },
                         vectorised_by_collection=vectorised_by_collection,
+                        schema=schemas,
                     )
                 except QueryError as e:
                     yield Error(feedback=str(e))
-                    return
+                    continue
                 except Exception as e:
                     for collection_name in aggregation_output.target_collections:
                         if self.logger:

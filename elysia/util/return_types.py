@@ -46,7 +46,7 @@ message = {
     "author": "the author of the message. string",
     "timestamp": "the timestamp of the message in any format. datetime/string/other",
     "conversation_id": "the id of the conversation that the message belongs to. integer/string/other",
-    "message_id": "the id of the message itself, within the conversation. integer/string/other",
+    "message_id": "the id or index of the message, used to either identify a message within a conversation or the message itself. integer/string/other",
 }
 
 ticket = {
