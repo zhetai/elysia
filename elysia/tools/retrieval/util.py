@@ -244,6 +244,23 @@ def _catch_filter_errors(
                     "Object types cannot be filtered on."
                 )
 
+            if filter.length:
+                if collection_property_types[filter.property_name].endswith("[]"):
+                    pass
+
+                elif (
+                    schema
+                    and not schema[collection_name]["index_properties"][
+                        "isLengthIndexed"
+                    ]
+                ):
+                    raise QueryError(
+                        f"For collection '{collection_name}', attempted to filter on property "
+                        f"'{filter.property_name}' using a length filter, "
+                        "but the property is not indexed for length values, so this filter is unavailable. "
+                    )
+                continue
+
             # get the types from the union and extract their origins for isinstance check
             union_list_types = get_args(ListPropertyFilter.__annotations__["value"])
             valid_list_types = tuple(

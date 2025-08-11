@@ -508,7 +508,6 @@ class Query(Tool):
                             query_output.target_collections[j] = (
                                 f"ELYSIA_CHUNKED_{collection_name.lower()}__"
                             )
-
                     query.fields_to_search[
                         f"ELYSIA_CHUNKED_{collection_name.lower()}__"
                     ] = None
@@ -563,6 +562,10 @@ class Query(Tool):
                 display_type = query.data_display[collection_name].display_type
                 summarise_items = query.data_display[collection_name].summarise_items
 
+                # get query output formatted
+                query_output_formatted = query_output.model_dump()
+                query_output_formatted["target_collections"] = collection_names
+
                 # Get the objects from the response
                 objects = []
                 for obj in response.objects:
@@ -571,11 +574,7 @@ class Query(Tool):
 
                 # Write various metadata for LLM parsing
                 metadata = {
-                    "collection_name": (
-                        collection_name
-                        if not collection_name.startswith("ELYSIA_CHUNKED_")
-                        else collection_name[len("ELYSIA_CHUNKED_") : -2]
-                    ),
+                    "collection_name": collection_name,
                     "display_type": display_type,
                     "needs_summarising": summarise_items,
                     "query_text": query_output.search_query,
@@ -585,7 +584,7 @@ class Query(Tool):
                         query_output.search_type,
                         schemas[collection_name],
                     ),
-                    "query_output": query_output.model_dump(),
+                    "query_output": query_output_formatted,
                     "code": {
                         "language": "python",
                         "title": "Query",
