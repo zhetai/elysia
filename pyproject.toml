@@ -4,14 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "elysia-ai"
-version = "0.1.0.dev29"
+version = "0.1.0.dev30"
 description = "Elysia is an open-source agentic platform for searching data. It is built with customisation in mind, allowing you to build agents and tools that are tailored to your specific use case. It uses Weaviate as the default retrieval tools, and can interface with your data stored in a Weaviate cluster."
 readme = "README.md"
 authors = [
     {name = "Danny", email = "danny@weaviate.io"}
 ]
 requires-python = ">=3.10.0,<3.13.0"
-classifiers = []
+classifiers = [
+    "Development Status :: 4 - Beta"
+]
+keywords=["ai", "agentic", "weaviate", "retrieval", "search", "llm"]
 dependencies = [
     "apscheduler==3.11.0",
     "bcrypt>=4.3.0",
@@ -32,6 +35,10 @@ dependencies = [
     "litellm>=1.74.15"
 ]
 packages=[{include="elysia"}]
+
+[project.urls]
+"Homepage" = "https://elysia.weaviate.io"
+"Documentation" = "https://weaviate.github.io/elysia/"
 
 [project.optional-dependencies]
 dev = [

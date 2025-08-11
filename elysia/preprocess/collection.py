@@ -104,6 +104,11 @@ async def _evaluate_field_statistics(
     out = {}
     out["type"] = properties[property] if properties[property] != "number" else "float"
     out["name"] = property
+    out["range"] = None
+    out["mean"] = None
+    out["date_range"] = None
+    out["date_median"] = None
+    out["groups"] = None
 
     if not out["type"].startswith("object"):
 
@@ -145,6 +150,8 @@ async def _evaluate_field_statistics(
         # check if groups are useful
         if len(groups) == 1 or group_coverage < 0.5:
             out["groups"] = None
+        else:
+            out["groups"] = groups
 
     # Number (summary statistics)
     if properties[property] == "int":
@@ -223,13 +230,6 @@ async def _evaluate_field_statistics(
         out["mean"] = sum(lengths) / len(lengths)
         out["date_range"] = None
         out["date_median"] = None
-
-    else:
-        out["range"] = None
-        out["mean"] = None
-        out["date_range"] = None
-        out["date_median"] = None
-        out["groups"] = None
 
     return out
 
