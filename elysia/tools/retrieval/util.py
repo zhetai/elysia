@@ -244,7 +244,7 @@ def _catch_filter_errors(
                     "Object types cannot be filtered on."
                 )
 
-            if filter.length:
+            if "length" in filter.model_dump() and filter.length:
                 if collection_property_types[filter.property_name].endswith("[]"):
                     pass
 
