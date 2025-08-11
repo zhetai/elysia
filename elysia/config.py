@@ -594,9 +594,11 @@ class ElysiaKeyManager:
         # save existing env
         self.existing_env = os.environ.copy()
 
-        # blank out the environ except for MODEL_API_BASE
+        # blank out the environ except for certain values
         os.environ = {
             "MODEL_API_BASE": self.settings.MODEL_API_BASE,
+            "WCD_URL": self.settings.WCD_URL,
+            "WCD_API_KEY": self.settings.WCD_API_KEY,
         }
 
         # update all api keys in env
