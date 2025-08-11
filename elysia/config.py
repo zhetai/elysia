@@ -16,6 +16,7 @@ import random
 
 from dotenv import load_dotenv
 from dspy import LM
+from copy import deepcopy
 
 load_dotenv(override=True)
 
@@ -592,7 +593,7 @@ class ElysiaKeyManager:
     def __enter__(self):
 
         # save existing env
-        self.existing_env = os.environ.copy()
+        self.existing_env = deepcopy(os.environ)
 
         # blank out the environ except for certain values
         os.environ = {
