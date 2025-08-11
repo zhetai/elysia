@@ -508,6 +508,7 @@ class Query(Tool):
                             query_output.target_collections[j] = (
                                 f"ELYSIA_CHUNKED_{collection_name.lower()}__"
                             )
+
                     query.fields_to_search[
                         f"ELYSIA_CHUNKED_{collection_name.lower()}__"
                     ] = None
@@ -570,7 +571,11 @@ class Query(Tool):
 
                 # Write various metadata for LLM parsing
                 metadata = {
-                    "collection_name": collection_name,
+                    "collection_name": (
+                        collection_name
+                        if not collection_name.startswith("ELYSIA_CHUNKED_")
+                        else collection_name[len("ELYSIA_CHUNKED_") : -2]
+                    ),
                     "display_type": display_type,
                     "needs_summarising": summarise_items,
                     "query_text": query_output.search_query,

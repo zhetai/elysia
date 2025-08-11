@@ -651,7 +651,7 @@ async def delete_metadata(
     return JSONResponse(content={"error": ""}, status_code=200)
 
 
-@router.delete("/{user_id}/metadata/all")
+@router.delete("/{user_id}/metadata/delete/all")
 async def delete_all_metadata(
     user_id: str,
     user_manager: UserManager = Depends(get_user_manager),
