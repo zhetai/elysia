@@ -25,6 +25,8 @@ Then navigate to the settings page, add your required API keys, Weaviate cloud c
 
 Don't forget to check out [the Github Repository for the Frontend](https://github.com/weaviate/elysia-frontend)!
 
+Alternatively, we have created a demo version of Elysia (rate-limited, fixed datasets) to experiment with. Find it at: https://elysia.weaviate.io/
+
 ## Get Started (Python)
 
 To use Elysia, you need to either set up your models and API keys in your `.env` file, or specify them in the config. [See the setup page to get started.](https://weaviate.github.io/elysia/setting_up/)
@@ -140,7 +142,25 @@ preprocess(collection_names=["YourCollectionName"])
 Locally running versions of Weaviate are currently not implemented in the current version of the app but this is planned for a future release. Stay tuned!
 </details>
 
+
 <details>
+<summary><b>How do I clear all my Elysia data?</b></summary>
+
+Everything Elysia doesn't store locally will be a collection in your Weaviate cluster. You can delete any collections that start with `ELYSIA_` to reset all your Elysia data.
+
+For example, in Python:
+```python
+from elysia.util.client import ClientManager()
+with ClientManager().connect_to_client() as client:
+    for collection_name in client.collections.list_all():
+        if collection_name.startswith("ELYSIA_"):
+            client.collections.delete(collection_name)
+```
+</details>
+
+
+<details>
+
 <summary><b>Can I contribute to Elysia?</b></summary>
 
 Elysia is **fully open source**, so yes of course you can! Clone and create a new branch of Elysia via
