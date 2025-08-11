@@ -23,8 +23,8 @@ tree("What is the sum of 9009 and 6006?")
 
 Elysia is pre-configured to be capable of connecting to and interacting with your [Weaviate](https://weaviate.io/deployment/serverless) clusters!
 ```python
-import elysia
-tree = elysia.Tree()
+from elysia import Tree
+tree = Tree()
 response, objects = tree(
     "What are the 10 most expensive items in the Ecommerce collection?",
     collection_names = ["Ecommerce"]
@@ -35,7 +35,7 @@ This will use the built-in open source _query_ tool or _aggregate_ tool to inter
 ## Installation
 
 ```bash
-pip install elysia
+pip install elysia-ai
 ```
 
 ## Usage
