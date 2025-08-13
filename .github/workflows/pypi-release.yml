@@ -77,6 +77,19 @@ jobs:
       with:
         repository-url: https://test.pypi.org/legacy/
 
+
+  create-release:
+    name: Create GitHub release from tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # publish-to-pypi:
   #   name: >-
   #     Publish Python distribution to PyPI
