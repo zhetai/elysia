@@ -170,7 +170,7 @@ class TestObjects:
             return properties
 
     async def get_document_retrievals(self):
-        collection_name = "ml_wikipedia"
+        collection_name = "Ml_wikipedia"
         client_manager = await self.start_client_manager()
 
         # get the collection information

@@ -6,9 +6,7 @@ from weaviate.classes.config import Configure, DataType, Property, ReferenceProp
 from weaviate.collections.classes.data import DataObject, DataReference
 from weaviate.collections import CollectionAsync
 from weaviate.collections.classes.internal import Object, QueryReturn
-from weaviate.collections.classes.config_vectorizers import _Vectorizer
 from weaviate.collections.classes.config_vectors import _VectorConfigCreate
-from weaviate.collections.classes.config_named_vectors import _NamedVectors
 from weaviate.exceptions import WeaviateInvalidInputError
 from weaviate.util import generate_uuid5
 from weaviate.client import WeaviateAsyncClient
@@ -211,7 +209,7 @@ class AsyncCollectionChunker:
                 ):
                     try:
                         vectorizer = getattr(
-                            Configure.NamedVectors,
+                            Configure.Vectors,
                             named_vectorizer.vectorizer.replace("-", "_"),
                         )
 
