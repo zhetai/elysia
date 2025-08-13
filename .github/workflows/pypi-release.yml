@@ -51,18 +51,19 @@ jobs:
           name: python-package-distributions
           path: dist/
 
-  publish-to-testpypi:
-    name: Publish Python distribution to TestPyPI
+  publish-to-pypi:
+    name: >-
+      Publish Python distribution to PyPI
     needs:
     - build
     runs-on: ubuntu-latest
-
+    
     environment:
-      name: testpypi
-      url: https://test.pypi.org/p/elysia-ai
-
+      name: pypi
+      url: https://pypi.org/p/elysia-ai
+    
     permissions:
-      id-token: write 
+      id-token: write
 
     steps:
     - name: Download all the dists
@@ -71,15 +72,15 @@ jobs:
         name: python-package-distributions
         path: dist/
 
-    - name: Publish distribution to TestPyPI
+    - name: Publish distribution to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        repository-url: https://test.pypi.org/legacy/
+        repository-url: https://pypi.org/legacy/
 
 
   create-release:
     name: Create Release
-    needs: publish-to-testpypi
+    needs: publish-to-pypi
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -91,13 +92,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: |
-            Changes in this Release
-            - First Change
-            - Second Change
-          draft: true
-          prerelease: true
+          release_name: ${{ github.ref }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
 
   # publish-to-pypi:
   #   name: >-
