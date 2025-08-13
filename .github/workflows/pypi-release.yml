@@ -6,32 +6,6 @@ on:
       - "v*"
 
 jobs:
-  rename-version:
-    name: Rename version
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install toml
-        run: >-
-          python3 -m
-          pip install
-          toml
-          --user
-          
-      - name: Update version in pyproject.toml
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          echo "Setting version to $TAG_VERSION in pyproject.toml"
-          python -c "import toml; data = toml.load('pyproject.toml'); data['project']['version'] = '$TAG_VERSION'; toml.dump(data, open('pyproject.toml', 'w'))"
-
   build:
     name: Build and publish
     runs-on: ubuntu-latest
@@ -47,6 +21,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install toml
+        run: >-
+          python3 -m
+          pip install
+          toml
+          --user
+
+      - name: Update version in pyproject.toml
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting version to $TAG_VERSION in pyproject.toml"
+          python -c "import toml; data = toml.load('pyproject.toml'); data['project']['version'] = '$TAG_VERSION'; toml.dump(data, open('pyproject.toml', 'w'))"
 
       - name: Install pypa/build
         run: >-
@@ -92,6 +79,7 @@ jobs:
 
   create-release:
     name: Create Release
+    needs: publish-to-testpypi
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
