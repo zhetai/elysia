@@ -32,9 +32,12 @@ MANIFEST
 *.manifest
 *.spec
 
-# Ignore all dotfiles except .gitignore
+# Ignore all dotfiles except .gitignore and workflows
 .*
 !.gitignore
+!.github/
+!.github/workflows/
+!.github/workflows/**
 
 # Installer logs
 pip-log.txt

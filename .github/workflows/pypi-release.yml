@@ -1,0 +1,106 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  rename-version:
+    name: Rename version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Update version in pyproject.toml
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting version to $TAG_VERSION in pyproject.toml"
+          python -c "import toml; data = toml.load('pyproject.toml'); data['project']['version'] = '$TAG_VERSION'; toml.dump(data, open('pyproject.toml', 'w'))"
+
+  build:
+    name: Build and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1  
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pypa/build
+        run: >-
+          python3 -m
+          pip install
+          build
+          --user
+
+      - name: Build a binary wheel and a source tarball
+        run: python3 -m build
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-to-testpypi:
+    name: Publish Python distribution to TestPyPI
+    needs:
+    - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/elysia-ai
+
+    permissions:
+      id-token: write 
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+    - name: Publish distribution to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+
+  # publish-to-pypi:
+  #   name: >-
+  #     Publish Python distribution to PyPI
+
+  #   if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
+
+  #   needs:
+  #   - build
+
+  #   runs-on: ubuntu-latest
+
+  #   environment:
+  #     name: pypi
+  #     url: https://pypi.org/p/elysia-ai
+
+  #   permissions:
+  #     id-token: write 
+
+  #   steps:
+  #   - name: Download all the dists
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: python-package-distributions
+  #       path: dist/
+
+  #   - name: Publish distribution to PyPI
+  #     uses: pypa/gh-action-pypi-publish@release/v1    
