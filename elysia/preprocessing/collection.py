@@ -857,7 +857,7 @@ async def _preprocess_async(
 
 
 def preprocess(
-    collection_names: list[str],
+    collection_names: str | list[str],
     client_manager: ClientManager | None = None,
     min_sample_size: int = 5,
     max_sample_size: int = 100,
@@ -891,7 +891,8 @@ def preprocess(
     You can change this by setting the `wcd_url` and `wcd_api_key` in the settings, and pass this Settings object to this function.
 
     Args:
-        collection_names (list[str]): The names of the collections to preprocess.
+        collection_names (str | list[str]): The name(s) of the collections to preprocess.
+            Can supply either a single string for one collection, or a list of strings for multiple collections.
         client_manager (ClientManager): The client manager to use.
             If not provided, a new ClientManager will be created using the environment variables/configured settings.
         min_sample_size (int): The minimum number of objects to sample from the collection to evaluate the statistics/summary. Optional, defaults to 10.

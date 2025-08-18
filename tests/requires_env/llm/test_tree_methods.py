@@ -2,7 +2,7 @@ import pytest
 import elysia
 from elysia.tree.tree import Tree
 from elysia.util.client import ClientManager
-from elysia.preprocess import preprocess
+from elysia.preprocessing import preprocess
 from weaviate.util import generate_uuid5
 import weaviate.classes as wvc
 
