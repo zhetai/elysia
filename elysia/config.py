@@ -747,6 +747,14 @@ DEFAULT_SETTINGS = Settings()
 DEFAULT_SETTINGS.smart_setup()
 
 
+def smart_setup() -> None:
+    settings.smart_setup()
+
+
+def set_from_env() -> None:
+    settings.set_from_env()
+
+
 def reset_settings() -> None:
     settings.base_init()
     settings.smart_setup()

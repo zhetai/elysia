@@ -2,7 +2,8 @@ from elysia.tree.tree import Tree
 from elysia.tree.util import get_saved_trees_weaviate
 from elysia.util.client import ClientManager
 from elysia.config import Settings
-from elysia.preprocess import preprocess
+from elysia.preprocess import preprocess_async
+from elysia.preprocessing.collection import view_preprocessed_collection
 import pytest
 
 from deepeval import evaluate, metrics

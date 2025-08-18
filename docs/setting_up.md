@@ -120,7 +120,7 @@ Additionally, you have:
 
 ### Additional Functions
 
-You can also use [`preprocessed_collection_exists`](Reference/Preprocessor.md#elysia.preprocess.collection.preprocessed_collection_exists), which returns True/False if the collection has been preprocessed (and it can be accessed within the Weaviate cluster):
+You can also use [`preprocessed_collection_exists`](Reference/Preprocessor.md#elysia.preprocessing.collection.preprocessed_collection_exists), which returns True/False if the collection has been preprocessed (and it can be accessed within the Weaviate cluster):
 
 ```python
 from elysia import preprocessed_collection_exists
@@ -128,7 +128,7 @@ preprocessed_collection_exists(collection_name = ...)
 ```
 which returns True/False if the preprocess exists within this Weaviate cluster
 
-You can use [`edit_preprocessed_collection`](Reference/Preprocessor.md#elysia.preprocess.collection.edit_preprocessed_collection) to update the values manually:
+You can use [`edit_preprocessed_collection`](Reference/Preprocessor.md#elysia.preprocessing.collection.edit_preprocessed_collection) to update the values manually:
 ```python
 from elysia import edit_preprocessed_collection
 properties = edit_preprocessed_collection(
@@ -141,7 +141,7 @@ properties = edit_preprocessed_collection(
 ```
 which will change the LLM generated values with manually input values. Any fields not provided will not be updated.
 
-You can use [`delete_preprocessed_collection`](Reference/Preprocessor.md#elysia.preprocess.collection.delete_preprocessed_collection) which will delete the cached preprocessed metadata.
+You can use [`delete_preprocessed_collection`](Reference/Preprocessor.md#elysia.preprocessing.collection.delete_preprocessed_collection) which will delete the cached preprocessed metadata.
 
 ```python
 delete_preprocessed_collection(collection_name = ...) 
