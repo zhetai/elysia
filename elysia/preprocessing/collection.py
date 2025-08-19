@@ -7,7 +7,7 @@ from typing import AsyncGenerator
 from weaviate.classes.aggregate import GroupByAggregate
 from weaviate.classes.query import Metrics, Filter
 from weaviate.collections import CollectionAsync
-from weaviate.classes.config import Configure, Property, DataType
+from weaviate.classes.config import Configure, Property, DataType, Tokenization
 
 from elysia.config import nlp, Settings, load_base_lm, ElysiaKeyManager
 from elysia.config import settings as environment_settings
