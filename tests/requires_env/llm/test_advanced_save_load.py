@@ -93,7 +93,8 @@ async def test_save_load_weaviate():
     create_regular_vectorizer_collection(client_manager, collection_name)
 
     # preprocess
-    preprocess([collection_name], client_manager)
+    async for _ in preprocess_async([collection_name], client_manager, force=True):
+        pass
 
     try:
         settings = Settings.from_smart_setup()
