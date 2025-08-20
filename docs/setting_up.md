@@ -64,7 +64,7 @@ configure(
 )
 ```
 
-On the app side, this is configurable via the `MODEL_API_BASE` parameter in the Settings. Set both of your providers to `ollama`, and your base and complex model to whatever model you are currently hosting, and this should work out-of-the-box.
+On the app side, this is configurable via the 'Api Base URL' parameter in the Settings. Set both of your providers to `ollama`, and your base and complex model to whatever model you are currently hosting, and this should work out-of-the-box.
 
 Warning: Elysia uses a *long context*, quite long context, due to the nature of the collection schemas, environment and more being included in every prompt. So these models will run quite slowly. However, on the backend, you can configure this to be faster by disabling connection to your Weaviate cluster, if applicable, by removing your weaviate api key and url. Also, there is an optional setting
 ```python
