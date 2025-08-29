@@ -1,0 +1,6 @@
+name = "elysia-backend"
+main = "path/to/your/worker.py"
+account_id = "your-cloudflare-account-id"
+workers_dev = true
+route = ""
+zone_id = ""
