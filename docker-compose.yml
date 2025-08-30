@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  elysia-client:
+    build: .
+    container_name: elysia-client
+    environment:
+      # Set your env vars here as needed:
+      # WCD_URL: "https://your-weaviate-url"
+      # WCD_API_KEY: "your-api-key"
+    volumes:
+      - .:/app
+    command: python elysia/util/client.py
+    restart: unless-stopped
