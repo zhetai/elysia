@@ -1,5 +1,5 @@
 name = "elysia-backend"
-main = "elysia/util/client.py"
+main = "elysia/elysia/util/client.py"
 account_id = "8fc9b44b1bdf7609bc06f3f09acaf675"
 workers_dev = true
 route = ""
